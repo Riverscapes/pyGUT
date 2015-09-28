@@ -1,29 +1,71 @@
-# -----------------------------------
-# Set user-defined  input parameters
-# -----------------------------------
-workspace    = r'C:\et_al\Shared\Projects\USA\CHaMP\ResearchProjects\TopographicGUs\wrk_Data\61_ASW00001-SF-F5P3BR\2012\VISIT_935\10_modelRuns\12June2015\Run1'
+# Geomorphic Unit Tool Configuration File
+
+# Last updated: 9/25/2015
+# Created by: Sara Bangen (sara.bangen@gmail.com)
+
+# ---------------------------------------------------------------------
+# User-defined input parameters that must be set before each model
+
+# workspace: 	    Path to where the inputs are stored.  This is same path where output will be written.
+# Site name:		Site name.  Used to name final output.
+# intBFW:           Site integrated bankfull width (m).
+# intWW:			Site integrated wetted width (m).
+# memTh:			Membership threshold for crisp output.
+# bfPoints:		    Bankfull points shapefile name (include file extension; e.g. 'bfPoints.shp')
+# bfPolyShp:	    Bankfull polygon shapefile name (include file extension)
+# bfXS:			    Bankfull cross sections shapefile name (include file extension)
+# wePolyShp:	    Wetted polygon shapefile name (include file extension)
+# champUnits:       Champ channel units shapefile
+# inDet: 		    Detrended DEM fiSUBSTRATECOVER_2013_CBW05583-026031_1646le name (include file extension)
+# inDEM:            DEM file name (include file extension)
+# inWaterD:		    Water depth raster file name (include file extension)
+# champGrainSize:   Champ grain size *.csv.  Must have columns: 'ChannelUnitID', 'ChannelUnitNumber', 'D84'.  Filename must end with '*GrainSizeDistributionResults.csv'. 
+# champSubstrate:	Champ channel unit substrate *.csv.
+# champLW:			Champ channel unit large wood *.csv.
+# ---------------------------------------------------------------------
+
+workspace    = r'C:\et_al\Shared\Projects\USA\CHaMP\ResearchProjects\TopographicGUs\wrk_Data\05_LemhiA\2013\10_modelRuns\23Sep2015\Run2'
+siteName     = 'Lemhi'
+intBFW       = 15.3
+intWW   	 = 14.8
+memTh        = 0.68
 bfPoints     = 'bfPoints.shp'
 bfPolyShp    = 'bfPolygon.shp'
+bfXS         = 'bfXS.shp'
+wePolyShp    = 'wePoly.shp'
+champUnits   = 'channelUnitsClip.shp'
 inDet        = 'detDEM.img'
 inDEM        = 'dem.img'
-wePolyShp    = 'wePoly.shp'
-bfXS         = 'bfXS.shp'
+inWaterD	 = 'waterDepth.img'
+champGrainSize = 'CBW05583-026031_GrainSizeDistributionResults.csv'
+champSubstrate = 'SUBSTRATECOVER_2013_CBW05583-026031_1646.csv'
+champLW	    = 'LARGEWOODYDEBRIS_2013_CBW05583-026031_1646.csv'
 
-siteName     = 'Asotin'
-intBFW       = 8.9        	# site integrated bankfull width (m)
-intWW        = 4.8         	# site integrated wetted width (m)
-fwSlope      = 0.9        	# Focal window size (m) for mean slope calc
-memTh        = 0.5          # Membership threshold for crisp output
-lowBFSlope	 = 8            # lower bankfull slope (in degress) threshold; used in planar
-upBFSlope	 = 11           # upper bankfull slope (in degress) threshold; used in planar 
-lowSlope     = 10           # lower slope (in degress) threshold; used in flooplain, terrace, hillslope
-upSlope      = 15           # upper slope (in degress) threshold; used in flooplain, terrace, hillslope
-lowCMSlope   = 15           # lower channel margin slope (in degress) threshold; used in bank + cutbank
-upCMSlope    = 25           # upper channel margin slope (in degress) threshold; used in bank + cutbank
-lowHADBF     = 1.0          # lower normalized height above detrended bankfull threshold
-upHADBF      = 1.2          # upper normalized height above detrended bankfull threshold
-lowRelief    = 0.8          # lower dem relief (m) threshold
-upRelief     = 1.0          # upper dem relief (m) threshold
-lowBFDist    = 0.1*intBFW   # lower bankfull distance threshold
-upBFDist     = 0.2*intBFW   # upper bankfull distance threshold
-fwRelief     = 0.5*intBFW   # Focal window size for dem relief call
+
+# ---------------------------------------------------------------------
+# Optional input parameters that can be set before a model run.
+
+# lowSlope:  	 Lower slope (in degress) threshold; used in flooplain, terrace, hillslope
+# upSlope:   	 Upper slope (in degress) threshold; used in flooplain, terrace, hillslope
+# lowDMSlope:  	 Lower channel margin slope (in degress) threshold; used in bank + cutbank
+# upCMSlope:   	 Upper channel margin slope (in degress) threshold; used in bank + cutbank
+# lowHADBF:      Lower normalized height above detrended bankfull threshold; used in floodplain + terrace
+# upHADBF:       Upper normalized height above detrended bankfull threshold; used in floodplain + terrace
+# lowRelief:     Lower DEM relief (m) threshold; used in floodplaink, terrace + hillslope
+# upRelief: 	 Upper DEM relief (m) threshold; used in floodplaink, terrace + hillslope
+# lowBFDist:     Lower bankfull distance threshold; used in cutbank + hillslope
+# upBFDist: 	 Upper bankfull distance threshold; used in cutbank + hillslope
+# fwRelief:      Focal window size for dem relief call
+# ---------------------------------------------------------------------
+
+lowSlope     = 10
+upSlope      = 15
+lowCMSlope   = 15
+upCMSlope    = 25
+lowHADBF     = 1.0
+upHADBF      = 1.2
+lowRelief    = 0.8
+upRelief     = 1.0
+lowBFDist    = 0.1*intBFW
+upBFDist     = 0.2*intBFW
+fwRelief     = 0.5*intBFW 
