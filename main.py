@@ -1,6 +1,6 @@
 # Geomorphic Unit Tool Main Model File
 
-# Last updated: 9/25/2015
+# Last updated: 10/14/2015
 # Created by: Sara Bangen (sara.bangen@gmail.com)
 
 # -----------------------------------
@@ -10,7 +10,7 @@ print 'Model is busy running.....'
 
 # Import required modules
 # Check out the required ArcGIS extension licenses
-import arcpy, time, fns_v27, config
+import arcpy, time, fns, config
 from arcpy import env
 from arcpy.sa import *
 arcpy.CheckOutExtension('Spatial')
@@ -32,15 +32,15 @@ arcpy.env.outputCoordinateSystem = desc.SpatialReference
 arcpy.env.cellSize = desc.meanCellWidth
 
 # Call model functions from functions file
-fns_v27.EvidenceRasters(config.inDEM, config.inDet, config.bfPoints,
+fns.EvidenceRasters(config.inDEM, config.inDet, config.bfPoints,
                        config.bfPolyShp, config.wePolyShp, config.intBFW,
                        config.intWW, config.fwRelief)
 
-fns_v27.Tier2()
+fns.Tier2()
 
-fns_v27.guMerge()
+fns.guMerge()
 
-#fns_v27.Tier3()
+fns.Tier3()
 
 # End timer
 # Print model run time.

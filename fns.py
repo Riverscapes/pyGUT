@@ -1,9 +1,8 @@
 # Geomorphic Unit Tool Functions
 
-# Last updated: 9/25/2015
+# Last updated: 10/14/2015
 # Created by: Sara Bangen (sara.bangen@gmail.com)
 
-# Import required packages
 import arcpy, numpy, os, config
 from arcpy import env
 from arcpy.sa import *
@@ -57,7 +56,7 @@ def EvidenceRasters(dem, det, bfPoints, bfPolyShp, wePolyShp, intBFW, intWW, fwR
     # IN CHANNEL SPECFIC EVIDENCE RASTERS
 
     #----------------------------------------
-    # Normalized concavity raster
+    # Normalized fill raster
 
     # Fill dem and get difference
     rFill = Fill(dem)
@@ -69,9 +68,9 @@ def EvidenceRasters(dem, det, bfPoints, bfPolyShp, wePolyShp, intBFW, intWW, fwR
     fMin = float(fMinResult.getOutput(0))
     fMaxResult = arcpy.GetRasterProperties_management(rClip, 'MAXIMUM')
     fMax = float(fMaxResult.getOutput(0))
-    normConcavity = (rClip - fMin) / (fMax - fMin)
+    normFill = (rClip - fMin) / (fMax - fMin)
     # Save output
-    normConcavity.save('normConcavity.img')
+    normFill.save('normFill.img')
 
     #----------------------------------------
     # Normalized inverse fill raster
@@ -178,9 +177,11 @@ def EvidenceRasters(dem, det, bfPoints, bfPolyShp, wePolyShp, intBFW, intWW, fwR
     rawBFD = Minus(bfe, dem)
     BFD = SetNull(rawBFD, rawBFD, '"VALUE" < 0')
     # Normalize values
-    BFDMaxResult = arcpy.GetRasterProperties_management(BFD, 'MAXIMUM')
-    BFDMax = float(BFDMaxResult.getOutput(0))
-    normBFD = (BFD / float(BFDMax))
+    bMinResult = arcpy.GetRasterProperties_management(BFD, 'MINIMUM')
+    bMin = float(bMinResult.getOutput(0))
+    bMaxResult = arcpy.GetRasterProperties_management(BFD, 'MAXIMUM')
+    bMax = float(bMaxResult.getOutput(0))
+    normBFD = (BFD - bMin) / (bMax - bMin)
     # Save output
     BFD.save('bfDepth.img')
     normBFD.save('normBFDepth.img')
@@ -260,7 +261,7 @@ def Tier2():
     Relief = Raster('detRelief.img')
     bfDist = Raster('bfDist.img')
     normBFD = Raster('normBFDepth.img')
-    nc = Raster('normConcavity.img')
+    normF = Raster('normFill.img')
     cm = Raster('chMargin.img')
     normInvF = Raster('normInvFill.img')
     bfeSlope = Raster('bfeSlope_meanBFW.img')
@@ -351,10 +352,10 @@ def Tier2():
     bfD_le = lineEq(0.01, 0.99, mean, (mean + (1 * sd)))
     # Execute Conditional Statements
     bf_fn = Con(bfPoly == 0, 0.01, 0.99)
-    nc_fn = Con(nc > 0, 0.99, 0.01)
+    normF_fn = Con(normF > 0, 0.99, 0.01)
     normBFD_fn = Con(normBFD <= mean, 0.01, Con(normBFD >= (mean + (1 * sd)), 0.99, normBFD * bfD_le[0] + bfD_le[1]))
     # Calculate and save concavity output
-    rawCV = (normBFD_fn * nc_fn * bf_fn)
+    rawCV = (normBFD_fn * normF_fn * bf_fn)
     rCV = Con(IsNull(rawCV), 0.01, rawCV)
     outCV = ExtractByMask(rCV, bfPoly)
     outCV.save('t2Concavity_Mem.img')
@@ -393,11 +394,11 @@ def Tier2():
     mean = float(meanResult.getOutput(0))
     # Calculate transform function line slope + intercept
     normBFD_le = lineEq(0.99, 0.01, mean, mean + (1 * sd))
-    #nc_le = lineEq(0.99, 0.01, 0, 0.05)
+    #normF_le = lineEq(0.99, 0.01, 0, 0.05)
     invF_le = lineEq(0.01, 0.99, 0.0, 0.1)
     # Execute Conditional Statements
     bf_fn = Con(bfPoly == 0, 0.01, 0.99)
-    nc_fn = Con(nc == 0, 0.99, 0.01)
+    normF_fn = Con(normF == 0, 0.99, 0.01)
     invF_fn = Con(normInvF > 0.1, 0.99, Con(normInvF <= 0.0, 0.01, normInvF * invF_le[0] + invF_le[1]))
     normBFD_fn = Con(normBFD <= mean, 0.99, Con(normBFD >= mean + (1 * sd), 0.01, normBFD * normBFD_le[0] + normBFD_le[1]))
     # Calculate inverse tier 2 unit
@@ -405,7 +406,7 @@ def Tier2():
     inv_cm2 = 1.0 - inv_cm
     inv_t2 = inv_cv2 * inv_cm2
     # Calculate and save convexity output
-    rawCX = (bf_fn * invF_fn * normBFD_fn * nc_fn * inv_cm2)
+    rawCX = (bf_fn * invF_fn * normBFD_fn * inv_t2)
     outCX = ExtractByMask(rawCX, bfPoly)
     outCX.save('t2Convexity_Mem.img')
     # Run output through guThresh function
@@ -418,19 +419,19 @@ def Tier2():
     t2cx = Raster('t2Convexity_Mem2.img')
     # Calculate transform function line slope + intercept
     bfeSl_le = lineEq(0.99, 0.01, 1.5, 3.0)
-    nc_le = lineEq(0.99, 0.01, 0.0, 0.1)
+    normF_le = lineEq(0.99, 0.01, 0.0, 0.1)
     invF_le = lineEq(0.99, 0.01, 0.0, 0.1)
     # Execute Conditional Statements
     bf_fn = Con(bfPoly == 0, 0.01, 0.99)
     bfeSl_fn = Con(bfeSlope > 3.0, 0.01, Con(bfeSlope < 1.5, 0.99, bfeSlope * bfeSl_le[0] + bfeSl_le[1]))
-    nc_fn = Con(nc > 0.1, 0.01, Con(nc <= 0.0, 0.99, nc * nc_le[0] + nc_le[1]))
+    normF_fn = Con(normF > 0.1, 0.01, Con(normF <= 0.0, 0.99, normF * normF_le[0] + normF_le[1]))
     invF_fn = Con(normInvF > 0.1, 0.01, Con(normInvF <= 0.0, 0.99, normInvF * invF_le[0] + invF_le[1]))
     # Calculate inverse tier 2 unit
     inv_cx = Con(IsNull(t2cx), 0.01, t2cx)
     inv_cx2 = 1.0 - inv_cx
     inv_t2 = inv_cv2 * inv_cm2 * inv_cx2
     # Calculate and save run/glide output
-    rawPF_01 = (bf_fn * bfeSl_fn * invF_fn * nc_fn * inv_t2)
+    rawPF_01 = (bf_fn * bfeSl_fn * invF_fn * normF_fn * inv_t2)
     rcPF_01 = Con(IsNull(rawPF_01), 0.01, rawPF_01)
     outPF_01 = ExtractByMask(rcPF_01, bfPoly)
     outPF_01.save('t2Planar_runglide_Mem.img')
@@ -446,7 +447,7 @@ def Tier2():
     invF_le_02 = lineEq(0.99, 0.01, 0.0, 0.2)
     # Execute Conditional Statements
     bfeSl_fn_02 = Con(bfeSlope > 3.0, 0.99, Con(bfeSlope < 1.5, 0.01, bfeSlope * bfeSl_le_02[0] + bfeSl_le_02[1]))
-    nc_fn_02 = Con(nc > 0.2, 0.01, Con(nc <= 0.0, 0.99, nc * nc_le_02[0] + nc_le_02[1]))
+    nc_fn_02 = Con(normF > 0.2, 0.01, Con(normF <= 0.0, 0.99, normF * nc_le_02[0] + nc_le_02[1]))
     invF_fn_02 = Con(normInvF > 0.2, 0.01, Con(normInvF <= 0.0, 0.99, normInvF * invF_le_02[0] + invF_le_02[1]))
     # Calculate rapid/cascade output
     rawPF_02 = (bf_fn * bfeSl_fn_02 * inv_t2)
@@ -1027,9 +1028,7 @@ def Tier3():
     arcpy.CopyFeatures_management(units_merge, '{}_Tier3.shp'.format(config.siteName))
     # Delete unnecessary files
     arcpy.Delete_management(units_merge)
-
-    #arcpy.PolygonToRaster_conversion(poly2, 'rasCode', outRas, 'MAXIMUM_AREA', '', 0.1)
- 
+    
 # -----------------------------------------------------------------------
 # Geomorphic Unit Merge Function
 # -----------------------------------------------------------------------

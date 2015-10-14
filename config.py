@@ -1,10 +1,10 @@
 # Geomorphic Unit Tool Configuration File
 
-# Last updated: 9/25/2015
+# Last updated: 10/14/2015
 # Created by: Sara Bangen (sara.bangen@gmail.com)
 
 # ---------------------------------------------------------------------
-# User-defined input parameters that must be set before each model
+# User-defined input parameters that must be set before each model run
 
 # workspace: 	    Path to where the inputs are stored.  This is same path where output will be written.
 # Site name:		Site name.  Used to name final output.
@@ -24,22 +24,23 @@
 # champLW:			Champ channel unit large wood *.csv.
 # ---------------------------------------------------------------------
 
-workspace    = r'C:\et_al\Shared\Projects\USA\CHaMP\ResearchProjects\TopographicGUs\wrk_Data\05_LemhiA\2013\10_modelRuns\23Sep2015\Run2'
-siteName     = 'Lemhi'
-intBFW       = 15.3
-intWW   	 = 14.8
+workspace    = r'C:\et_al\Shared\Projects\USA\CHaMP\ResearchProjects\TopographicGUs\wrk_Data\00_Watershed\TestData_ForPB\validationData\Oct2015\Wenatchee\Output'
+siteName     = 'LowWen'
+intBFW       = 38.8
+intWW   	 = 32.2
 memTh        = 0.68
 bfPoints     = 'bfPoints.shp'
 bfPolyShp    = 'bfPolygon.shp'
 bfXS         = 'bfXS.shp'
 wePolyShp    = 'wePoly.shp'
-champUnits   = 'channelUnitsClip.shp'
 inDet        = 'detDEM.img'
 inDEM        = 'dem.img'
+# Tier 3 (optional):
+champUnits   = 'channelUnitsClip.shp'
 inWaterD	 = 'waterDepth.img'
-champGrainSize = 'CBW05583-026031_GrainSizeDistributionResults.csv'
-champSubstrate = 'SUBSTRATECOVER_2013_CBW05583-026031_1646.csv'
-champLW	    = 'LARGEWOODYDEBRIS_2013_CBW05583-026031_1646.csv'
+champGrainSize = 'LWIN0001-000001_2633_GrainSizeDistributionResults.csv'
+champSubstrate = 'SUBSTRATECOVER_2014_LWIN0001-000001_2633.csv'
+champLW	    = 'LARGEWOODYPIECE_2014_LWIN0001-000001_2633.csv'
 
 
 # ---------------------------------------------------------------------
