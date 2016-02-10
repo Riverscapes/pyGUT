@@ -1,5 +1,10 @@
 # Geomorphic Unit Tool Main Model File
 
+# Import required modules
+# Check out the required ArcGIS extension licenses
+import arcpy, time, fns, config
+from arcpy.sa import *
+
 # Last updated: 10/14/2015
 # Created by: Sara Bangen (sara.bangen@gmail.com)
 
@@ -8,11 +13,8 @@
 
 print 'Model is busy running.....'
 
-# Import required modules
-# Check out the required ArcGIS extension licenses
-import arcpy, time, fns, config
-from arcpy import env
-from arcpy.sa import *
+
+
 arcpy.CheckOutExtension('Spatial')
 arcpy.CheckOutExtension('3D')
 
