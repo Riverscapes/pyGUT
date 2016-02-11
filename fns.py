@@ -193,7 +193,7 @@ def EvidenceRasters(dem, det, bfPoints, bfPolyShp, wePolyShp, intBFW, intWW, fwR
     BFD.save('bfDepth.img')
     normBFD.save('normBFDepth.img')
     # Delete intermediate shapefiles and rasters
-    arcpy.Delete_management('tmp_rawBFD.shp')
+    # arcpy.Delete_management('tmp_rawBFD.shp')
 
     # OUT OF CHANNEL SPECIFIC EVIDENCE RASTERS
 

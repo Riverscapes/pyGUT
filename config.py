@@ -35,12 +35,13 @@ bfXS         = 'bfXS.shp'
 wePolyShp    = 'wePoly.shp'
 inDet        = 'detDEM.tif'
 inDEM        = 'dem.tif'
+
 # Tier 3 (optional):
-champUnits   = 'channelUnitsClip.shp'
-inWaterD	 = 'waterDepth.tif'
-champGrainSize = 'GrainSizeDistributionResults.csv'
-champSubstrate = 'champSubstrate.csv'
-champLW	    = 'champLW.csv'
+champUnits      = 'channelUnitsClip.shp'
+inWaterD	    = 'waterDepth.tif'
+champGrainSize  = 'GrainSizeDistributionResults.csv'
+champSubstrate  = 'champSubstrate.csv'
+champLW	        = 'champLW.csv'
 
 
 # ---------------------------------------------------------------------
