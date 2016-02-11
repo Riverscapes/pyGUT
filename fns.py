@@ -3,9 +3,16 @@
 # Last updated: 10/14/2015
 # Created by: Sara Bangen (sara.bangen@gmail.com)
 
-import arcpy, numpy, os, config
+import arcpy, numpy, os
 from arcpy import env
 from arcpy.sa import *
+
+config = {}
+
+
+def setConfig(newconf):
+    global config
+    config = newconf
 
 # -----------------------------------------------------------------------
 #  Evidence Raster Function
