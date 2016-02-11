@@ -2,7 +2,9 @@
 
 # Import required modules
 # Check out the required ArcGIS extension licenses
-import arcpy, time, fns, config
+import sys
+import arcpy, time, fns, sys, xml, config
+import xml.etree.ElementTree as ET
 from arcpy.sa import *
 
 # Last updated: 10/14/2015
@@ -13,7 +15,11 @@ from arcpy.sa import *
 
 print 'Model is busy running.....'
 
+print 'Loading XML File'
 
+tree = ET.parse(sys.argv[1])
+inputs = tree.getroot().findall('inputs/*')
+config.getConfig(inputs, sys.argv[2])
 
 arcpy.CheckOutExtension('Spatial')
 arcpy.CheckOutExtension('3D')

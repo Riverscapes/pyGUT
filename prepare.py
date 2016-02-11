@@ -1,5 +1,9 @@
 #!/usr/bin/python
-
+# ---------------------------------------------------------------------------------------
+# NOTE: We're abandoning this in favour of doign the work in CHAMP Topo Toolbar (to keep the code mode similar to GUT)
+# so we repurposed config.py instead.
+# I'm leaving this code here because it's full of cool pattern
+# ---------------------------------------------------------------------------------------s
 import sys, os
 import arcpy, config
 
@@ -23,22 +27,8 @@ ProjectedClassList = arcpy.ListFeatureClasses("*", "", datasetList[datasetList.i
 # Retrieve site name (from #1)
 # GET dem.img: Export surve GDB raster called Detrended to IMG file
 # ---------------------------------------------------------------------------------------
-def getDEM():
-    dem = arcpy.Raster(gdb_path + r'\DEM')
-    dem.save(output_path + r'\dem.img')
-
-# GET detDEM.img: Export survey GDB raster called DEM to IMG file
-# ---------------------------------------------------------------------------------------
-def getDetDEM():
-    detrendedDEM = arcpy.Raster(gdb_path + r'\Detrended')
-    detrendedDEM.save(output_path + r'\detDEM.img', )
-
-# GET waterDepth.img: Export survey GDB raster called Water_Depth to IMG file
-# ---------------------------------------------------------------------------------------
-def getWaterDepth():
-    detrendedDEM = arcpy.Raster(gdb_path + r'\Projected\Water_Depth')
-    detrendedDEM.save(output_path + r'\waterDepth.img', )
-
+def yankRaster(path, rastername):
+    arcpy.CopyRaster_management(gdb_path + r'\\' + path, output_path + r'\\' + rastername,"","","","","","32_BIT_FLOAT")
 
 # GET bfPoints.shp: Make a selection in Survey GDB Topo_Points feature class of all features where Description = 'bf'
 #       and then export the selection to shapefile
@@ -53,7 +43,6 @@ def getBFPoints():
 
     #create name to save in-memory layer file to disk
     arcpy.CopyFeatures_management('temp_layer', output_path + r'\bfPoints.shp') #save to disk
-    arcpy.DeleteFeatures_management('temp_layer')
 
 
 # GET bfPolygon.shp: Export survey GDB feature class called "Bankfull" to shapefile.
@@ -61,7 +50,7 @@ def getBFPoints():
 # ---------------------------------------------------------------------------------------
 def getBFPoly():
     #DESCRIPTION is a keyword, to use it in a query it needs special delimeters
-    index = ProjectedClassList.index('BankfullXS')
+    index = ProjectedClassList.index('Bankfull')
     fClass = ProjectedClassList[index]
     count = int(arcpy.GetCount_management(fClass).getOutput(0))
     if (count > 1):
@@ -73,7 +62,6 @@ def getBFPoly():
 
     #create name to save in-memory layer file to disk
     arcpy.CopyFeatures_management('temp_layer', output_path + r'\bfPolygon.shp') #save to disk
-    arcpy.DeleteFeatures_management('temp_layer')
 
 # GET bfXS.shp: Export survey GDB feature class called 'BankfullXS' to shapefile. Delete features where IsValie = 0
 # ---------------------------------------------------------------------------------------
@@ -89,7 +77,6 @@ def getBFXS():
 
     #create name to save in-memory layer file to disk
     arcpy.CopyFeatures_management('temp_layer', output_path + r'\bfXS.shp') #save to disk
-    arcpy.DeleteFeatures_management('temp_layer')
 
 # GET wePoly.shp: Same as bankfull polygon except the source layer is WaterExtent
 # ---------------------------------------------------------------------------------------
@@ -107,7 +94,6 @@ def getWePoly():
 
     #create name to save in-memory layer file to disk
     arcpy.CopyFeatures_management('temp_layer', output_path + r'\wePoly.shp') #save to disk
-    arcpy.DeleteFeatures_management('temp_layer')
 
 # GET channelUnitsClip.shp: Export survey GDB feature class called "Channel_Units" to shapefile
 # ---------------------------------------------------------------------------------------
@@ -120,9 +106,13 @@ def getCHUnits():
 
     #create name to save in-memory layer file to disk
     arcpy.CopyFeatures_management('temp_layer', output_path + r'\channelUnitsClip.shp') #save to disk
-    arcpy.DeleteFeatures_management('temp_layer')
 
 
+def getWaterDepth():
+    dem = arcpy.Raster(gdb_path + r'\DEM')
+    wsedem = arcpy.Raster(gdb_path + r'\WSEDEM')
+    depth = wsedem - dem
+    depth.save(output_path + r'\water_depth.img')
 
 # GET champGrainSize.csv: ???
 # GET champSubstrate.csv: ???
@@ -131,9 +121,10 @@ def getCHUnits():
 
 # EXECUTE Everything in order
 # ---------------------------------------------------------------------------------------
-getDEM()
-getDetDEM()
+yankRaster(r'DEM', 'dem.img')
+yankRaster(r'Detrended', 'detDEM.img')
 getWaterDepth()
+
 getBFPoints()
 getBFPoly()
 getBFXS()
