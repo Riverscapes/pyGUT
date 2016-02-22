@@ -1,52 +1,108 @@
 # Geomorphic Unit Tool Main Model File
 
-# Import required modules
-# Check out the required ArcGIS extension licenses
-import arcpy, time, fns, sys, prepfromXML
-from arcpy.sa import *
-
 # Last updated: 10/14/2015
 # Created by: Sara Bangen (sara.bangen@gmail.com)
 
 # -----------------------------------
-# Start of script
-print "a little xml prep"
-config = prepfromXML.prep(sys.argv)
+
+import sys, argparse, time, fns
+def main():
+    #parse command line options
+    try:
+        parser = argparse.ArgumentParser()
+        parser.add_argument('output_directory',
+                            help = 'directory to store the results of program.',
+                            type = str)
+        parser.add_argument('gdb_path',
+                            help = 'path to the survey gdb.',
+                            type = str)
+        parser.add_argument('site_name',
+                            help = 'site name, this will be used to name the final output.',
+                            type = str)
+        parser.add_argument('--champ_grain_size_results',
+                            help = 'champ grain size distribution results csv',
+                            type = str)
+        parser.add_argument('--champ_substrate',
+                            help = 'champ substrate csv',
+                            type = str)
+        parser.add_argument('--champ_lw',
+                            help = 'champ lw csv',
+                            type = str)
+        args = parser.parse_args()
+        #print 'Model is busy running.....'
 
 
-print 'Model is busy running.....'
 
-arcpy.CheckOutExtension('Spatial')
-arcpy.CheckOutExtension('3D')
+        # Start timer
+        start = time.time()
 
-# Start timer
-start = time.time()
+        # Call model functions from functions file
 
-# Set workspace
-# Set environment settings to overwrite output
-arcpy.env.workspace = config.workspace
-arcpy.env.overwriteOutput = True
+##        #TODO: fns needs to be created as a class
+##        fns.setConfig(config)
+##        fns.EvidenceRasters(config.inDEM, config.inDet, config.bfPoints,
+##                               config.bfPolyShp, config.wePolyShp, config.intBFW,
+##                               config.intWW, config.fwRelief)
+##
+##        fns.Tier2()
+##
+##        fns.guMerge()
+##
+##        fns.Tier3()
 
-# Set raster and environment parameters
-det = Raster(config.inDet)
-desc = arcpy.Describe(det)
-arcpy.env.extent = desc.Extent
-arcpy.env.outputCoordinateSystem = desc.SpatialReference
-arcpy.env.cellSize = desc.meanCellWidth
+        # End timer
+        # Print model run time.
+        print args.gdb_path, args.site_name
+        model = fns.interface(args.output_directory, args.gdb_path, args.site_name, args.champ_grain_size_results, args.champ_substrate, args.champ_lw)
+        model.EvidenceRasters(model.inDEM.path,
+                            model.inDet.path,
+                            model.bfPoints.path,
+                            model.bfPolyShp.path,
+                            model.wePolyShp.path,
+                            model.intBFW,
+                            model.intWW,
+                            model.fwRelief)
+        #TODO: right now these are hard coded but eventually should be added as arguments to argsparse
+        low_slope = 10
+        up_slope = 15
+        low_cm_slope = 15
+        up_cm_slope = 25
+        low_hadbf = 1.0
+        up_hadbf = 1.2
+        low_relief = 0.8
+        up_relief = 1.0
+        low_bf_distance = 0.1 * model.intBFW
+        up_bf_distance = 0.2 * model.intBFW
+        fw_relief = 0.5 * model.intBFW 
+        
+        model.Tier2(low_slope,
+                    up_slope,
+                    low_cm_slope,
+                    up_cm_slope,
+                    low_hadbf,
+                    up_hadbf,
+                    low_relief,
+                    up_relief,
+                    low_bf_distance,
+                    up_bf_distance)
+        
+        model.guMerge()
+        print args.champ_grain_size_results
+        if args.champ_grain_size_results != None and args.champ_substrate != None and args.champ_lw != None:
+            model.Tier3()
+                            
+        print 'Model run completed.'
+        print 'It took', time.time()-start, 'seconds.'
 
-# Call model functions from functions file
-fns.setConfig(config)
-fns.EvidenceRasters(config.inDEM, config.inDet, config.bfPoints,
-                       config.bfPolyShp, config.wePolyShp, config.intBFW,
-                       config.intWW, config.fwRelief)
+    except:
+        print 'Unxexpected error: {0}'.format(sys.exc_info()[0])
+        raise
+        sys.exit(0)        
 
-fns.Tier2()
+if __name__ == '__main__':
+    main()
 
-fns.guMerge()
 
-fns.Tier3()
 
-# End timer
-# Print model run time.
-print 'Model run completed.'
-print 'It took', time.time()-start, 'seconds.'
+
+
