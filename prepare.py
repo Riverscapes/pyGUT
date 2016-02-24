@@ -34,6 +34,7 @@ def yankRaster(path, rastername):
 #       and then export the selection to shapefile
 # ---------------------------------------------------------------------------------------
 def getBFPoints():
+    print "Getting the bankfull points raster..."
     #DESCRIPTION is a keyword, to use it in a query it needs special delimeters
     field_with_delimeters = arcpy.AddFieldDelimiters(ProjectedClassList[ProjectedClassList.index('Topo_Points')], "DESCRIPTION")
     bfQuery = field_with_delimeters + "='bf'" #create query string
@@ -43,12 +44,13 @@ def getBFPoints():
 
     #create name to save in-memory layer file to disk
     arcpy.CopyFeatures_management('temp_layer', output_path + r'\bfPoints.shp') #save to disk
-
+    print "  Done"
 
 # GET bfPolygon.shp: Export survey GDB feature class called "Bankfull" to shapefile.
 #       If shape file contains more than one feature, delete all but where ExtentType = 'Channel'
 # ---------------------------------------------------------------------------------------
 def getBFPoly():
+    print "Getting the bankfull polygon..."    
     #DESCRIPTION is a keyword, to use it in a query it needs special delimeters
     index = ProjectedClassList.index('Bankfull')
     fClass = ProjectedClassList[index]
@@ -62,10 +64,12 @@ def getBFPoly():
 
     #create name to save in-memory layer file to disk
     arcpy.CopyFeatures_management('temp_layer', output_path + r'\bfPolygon.shp') #save to disk
+    print "  Done"
 
 # GET bfXS.shp: Export survey GDB feature class called 'BankfullXS' to shapefile. Delete features where IsValie = 0
 # ---------------------------------------------------------------------------------------
 def getBFXS():
+    print "Getting the BankfullXS polygon..."    
     #DESCRIPTION is a keyword, to use it in a query it needs special delimeters
     index = ProjectedClassList.index('BankfullXS')
     fClass = ProjectedClassList[index]
@@ -77,10 +81,12 @@ def getBFXS():
 
     #create name to save in-memory layer file to disk
     arcpy.CopyFeatures_management('temp_layer', output_path + r'\bfXS.shp') #save to disk
+    print "  Done"
 
 # GET wePoly.shp: Same as bankfull polygon except the source layer is WaterExtent
 # ---------------------------------------------------------------------------------------
 def getWePoly():
+    print "Getting the wePoly.shp polygon..."    
     #DESCRIPTION is a keyword, to use it in a query it needs special delimeters
     index = ProjectedClassList.index('WaterExtent')
     fClass = ProjectedClassList[index]
@@ -94,10 +100,12 @@ def getWePoly():
 
     #create name to save in-memory layer file to disk
     arcpy.CopyFeatures_management('temp_layer', output_path + r'\wePoly.shp') #save to disk
+    print "  Done"
 
 # GET channelUnitsClip.shp: Export survey GDB feature class called "Channel_Units" to shapefile
 # ---------------------------------------------------------------------------------------
 def getCHUnits():
+    print "Getting the Channel Units Polygon..." 
     #DESCRIPTION is a keyword, to use it in a query it needs special delimeters
     index = ProjectedClassList.index('Channel_Units')
     fClass = ProjectedClassList[index]
@@ -106,19 +114,15 @@ def getCHUnits():
 
     #create name to save in-memory layer file to disk
     arcpy.CopyFeatures_management('temp_layer', output_path + r'\channelUnitsClip.shp') #save to disk
-
+    print "  Done"
 
 def getWaterDepth():
+    print "Getting the Channel Units Polygon..." 
     dem = arcpy.Raster(gdb_path + r'\DEM')
     wsedem = arcpy.Raster(gdb_path + r'\WSEDEM')
     depth = wsedem - dem
     depth.save(output_path + r'\water_depth.img')
-
-# GET champGrainSize.csv: ???
-# GET champSubstrate.csv: ???
-# get champLW.csv: ???
-
-#
+    print "  Done"
 
 
 # EXECUTE Everything in order

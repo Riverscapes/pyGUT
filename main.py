@@ -29,7 +29,7 @@ def main():
                             help = 'champ lw csv',
                             type = str)
         args = parser.parse_args()
-        #print 'Model is busy running.....'
+        print 'Preparing to Run Gut.....'
 
 
 
@@ -52,7 +52,7 @@ def main():
 
         # End timer
         # Print model run time.
-        print args.gdb_path, args.site_name
+        print "GDB and Site Name: " + args.gdb_path, args.site_name
         model = fns.interface(args.output_directory, args.gdb_path, args.site_name, args.champ_grain_size_results, args.champ_substrate, args.champ_lw)
         model.EvidenceRasters(model.inDEM.path,
                             model.inDet.path,
@@ -62,6 +62,7 @@ def main():
                             model.intBFW,
                             model.intWW,
                             model.fwRelief)
+
         #TODO: right now these are hard coded but eventually should be added as arguments to argsparse
         low_slope = 10
         up_slope = 15
@@ -87,7 +88,7 @@ def main():
                     up_bf_distance)
         
         model.guMerge()
-        print args.champ_grain_size_results
+        print "Grain Size Results: " + args.champ_grain_size_results
         if args.champ_grain_size_results != None and args.champ_substrate != None and args.champ_lw != None:
             model.Tier3()
                             

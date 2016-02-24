@@ -93,12 +93,20 @@ class interface(object):
                                           self.output_directory,
                                           'wePoly'), 'esri')
         #TODO: it appears some gdbs have CenterLine while others have Centerline
-        self.weCenterline = fns_input(subset_shapefile(self.projected_feature_class_list,
-                                             'Centerline',
-                                             'Channel',
-                                             'Main',
-                                             self.output_directory,
-                                             'weCenterline'), 'esri')
+        try:
+            self.weCenterline = fns_input(subset_shapefile(self.projected_feature_class_list,
+                                                 'Centerline',
+                                                 'Channel',
+                                                 'Main',
+                                                 self.output_directory,
+                                                 'weCenterline'), 'esri')
+        except:
+            self.weCenterline = fns_input(subset_shapefile(self.projected_feature_class_list,
+                                                 'CenterLine',
+                                                 'Channel',
+                                                 'Main',
+                                                 self.output_directory,
+                                                 'weCenterline'), 'esri')
         self.champUnits = fns_input(copy_feature_class(self.projected_feature_class_list[self.projected_feature_class_list.index('Channel_Units')],
                                              None,
                                              self.output_directory,
