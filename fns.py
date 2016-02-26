@@ -3,7 +3,7 @@
 # Last updated: 10/14/2015
 # Created by: Sara Bangen (sara.bangen@gmail.com)
 
-import arcpy, numpy, os
+import arcpy, numpy, os, sys
 from arcpy import env
 from arcpy.sa import *
 
@@ -23,10 +23,6 @@ if arcpy.CheckExtension('Spatial') == 'Available':
 else:
     arcpy.AddMessage('\n3D Spatial extension not available.')
     sys.exit()
-
-config = {}
-
-
 
 class interface(object):
     """Model run
@@ -51,14 +47,14 @@ class interface(object):
     champSubstrate: Champ channel unit substrate *.csv.
     champLW: Champ channel unit large wood *.csv.
     """
-    def __init__(self, output_directory, gdb_path, site_name, grain_size_distribution_csv_path, substrate_csv_path, lw_csv_path):
-        self.output_directory = output_directory
-        self.gdb_path = gdb_path
-        self.site_name = site_name
+    def __init__(self, config):
+        self.output_directory = config.output_directory
+        self.gdb_path = config.gdb_path
+        self.site_name = config.site_name
         ##TODO: validation
         
         ##set arcpy environment to gdb to properly get feature classes
-        arcpy.env.workspace = gdb_path
+        arcpy.env.workspace = config.gdb_path
         arcpy.env.overwriteOutput = True
 
         self.projected_feature_class_list = self.get_feature_class_list('Projected')
@@ -114,19 +110,19 @@ class interface(object):
         self.inDet = fns_input(os.path.join(self.gdb_path, 'Detrended'), 'esri')
         self.inDEM = fns_input(os.path.join(self.gdb_path, 'DEM'), 'esri')
         self.inWaterD = fns_input(os.path.join(self.gdb_path, 'Water_Depth'), 'esri')
-        if grain_size_distribution_csv_path != None:
-            self.champGrainSize = fns_input(grain_size_distribution_csv_path, 'csv')            
-        if substrate_csv_path != None:
-            self.champSubstrate = fns_input(substrate_csv_path, 'csv')
-        if lw_csv_path != None:
-            self.champLW = fns_input(lw_csv_path, 'csv')
+        if config.grain_size_distribution_csv_path != None:
+            self.champGrainSize = fns_input(config.grain_size_distribution_csv_path, 'csv')
+        if config.substrate_csv_path != None:
+            self.champSubstrate = fns_input(config.substrate_csv_path, 'csv')
+        if config.lw_csv_path != None:
+            self.champLW = fns_input(config.lw_csv_path, 'csv')
         #numerical values
         self.intBFW = self.get_integrated_width(self.bfPolyShp.path, self.bfCenterline.path, 'Channel', 'Main')
         self.intWW = self.get_integrated_width(self.wePolyShp.path, self.weCenterline.path)
         self.memTh = 0.68
         self.fwRelief = 0.5 * self.intBFW
         ## Set arcpy environment to output_directory and set environment variables from raster
-        arcpy.env.workspace = output_directory
+        arcpy.env.workspace = config.output_directory
         desc = arcpy.Describe(self.inDet.path)
         arcpy.env.extent = desc.Extent
         arcpy.env.outputCoordinateSystem = desc.SpatialReference
@@ -199,7 +195,18 @@ class interface(object):
                 polyline_length += row[0]
         return polyline_length
 
-    def EvidenceRasters(self, dem, det, bfPoints, bfPolyShp, wePolyShp, intBFW, intWW, fwRelief):
+
+
+    # -----------------------------------------------------------------------
+    # Create a folder in the right place
+    #
+    # -----------------------------------------------------------------------
+    def mkdir(self, folder):
+        fullPath = os.path.join(self.output_directory, folder)
+        if not os.path.exists(fullPath):
+            os.makedirs(fullPath)
+
+    def EvidenceRasters(self):
         """
         # -----------------------------------------------------------------------
         #  Evidence Raster Function
@@ -216,18 +223,19 @@ class interface(object):
         # -----------------------------------------------------------------------
         """
         # GENERAL EVIDENCE RASTERS
+        funcDir = "prep"
+        self.mkdir(funcDir)
 
         #----------------------------------------
         # Bankfull raster
-
-        tmp_bfPoly = 'tmp_bfPoly.img'
+        tmp_bfPoly = os.path.join(funcDir, 'tmp_bfPoly.img')
         # Convert bankfulll polygon to raster
         #TODO: the value of 'FID' is shapefile specific field
-        arcpy.PolygonToRaster_conversion(bfPolyShp, 'FID', tmp_bfPoly, 'CELL_CENTER')
+        arcpy.PolygonToRaster_conversion(self.bfPolyShp.path, 'FID', tmp_bfPoly, 'CELL_CENTER')
         # Set cells inside/outside bankfull polygon to 1/0
         outCon = Con(IsNull(tmp_bfPoly), 0, 1)
         # Clip to detrended DEM
-        bfPoly = ExtractByMask(outCon, det)
+        bfPoly = ExtractByMask(outCon, self.inDet.path)
         # Save output
         bfPoly.save('bfPoly.img')
         arcpy.Delete_management('tmp_bfPoly.img')
@@ -236,12 +244,12 @@ class interface(object):
         # Mean slope raster
 
         # Calculate detrended slope raster
-        detSlope = Slope(det, 'DEGREE')
+        detSlope = Slope(self.det, 'DEGREE')
         # Calculate mean slope over neighborhood window
-        fwSlope = round(intBFW * 0.1, 1)
+        fwSlope = round(self.intBFW.path * 0.1, 1)
         neighborhood = NbrRectangle(fwSlope, fwSlope, 'MAP')
         meanSlope = FocalStatistics(detSlope, neighborhood, 'MEAN', 'DATA')
-        outMeanSlope = ExtractByMask(meanSlope, det)
+        outMeanSlope = ExtractByMask(meanSlope, self.inDet.path)
         # Save output
         detSlope.save('detSlope.img')
         outMeanSlope.save('meanSlope.img')
@@ -252,10 +260,10 @@ class interface(object):
         # Normalized fill raster
 
         # Fill dem and get difference
-        rFill = Fill(dem)
-        rDiff = (rFill - dem)
+        rFill = Fill(self.inDEM.path)
+        rDiff = (rFill - self.inDEM.path)
         # Clip to bankfull
-        rClip = ExtractByMask(rDiff, bfPolyShp)
+        rClip = ExtractByMask(rDiff, self.bfPolyShp.path)
         # Normalize values
         fMinResult = arcpy.GetRasterProperties_management(rClip, 'MINIMUM')
         fMin = float(fMinResult.getOutput(0))
@@ -269,13 +277,13 @@ class interface(object):
         # Normalized inverse fill raster
 
         # Fill detrended DEM and get difference
-        rFill = Fill(det)
-        rDiff = rFill - det
+        rFill = Fill(self.inDet.path)
+        rDiff = rFill - self.inDet.path
         # Clip to bankfull
-        rClip = ExtractByMask(rDiff, bfPolyShp)
+        rClip = ExtractByMask(rDiff, self.bfPolyShp.path)
         # Set cells that were filled to NA and cell that weren't to 1
         # Multiply by detrended DEM to get Z values ('convexity height')
-        rNull = SetNull(rClip, 1, '"VALUE" > 0') * det
+        rNull = SetNull(rClip, 1, '"VALUE" > 0') * self.inDet.path
         # Normalize Z values
         zMinResult = arcpy.GetRasterProperties_management(rNull, 'MINIMUM')
         zMin = float(zMinResult.getOutput(0))   
@@ -284,7 +292,7 @@ class interface(object):
         rNorm = (rNull - zMin) / (zMax - zMin)
         # Set all other values to 0 and clip to bf
         rCon = Con(IsNull(rNorm), 0, rNorm)
-        invFill = ExtractByMask(rCon, bfPolyShp)
+        invFill = ExtractByMask(rCon, self.bfPolyShp.path)
         # Save output
         invFill.save('normInvFill.img')
 
@@ -293,17 +301,17 @@ class interface(object):
 
         # Remove any wePoly parts < 5% of total area
         wePolyElim = 'wePolyElim.shp'
-        arcpy.EliminatePolygonPart_management(wePolyShp, wePolyElim, 'PERCENT', '', 5, 'ANY')                     
+        arcpy.EliminatePolygonPart_management(self.wePolyShp.path, wePolyElim, 'PERCENT', '', 5, 'ANY')
         # Erase wePolyelim from bankfull polygon
         polyErase = 'polyErase.shp'
-        arcpy.Erase_analysis(bfPolyShp, wePolyElim, polyErase, '')
+        arcpy.Erase_analysis(self.bfPolyShp.path, wePolyElim, polyErase, '')
         # Buffer the output by 10% of the integrated wetted width
         polyBuffer = 'polyBuffer.shp'
-        bufferDist = 0.1 * intWW
+        bufferDist = 0.1 * self.intWW.path
         arcpy.Buffer_analysis(polyErase, polyBuffer, bufferDist, 'FULL')
         # Clip the output to the bankull polygon
         polyClip = 'polyClip.shp'
-        arcpy.Clip_analysis(polyBuffer, bfPolyShp, polyClip)
+        arcpy.Clip_analysis(polyBuffer, self.bfPolyShp.path, polyClip)
         # Convert the output to a raster
         arcpy.PolygonToRaster_conversion(polyClip, 'FID', 'outRas.img', 'CELL_CENTER', 'NONE', '0.1')                                
         # Set all cells inside/outside the bankfull ratser to 1/0 
@@ -323,12 +331,12 @@ class interface(object):
         # Convert bankfull polygon to points
         bfLine = 'tmp_bfLine.shp'
         bfPts = 'tmp_bfPts.shp'
-        arcpy.FeatureToLine_management(bfPolyShp, bfLine)
+        arcpy.FeatureToLine_management(self.bfPolyShp.path, bfLine)
         arcpy.FeatureVerticesToPoints_management(bfLine, bfPts, 'ALL')
         # Extract dem Z value to bankfull polygon points
         arcpy.CopyFeatures_management(bfPts, 'tmp_bfPtsZ.shp')
         bfPtsZ = 'tmp_bfPtsZ.shp'
-        ExtractMultiValuesToPoints(bfPtsZ, [[dem, 'demZ']], 'NONE')
+        ExtractMultiValuesToPoints(bfPtsZ, [[self.inDEM.path, 'demZ']], 'NONE')
         # Remove points where demZ = -9999 (so, < 0) and where points
         # intersect wePoly (this is to remove points at DS and US extent of reach)
         with arcpy.da.UpdateCursor(bfPtsZ, 'demZ') as cursor:
@@ -336,23 +344,23 @@ class interface(object):
                 if row[0] <= 0.0:
                     cursor.deleteRow()
         arcpy.MakeFeatureLayer_management(bfPtsZ, 'tmp_bfPtsZ_lyr')
-        arcpy.SelectLayerByLocation_management('tmp_bfPtsZ_lyr', 'WITHIN_A_DISTANCE', wePolyShp, '0.02 Meters')
+        arcpy.SelectLayerByLocation_management('tmp_bfPtsZ_lyr', 'WITHIN_A_DISTANCE', self.wePolyShp.path, '0.02 Meters')
         if int(arcpy.GetCount_management('tmp_bfPtsZ_lyr').getOutput(0)) > 0:
             arcpy.DeleteFeatures_management('tmp_bfPtsZ_lyr')
         # Create bankfull elevation tin and raster
         bfetin = 'tmp_bfetin'
         bfe = 'bfe.img'
-        desc = arcpy.Describe(dem)
+        desc = arcpy.Describe(self.inDEM.path)
         sr = desc.spatialReference
-        arcpy.CreateTin_3d(bfetin, sr, [[bfPtsZ, 'demZ', 'masspoints'], [bfPolyShp, '<None>', 'softclip']])
+        arcpy.CreateTin_3d(bfetin, sr, [[bfPtsZ, 'demZ', 'masspoints'], [self.bfPolyShp.path, '<None>', 'softclip']])
         arcpy.TinRaster_3d(bfetin, bfe, 'FLOAT', 'NATURAL_NEIGHBORS', 'CELLSIZE 0.1')
         # Create bfe slope raster
         bfSlope = Slope(bfe, 'DEGREE')
         # Calculate mean bfe slope over bfw neighborhood
-        neighborhood = NbrRectangle(intBFW, intBFW, 'MAP')
+        neighborhood = NbrRectangle(self.intBFW.path, self.intBFW.path, 'MAP')
         slope_focal = FocalStatistics(bfSlope, neighborhood, 'MEAN')
         # Clip to bankfull polygon
-        meanBFSlope = ExtractByMask(slope_focal, bfPolyShp)
+        meanBFSlope = ExtractByMask(slope_focal, self.bfPolyShp.path)
         # Save output
         meanBFSlope.save('bfeSlope_meanBFW.img')
         # Delete intermediate shapefiles and rasters
@@ -367,7 +375,7 @@ class interface(object):
 
         # Subtract dem from bankfull surface dem
         rawBFD = 'tmp_rawBFD.img'
-        rawBFD = Minus(bfe, dem)
+        rawBFD = Minus(bfe, self.inDEM.path)
         BFD = SetNull(rawBFD, rawBFD, '"VALUE" < 0')
         # Normalize values
         bMinResult = arcpy.GetRasterProperties_management(BFD, 'MINIMUM')
@@ -387,9 +395,9 @@ class interface(object):
         # Normalized height above detrended bankfull Z raster
 
         # Extract detDEM z values to bfPoints
-        arcpy.CopyFeatures_management(bfPoints, 'tmp_bfPoints.shp')
+        arcpy.CopyFeatures_management(self.bfPoints.path, 'tmp_bfPoints.shp')
         tmpPts = 'tmp_bfPoints.shp'
-        ExtractMultiValuesToPoints(tmpPts, [[det, 'detZ']], 'NONE')
+        ExtractMultiValuesToPoints(tmpPts, [[self.inDET.path, 'detZ']], 'NONE')
         # Delete any points where 'detZ' values is NoData
         # Note: in shapefile NoData is -9999, but for some
         # reason when imported here, it is changed to '0.0'
@@ -405,7 +413,7 @@ class interface(object):
         zMean = numpy.mean(zList)
         # Calculate height above detrended DEM (hadBF) raster
         # as det Z - mean Z
-        HADBF = Minus(det, zMean)
+        HADBF = Minus(self.inDet.path, zMean)
         # Normalize hadBF by maximum bankfull depth
         maxResult = arcpy.GetRasterProperties_management(BFD, 'MAXIMUM')
         max = float(maxResult.getOutput(0))
@@ -420,9 +428,9 @@ class interface(object):
         # Distance from bankfull raster
 
         # Calculate euclidean distance from bankfull polygon
-        rawDist = EucDistance(bfPolyShp)
+        rawDist = EucDistance(self.bfPolyShp.path)
         # Clip to detrended DEM
-        outDist = ExtractByMask(rawDist, det)
+        outDist = ExtractByMask(rawDist, self.inDet.path)
         # Save output
         outDist.save('bfDist.img')
 
@@ -430,9 +438,9 @@ class interface(object):
         # Detrended DEM relief raster
 
         # Set neighborhood window
-        neighborhood = NbrRectangle(fwRelief, fwRelief, 'MAP')
+        neighborhood = NbrRectangle(self.fwRelief.path, self.fwRelief.path, 'MAP')
         # Clip detrended DEM area outside bankfull
-        tmp_det = SetNull(bfPoly, det, '"VALUE" = 1')
+        tmp_det = SetNull(bfPoly, self.inDet.path, '"VALUE" = 1')
         # Calculate relief as Z range in neighborhood
         Relief = FocalStatistics(tmp_det, neighborhood, 'RANGE', 'DATA')
         # Clip to area outside bankfull 

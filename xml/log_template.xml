@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gut>
+  <results></results>
+  <dateTime></dateTime>
+  <meta_data></meta_data>
+  <log>
+    <message method="Tier2" severity="Error">The Message Here</message>
+  </log>
+</gut>

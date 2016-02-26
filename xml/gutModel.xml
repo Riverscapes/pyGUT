@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gut>
+    <config>
+        <version>1.0.0</version>
+    </config>
+    <tier1types>
+        <tier1>
+            <name>Out of Channel</name>
+            <machine>outchan</machine>
+            <tier2types>
+                <tier2>
+                    <name>Terrace</name>
+                    <machine>terrace</machine>
+                    <color>#448970</color>
+                </tier2>
+                <tier2>
+                    <name>Active Floodplain</name>
+                    <machine>ActFldPlain</machine>
+                    <color>#B2DF8A</color>
+                </tier2>
+                <tier2>
+                    <name>Hillslope/Fan</name>
+                    <machine>HillSUF</machine>
+                    <color>#895A44</color>
+                </tier2>
+            </tier2types>
+        </tier1>
+        <tier1>
+            <name>In Channel</name>
+            <machine>inchan</machine>
+            <tier2types>
+                <tier2>
+                    <name>Concavity</name>
+                    <machine>Concavity</machine>
+                    <color>#2080B4</color>
+                </tier2>
+                <tier2>
+                    <name>Convexity</name>
+                    <machine>Convexity</machine>
+                    <color>#FFAA00</color>
+                </tier2>
+                <tier2>
+                    <name>Planar-RunGlide</name>
+                    <machine>PlRunGlide</machine>
+                    <color>#F5F57A</color>
+                </tier2>
+                <tier2>
+                    <name>Planar-RapidCascade</name>
+                    <machine>PlRapidCascade</machine>
+                    <color>#E6E600</color>
+                </tier2>
+                <tier2>
+                    <name>Transition</name>
+                    <machine>trans</machine>
+                    <color>#E1E1E1</color>
+                </tier2>
+            </tier2types>
+        </tier1>
+        <tier1>
+            <name>Channel Interface</name>
+            <machine>chnint</machine>
+            <tier2types>
+                <tier2>
+                    <name>Bank</name>
+                    <machine>CH_Margin</machine>
+                    <color>#000000</color>
+                </tier2>
+                <tier2>
+                    <name>Cutbank</name>
+                    <machine>Cutbank</machine>
+                    <color>#E60000</color>
+                </tier2>
+            </tier2types>
+        </tier1>
+    </tier1types>
+</gut>
