@@ -3,9 +3,12 @@
 # Last updated: 10/14/2015
 # Created by: Sara Bangen (sara.bangen@gmail.com)
 
-import arcpy, numpy, os, sys
+import arcpy, numpy, os, sys, gutlog
 from arcpy import env
 from arcpy.sa import *
+
+L_THRESH = 0.01
+H_THRESH = 0.99
 
 #Check to if 3D analyst extension is available
 if arcpy.CheckExtension('3D') == 'Available':
@@ -48,81 +51,122 @@ class interface(object):
     champLW: Champ channel unit large wood *.csv.
     """
     def __init__(self, config):
-        self.output_directory = config.output_directory
-        self.gdb_path = config.gdb_path
-        self.site_name = config.site_name
+        self.keep_temp_files = False
+        if "keep_temp_files" in config:
+            self.keep_temp_files = True
+        self.output_directory = config['output_directory']
+        input_directory = os.path.join(self.output_directory, "inputs")
+        self.config = config
+        self.mkdir(input_directory)
+        self.gdb_path = config['gdb_path']
+        self.site_name = config['site_name']
         ##TODO: validation
-        
-        ##set arcpy environment to gdb to properly get feature classes
-        arcpy.env.workspace = config.gdb_path
-        arcpy.env.overwriteOutput = True
+        logger = gutlog.Logger(self.output_directory, "inputs.xml", config)
+        logger.setMethod("inputs")
+        logger.log("Beginning Initialization and Extraction of inputs")
 
+        ##set arcpy environment to gdb to properly get feature classes
+        arcpy.env.workspace = config['gdb_path']
+        arcpy.env.overwriteOutput = True
+        logger.log("Extracting the `bfPoints.shp` from the GDB")
         self.projected_feature_class_list = self.get_feature_class_list('Projected')
         self.bfPoints = fns_input(subset_shapefile(self.projected_feature_class_list,
                                          'Topo_Points',
                                          'DESCRIPTION',
                                          'bf',
-                                         self.output_directory,
+                                         input_directory,
                                          'bfPoints'), 'esri')
+        logger.log("Extracting the `bfPolygon.shp` from the GDB")
         self.bfPolyShp = fns_input(subset_shapefile(self.projected_feature_class_list,
                                           'Bankfull',
                                           'ExtentType',
                                           'Channel',
-                                          self.output_directory,
+                                          input_directory,
                                           'bfPolygon'), 'esri')
+        logger.log("Extracting the `bfXS.shp` from the GDB")
         self.bfXS = fns_input(subset_shapefile(self.projected_feature_class_list,
                                      'BankfullXS',
                                      'IsValid',
                                      '1',
-                                     self.output_directory,
+                                     input_directory,
                                      'bfXS'), 'esri')
+        logger.log("Extracting the `bfCenterline.shp` from the GDB")
         self.bfCenterline = fns_input(subset_shapefile(self.projected_feature_class_list,
                                      'BankfullCL',
                                      'Channel',
                                      'Main',
-                                     self.output_directory,
+                                     input_directory,
                                      'bfCenterline'), 'esri')
+        logger.log("Extracting the `wePoly.shp` from the GDB")
         self.wePolyShp = fns_input(subset_shapefile(self.projected_feature_class_list,
                                           'WaterExtent',
                                           'ExtentType',
                                           'Channel',
-                                          self.output_directory,
+                                          input_directory,
                                           'wePoly'), 'esri')
         #TODO: it appears some gdbs have CenterLine while others have Centerline
         try:
+            logger.log("Extracting the `weCenterline.shp` from the GDB")
             self.weCenterline = fns_input(subset_shapefile(self.projected_feature_class_list,
                                                  'Centerline',
                                                  'Channel',
                                                  'Main',
-                                                 self.output_directory,
+                                                 input_directory,
                                                  'weCenterline'), 'esri')
         except:
+            logger.log("WARNING: \"Center(l)ine\" does not exist. Trying \"Center(L)ine\"", "warn")
             self.weCenterline = fns_input(subset_shapefile(self.projected_feature_class_list,
                                                  'CenterLine',
                                                  'Channel',
                                                  'Main',
-                                                 self.output_directory,
+                                                 input_directory,
                                                  'weCenterline'), 'esri')
+        logger.log("Extracting the `channelUnitsClip.shp` from the GDB")   
         self.champUnits = fns_input(copy_feature_class(self.projected_feature_class_list[self.projected_feature_class_list.index('Channel_Units')],
                                              None,
-                                             self.output_directory,
+                                             input_directory,
                                              'channelUnitsClip'), 'esri')
+
+        logger.log("Extracting the `Detrended` raster from the GDB") 
         self.inDet = fns_input(os.path.join(self.gdb_path, 'Detrended'), 'esri')
+        logger.log("Extracting the `DEM` raster from the GDB") 
         self.inDEM = fns_input(os.path.join(self.gdb_path, 'DEM'), 'esri')
+        logger.log("Extracting the `Water_Depth` raster from the GDB") 
         self.inWaterD = fns_input(os.path.join(self.gdb_path, 'Water_Depth'), 'esri')
-        if config.grain_size_distribution_csv_path != None:
-            self.champGrainSize = fns_input(config.grain_size_distribution_csv_path, 'csv')
-        if config.substrate_csv_path != None:
-            self.champSubstrate = fns_input(config.substrate_csv_path, 'csv')
-        if config.lw_csv_path != None:
-            self.champLW = fns_input(config.lw_csv_path, 'csv')
+
+        if 'grain_size_distribution_csv_path' in config:
+            logger.log("'grain_size_distribution_csv_path' specified. Testing path to CSV") 
+            self.champGrainSize = fns_input(config['grain_size_distribution_csv_path'], 'csv')
+        if 'substrate_csv_path' in config:
+            logger.log("'substrate_csv_path' specified. Testing path to CSV") 
+            self.champSubstrate = fns_input(config['substrate_csv_path'], 'csv')
+        if 'lw_csv_path' in config:
+            logger.log("'lw_csv_path' specified. Testing path to CSV") 
+            self.champLW = fns_input(config['lw_csv_path'], 'csv')
+
         #numerical values
+        logger.log("Calculating numerical values like intBFW, intWW, memTh and fwRelief") 
         self.intBFW = self.get_integrated_width(self.bfPolyShp.path, self.bfCenterline.path, 'Channel', 'Main')
         self.intWW = self.get_integrated_width(self.wePolyShp.path, self.weCenterline.path)
         self.memTh = 0.68
         self.fwRelief = 0.5 * self.intBFW
+
+        # We set these parameters in the input XML file
+        self.lowSlope = get_float_from_config(config, 'low_slope')
+        self.upSlope = get_float_from_config(config, 'up_slope')
+        self.lowHADBF = get_float_from_config(config, 'low_hadbf')
+        self.upHADBF = get_float_from_config(config, 'up_cm_slope')
+        self.lowRelief = get_float_from_config(config, 'low_relief')
+        self.upRelief = get_float_from_config(config, 'up_relief')
+        self.lowCMSlope = get_float_from_config(config, 'low_cm_slope')
+        self.upCMSlope = get_float_from_config(config, 'up_cm_slope')
+
+        self.lowBFDist = get_float_from_config(config, 'low_slope') * self.intBFW
+        self.upBFDist = get_float_from_config(config, 'low_slope') * self.intBFW
+
+
         ## Set arcpy environment to output_directory and set environment variables from raster
-        arcpy.env.workspace = config.output_directory
+        arcpy.env.workspace = config['output_directory']
         desc = arcpy.Describe(self.inDet.path)
         arcpy.env.extent = desc.Extent
         arcpy.env.outputCoordinateSystem = desc.SpatialReference
@@ -150,9 +194,8 @@ class interface(object):
     @output_directory.setter
     def output_directory(self, path):
         self._output_directory = path
-        if os.path.isdir(path) == False:
-            raise Exception('The provided output directory does not exist.')
-   
+        self.mkdir(path)
+
     def validate_path_attributes(self):
         for attrib, value in self.__dict__.iteritems():
             if attrib in self.path_attributes:
@@ -164,16 +207,12 @@ class interface(object):
         return feature_class_list        
 
     def get_integrated_width(self, polygon_path, polyline_path, query_field = None, query_field_value = None):
-        print polygon_path, polyline_path
         polygon_area = self.get_polygon_area(polygon_path)
-        print polygon_area
         polyline_length = self.get_polyline_length(polyline_path, query_field, query_field_value)
-        print polyline_length
         return polygon_area/polyline_length
 
     def get_polygon_area(self, polygon_path):
         number_of_records = int(arcpy.GetCount_management(polygon_path).getOutput(0))
-        print number_of_records
         if number_of_records > 1:
             raise Exception("Bankfull polygon feature class contains more than one polyon.")
         with arcpy.da.SearchCursor(polygon_path, ['SHAPE@AREA']) as rCur:
@@ -223,12 +262,19 @@ class interface(object):
         # -----------------------------------------------------------------------
         """
         # GENERAL EVIDENCE RASTERS
-        funcDir = "prep"
-        self.mkdir(funcDir)
-
+        
+        evidenceDir = "evidence"
+        evidencePath = os.path.join(self.output_directory, evidenceDir)
+        self.mkdir(evidencePath)
+        arcpy.env.workspace = evidencePath
+        logger = gutlog.Logger(self.output_directory, "evidence.xml", self.config)
+        logger.setMethod("evidence")
+        logger.log("Beginning Generation of Evidence Rasters")
+        
         #----------------------------------------
         # Bankfull raster
-        tmp_bfPoly = os.path.join(funcDir, 'tmp_bfPoly.img')
+        logger.log("Generating: Bankfull raster")
+        tmp_bfPoly = 'tmp_bfPoly.img'
         # Convert bankfulll polygon to raster
         #TODO: the value of 'FID' is shapefile specific field
         arcpy.PolygonToRaster_conversion(self.bfPolyShp.path, 'FID', tmp_bfPoly, 'CELL_CENTER')
@@ -238,21 +284,24 @@ class interface(object):
         bfPoly = ExtractByMask(outCon, self.inDet.path)
         # Save output
         bfPoly.save('bfPoly.img')
-        arcpy.Delete_management('tmp_bfPoly.img')
+        self.Deleter(outCon)
+        self.Deleter(tmp_bfPoly)
 
         #----------------------------------------
         # Mean slope raster
 
         # Calculate detrended slope raster
-        detSlope = Slope(self.det, 'DEGREE')
+        logger.log("Generating: Mean Slope Raster")
+        detSlope = Slope(self.inDet.path, 'DEGREE')
         # Calculate mean slope over neighborhood window
-        fwSlope = round(self.intBFW.path * 0.1, 1)
+        fwSlope = round(self.intBFW * 0.1, 1)
         neighborhood = NbrRectangle(fwSlope, fwSlope, 'MAP')
         meanSlope = FocalStatistics(detSlope, neighborhood, 'MEAN', 'DATA')
         outMeanSlope = ExtractByMask(meanSlope, self.inDet.path)
         # Save output
         detSlope.save('detSlope.img')
         outMeanSlope.save('meanSlope.img')
+        self.Deleter(meanSlope)
 
         # IN CHANNEL SPECFIC EVIDENCE RASTERS
 
@@ -260,6 +309,7 @@ class interface(object):
         # Normalized fill raster
 
         # Fill dem and get difference
+        logger.log("Generating: Normalized fill raster")
         rFill = Fill(self.inDEM.path)
         rDiff = (rFill - self.inDEM.path)
         # Clip to bankfull
@@ -272,11 +322,15 @@ class interface(object):
         normFill = (rClip - fMin) / (fMax - fMin)
         # Save output
         normFill.save('normFill.img')
+        self.Deleter(rClip)
+        self.Deleter(rDiff)
+        self.Deleter(rFill)
 
         #----------------------------------------
         # Normalized inverse fill raster
 
         # Fill detrended DEM and get difference
+        logger.log("Generating: Normalized inverse fill raster")
         rFill = Fill(self.inDet.path)
         rDiff = rFill - self.inDet.path
         # Clip to bankfull
@@ -295,11 +349,18 @@ class interface(object):
         invFill = ExtractByMask(rCon, self.bfPolyShp.path)
         # Save output
         invFill.save('normInvFill.img')
+        self.Deleter(rClip)
+        self.Deleter(rDiff)
+        self.Deleter(rFill)
+        self.Deleter(rNull)
+        self.Deleter(rNorm)
+        self.Deleter(rCon)
 
         #----------------------------------------
         # Channel margin raster
 
         # Remove any wePoly parts < 5% of total area
+        logger.log("Generating: Channel margin raster")
         wePolyElim = 'wePolyElim.shp'
         arcpy.EliminatePolygonPart_management(self.wePolyShp.path, wePolyElim, 'PERCENT', '', 5, 'ANY')
         # Erase wePolyelim from bankfull polygon
@@ -307,7 +368,7 @@ class interface(object):
         arcpy.Erase_analysis(self.bfPolyShp.path, wePolyElim, polyErase, '')
         # Buffer the output by 10% of the integrated wetted width
         polyBuffer = 'polyBuffer.shp'
-        bufferDist = 0.1 * self.intWW.path
+        bufferDist = 0.1 * self.intWW
         arcpy.Buffer_analysis(polyErase, polyBuffer, bufferDist, 'FULL')
         # Clip the output to the bankull polygon
         polyClip = 'polyClip.shp'
@@ -319,16 +380,17 @@ class interface(object):
         # Save the ouput
         chMargin.save('chMargin.img')
         # Delete intermediate shapefiles and rasters
-        arcpy.Delete_management('wePolyElim.shp')
-        arcpy.Delete_management('polyErase.shp')
-        arcpy.Delete_management('polyBuffer.shp')
-        arcpy.Delete_management('polyClip.shp')
-        arcpy.Delete_management('outRas.img')
+        self.Deleter(wePolyElim)
+        self.Deleter(polyErase)
+        self.Deleter(polyBuffer)
+        self.Deleter(polyClip)
+        self.Deleter('outRas.img')
 
         #----------------------------------------
         # Bankfull surface slope raster
 
         # Convert bankfull polygon to points
+        logger.log("Generating: Bankfull surface slope raster")
         bfLine = 'tmp_bfLine.shp'
         bfPts = 'tmp_bfPts.shp'
         arcpy.FeatureToLine_management(self.bfPolyShp.path, bfLine)
@@ -357,25 +419,26 @@ class interface(object):
         # Create bfe slope raster
         bfSlope = Slope(bfe, 'DEGREE')
         # Calculate mean bfe slope over bfw neighborhood
-        neighborhood = NbrRectangle(self.intBFW.path, self.intBFW.path, 'MAP')
+        neighborhood = NbrRectangle(self.intBFW, self.intBFW, 'MAP')
         slope_focal = FocalStatistics(bfSlope, neighborhood, 'MEAN')
         # Clip to bankfull polygon
         meanBFSlope = ExtractByMask(slope_focal, self.bfPolyShp.path)
         # Save output
         meanBFSlope.save('bfeSlope_meanBFW.img')
         # Delete intermediate shapefiles and rasters
-        arcpy.Delete_management('tmp_bfLine.shp')
-        arcpy.Delete_management('tmp_bfPts.shp')
-        arcpy.Delete_management('tmp_bfPtsZ.shp')
-        arcpy.Delete_management('tmp_bfPtsZ_lyr')
-        arcpy.Delete_management('tmp_bfetin')
+        self.Deleter('tmp_bfLine.shp')
+        self.Deleter('tmp_bfPts.shp')
+        self.Deleter('tmp_bfPtsZ.shp')
+        self.Deleter('tmp_bfPtsZ_lyr')
+        self.Deleter('tmp_bfetin')
 
         #----------------------------------------
         # Normalized bankfull depth raster
 
         # Subtract dem from bankfull surface dem
-        rawBFD = 'tmp_rawBFD.img'
-        rawBFD = Minus(bfe, self.inDEM.path)
+        logger.log("Generating: Normalized bankfull depth raster")
+        rawBFD = Minus('bfe.img',  self.inDEM.path)
+        rawBFD.save('tmp_rawBFD.img')
         BFD = SetNull(rawBFD, rawBFD, '"VALUE" < 0')
         # Normalize values
         bMinResult = arcpy.GetRasterProperties_management(BFD, 'MINIMUM')
@@ -387,7 +450,7 @@ class interface(object):
         BFD.save('bfDepth.img')
         normBFD.save('normBFDepth.img')
         # Delete intermediate shapefiles and rasters
-        # arcpy.Delete_management('tmp_rawBFD.shp')
+        # self.Deleter('tmp_rawBFD.img')
 
         # OUT OF CHANNEL SPECIFIC EVIDENCE RASTERS
 
@@ -395,8 +458,9 @@ class interface(object):
         # Normalized height above detrended bankfull Z raster
 
         # Extract detDEM z values to bfPoints
-        arcpy.CopyFeatures_management(self.bfPoints.path, 'tmp_bfPoints.shp')
+        logger.log("Generating: Normalized height above detrended bankfull Z raster")
         tmpPts = 'tmp_bfPoints.shp'
+        arcpy.CopyFeatures_management(self.bfPoints.path, tmpPts)
         ExtractMultiValuesToPoints(tmpPts, [[self.inDET.path, 'detZ']], 'NONE')
         # Delete any points where 'detZ' values is NoData
         # Note: in shapefile NoData is -9999, but for some
@@ -422,22 +486,25 @@ class interface(object):
         HADBF.save('HADBF.img')
         HADBF_norm.save('normHADBF.img')
         # Delete temporary files
-        arcpy.Delete_management('tmp_bfPoints.shp')
+        self.Deleter(tmpPts)
 
         #----------------------------------------
         # Distance from bankfull raster
 
         # Calculate euclidean distance from bankfull polygon
+        logger.log("Generating: Distance from bankfull raster")
         rawDist = EucDistance(self.bfPolyShp.path)
         # Clip to detrended DEM
         outDist = ExtractByMask(rawDist, self.inDet.path)
         # Save output
         outDist.save('bfDist.img')
+        self.Deleter(rawDist)
 
         #----------------------------------------
         # Detrended DEM relief raster
 
         # Set neighborhood window
+        logger.log("Generating: Detrended DEM relief raster")
         neighborhood = NbrRectangle(self.fwRelief.path, self.fwRelief.path, 'MAP')
         # Clip detrended DEM area outside bankfull
         tmp_det = SetNull(bfPoly, self.inDet.path, '"VALUE" = 1')
@@ -447,13 +514,20 @@ class interface(object):
         outRelief = ExtractByMask(Relief, tmp_det)
         # Save output
         outRelief.save('detRelief.img')
+        self.Deleter(neighborhood)
+        self.Deleter(tmp_det)
+        self.Deleter(Relief)
+
+    def Deleter(self, object):
+        if self.keep_temp_files == False:
+            arcpy.Delete_management(object)
 
     # -----------------------------------------------------------------------
     # Tier 2 Function
     #
     # -----------------------------------------------------------------------
 
-    def Tier2(self, lowSlope, upSlope, lowHADBF, upHADBF, lowRelief, upRelief, lowCMSlope, upCMSlope, lowBFDist, upBFDist):
+    def Tier2():
         """
         # ---------------------------------------------------------------------
         # Optional input parameters that can be set before a model run.
@@ -469,6 +543,9 @@ class interface(object):
         # lowBFDist:     Lower bankfull distance threshold; used in cutbank + hillslope
         # upBFDist: 	 Upper bankfull distance threshold; used in cutbank + hillslope
         # fwRelief:      Focal window size for dem relief call
+
+        self, lowSlope, upSlope, lowHADBF, upHADBF, lowRelief, upRelief, lowCMSlope, upCMSlope, lowBFDist, upBFDist
+        
         # ---------------------------------------------------------------------
         """
 
@@ -484,20 +561,30 @@ class interface(object):
         normInvF = Raster('normInvFill.img')
         bfeSlope = Raster('bfeSlope_meanBFW.img')
 
+        tier2Dir = "tier2"
+        tier2Path = os.path.join(self.output_directory, tier2Dir)
+        self.mkdir(tier2Path)
+        arcpy.env.workspace = tier2Path
+        logger = gutlog.Logger(self.output_directory, "tier2.xml", self.config)
+        logger.setMethod("tier2")
+        logger.log("Beginning Tier2")
+        
+
         # OUT OF CHANNEL UNITS
 
         #----------------------------------------
         # Active Floodplain Units
 
         # Calculate transform function line slope + intercept
-        sl_le = lineEq(0.99, 0.01, lowSlope, upSlope)
-        hadbf_le = lineEq(0.99, 0.01, lowHADBF, upHADBF)
-        r_le = lineEq(0.99, 0.01, lowRelief, upRelief)
+        logger.log("Calculating: Active Floodplain Units")
+        sl_le = lineEq(H_THRESH, L_THRESH, lowSlope, upSlope)
+        hadbf_le = lineEq(H_THRESH, L_THRESH, lowHADBF, upHADBF)
+        r_le = lineEq(H_THRESH, L_THRESH, lowRelief, upRelief)
         # Execute Conditional Statements
-        bf_fn = Con(bfPoly == 0, 0.99, 0.01)
-        sl_fn = Con(meanSlope <= lowSlope, 0.99, Con(meanSlope >= upSlope, 0.01, meanSlope * sl_le[0] + sl_le[1]))
-        hadbf_fn = Con(normHADBF <= lowHADBF, 0.99, Con(normHADBF >= upHADBF, 0.01, normHADBF * hadbf_le[0] + hadbf_le[1]))
-        r_fn = Con(Relief <= lowRelief, 0.99, Con(Relief >= upRelief, 0.01, Relief * r_le[0] + r_le[1]))
+        bf_fn = Con(bfPoly == 0, H_THRESH, L_THRESH)
+        sl_fn = Con(meanSlope <= lowSlope, H_THRESH, Con(meanSlope >= upSlope, L_THRESH, meanSlope * sl_le[0] + sl_le[1]))
+        hadbf_fn = Con(normHADBF <= lowHADBF, H_THRESH, Con(normHADBF >= upHADBF, L_THRESH, normHADBF * hadbf_le[0] + hadbf_le[1]))
+        r_fn = Con(Relief <= lowRelief, H_THRESH, Con(Relief >= upRelief, L_THRESH, Relief * r_le[0] + r_le[1]))
         # Calculate and save floodplain output
         outAFP = (bf_fn * sl_fn * hadbf_fn * r_fn)
         outAFP.save('t2AFloodplain_Mem.img')
@@ -508,12 +595,13 @@ class interface(object):
         # Cutbank Units
 
         # Calculate transform function line slope + intercept
-        sl_le = lineEq(0.01, 0.99, lowCMSlope, upCMSlope)
-        dist_le = lineEq(0.99, 0.01, lowBFDist, upBFDist)
+        logger.log("Calculating: Cutbank Units")
+        sl_le = lineEq(L_THRESH, H_THRESH, lowCMSlope, upCMSlope)
+        dist_le = lineEq(H_THRESH, L_THRESH, lowBFDist, upBFDist)
         # Execute Conditional Statements
-        bf_fn = Con(bfPoly == 0, 0.99, 0.01)
-        slope_fn = Con(meanSlope <= lowCMSlope, 0.01, Con(meanSlope >= upCMSlope, 0.99, meanSlope * sl_le[0] + sl_le[1]))
-        dist_fn = Con(bfDist <= lowBFDist, 0.99, Con(bfDist >= upBFDist, 0.01, bfDist * dist_le[0] + dist_le[1]))
+        bf_fn = Con(bfPoly == 0, H_THRESH, L_THRESH)
+        slope_fn = Con(meanSlope <= lowCMSlope, L_THRESH, Con(meanSlope >= upCMSlope, H_THRESH, meanSlope * sl_le[0] + sl_le[1]))
+        dist_fn = Con(bfDist <= lowBFDist, H_THRESH, Con(bfDist >= upBFDist, L_THRESH, bfDist * dist_le[0] + dist_le[1]))
         # Calculate cutbank output
         outCB = (bf_fn * slope_fn * dist_fn)
         outCB.save('t2Cutbank_Mem.img')
@@ -524,14 +612,15 @@ class interface(object):
         # Hillslope/Fan Units
 
         # Calculate transform function line slope + intercept
-        sl_le = lineEq(0.01, 0.99, lowSlope, upSlope)
-        dist_le = lineEq(0.01, 0.99, lowBFDist, upBFDist)
-        r_le = lineEq(0.01, 0.99, lowRelief, upRelief)
+        logger.log("Calculating: Hillslope/Fan Units")
+        sl_le = lineEq(L_THRESH, H_THRESH, lowSlope, upSlope)
+        dist_le = lineEq(L_THRESH, H_THRESH, lowBFDist, upBFDist)
+        r_le = lineEq(L_THRESH, H_THRESH, lowRelief, upRelief)
         # Execute Conditional Statements
-        bf_fn = Con(bfPoly == 0, 0.99, 0.01)
-        slope_fn = Con(meanSlope >= upSlope, 0.99, Con(meanSlope <= lowSlope, 0.01, meanSlope * sl_le[0] + sl_le[1]))
-        dist_fn = Con(bfDist >= upBFDist, 0.99, Con(bfDist <= lowBFDist, 0.01, bfDist * dist_le[0] + dist_le[1]))
-        r_fn = Con(Relief >= upRelief, 0.99, Con(Relief <= lowRelief, 0.01, Relief * r_le[0] + r_le[1]))
+        bf_fn = Con(bfPoly == 0, H_THRESH, L_THRESH)
+        slope_fn = Con(meanSlope >= upSlope, H_THRESH, Con(meanSlope <= lowSlope, L_THRESH, meanSlope * sl_le[0] + sl_le[1]))
+        dist_fn = Con(bfDist >= upBFDist, H_THRESH, Con(bfDist <= lowBFDist, L_THRESH, bfDist * dist_le[0] + dist_le[1]))
+        r_fn = Con(Relief >= upRelief, H_THRESH, Con(Relief <= lowRelief, L_THRESH, Relief * r_le[0] + r_le[1]))
         # Calculate and save hillslope output
         outHS = (bf_fn * slope_fn * dist_fn * r_fn)
         outHS.save('t2HillslopeFan_Mem.img')
@@ -542,14 +631,15 @@ class interface(object):
         # Inactive Floodplain (i.e., terraces) Units
 
         # Calculate transform function line slope + intercept
-        sl_le = lineEq(0.99, 0.01, lowSlope, upSlope)
-        hadbf_le = lineEq(0.01, 0.99, lowHADBF, upHADBF)
-        r_le = lineEq(0.99, 0.01, lowRelief, upRelief)
+        logger.log("Calculating: Inactive Floodplin (i.e. terraces) Units")
+        sl_le = lineEq(H_THRESH, L_THRESH, lowSlope, upSlope)
+        hadbf_le = lineEq(L_THRESH, H_THRESH, lowHADBF, upHADBF)
+        r_le = lineEq(H_THRESH, L_THRESH, lowRelief, upRelief)
         # Execute Conditional Statements
-        bf_fn = Con(bfPoly == 0, 0.99, 0.01)
-        sl_fn = Con(meanSlope <= lowSlope, 0.99, Con(meanSlope >= upSlope, 0.01, meanSlope * sl_le[0] + sl_le[1]))
-        hadbf_fn = Con(normHADBF <= lowHADBF, 0.01, Con(normHADBF >= upHADBF, 0.99, normHADBF * hadbf_le[0] + hadbf_le[1]))
-        r_fn = Con(Relief <= lowRelief, 0.99, Con(Relief >= upRelief, 0.01, Relief * r_le[0] + r_le[1]))
+        bf_fn = Con(bfPoly == 0, H_THRESH, L_THRESH)
+        sl_fn = Con(meanSlope <= lowSlope, H_THRESH, Con(meanSlope >= upSlope, L_THRESH, meanSlope * sl_le[0] + sl_le[1]))
+        hadbf_fn = Con(normHADBF <= lowHADBF, L_THRESH, Con(normHADBF >= upHADBF, H_THRESH, normHADBF * hadbf_le[0] + hadbf_le[1]))
+        r_fn = Con(Relief <= lowRelief, H_THRESH, Con(Relief >= upRelief, L_THRESH, Relief * r_le[0] + r_le[1]))
         # Calculate and save terrace output
         outIFP = (bf_fn * sl_fn * hadbf_fn * r_fn)
         outIFP.save('t2Terrace_Mem.img')
@@ -562,19 +652,20 @@ class interface(object):
         # Concavity Units
 
         # Get summary stats for use in transform functions
+        logger.log("Calculating: Concavity Units")
         sdResult = arcpy.GetRasterProperties_management(normBFD, 'STD')
         sd = float(sdResult.getOutput(0))
         meanResult = arcpy.GetRasterProperties_management(normBFD, 'MEAN')
         mean = float(meanResult.getOutput(0))
         # Calculate transform function line slope + intercept
-        bfD_le = lineEq(0.01, 0.99, mean, (mean + (1 * sd)))
+        bfD_le = lineEq(L_THRESH, H_THRESH, mean, (mean + (1 * sd)))
         # Execute Conditional Statements
-        bf_fn = Con(bfPoly == 0, 0.01, 0.99)
-        normF_fn = Con(normF > 0, 0.99, 0.01)
-        normBFD_fn = Con(normBFD <= mean, 0.01, Con(normBFD >= (mean + (1 * sd)), 0.99, normBFD * bfD_le[0] + bfD_le[1]))
+        bf_fn = Con(bfPoly == 0, L_THRESH, H_THRESH)
+        normF_fn = Con(normF > 0, H_THRESH, L_THRESH)
+        normBFD_fn = Con(normBFD <= mean, L_THRESH, Con(normBFD >= (mean + (1 * sd)), H_THRESH, normBFD * bfD_le[0] + bfD_le[1]))
         # Calculate and save concavity output
         rawCV = (normBFD_fn * normF_fn * bf_fn)
-        rCV = Con(IsNull(rawCV), 0.01, rawCV)
+        rCV = Con(IsNull(rawCV), L_THRESH, rawCV)
         outCV = ExtractByMask(rCV, bfPoly)
         outCV.save('t2Concavity_Mem.img')
         # Run output through guThresh function
@@ -584,17 +675,18 @@ class interface(object):
         # Bank Units
 
         # Read in and assign tier 2 concavity membership
+        logger.log("Calculating: Bank Units")
         t2cv = Raster('t2Concavity_Mem2.img')
         # Calculate transform function line slope + intercept
-        sl_le = lineEq(0.01, 0.99, lowCMSlope, upCMSlope)
+        sl_le = lineEq(L_THRESH, H_THRESH, lowCMSlope, upCMSlope)
         # Execute Conditional Statements
-        cm_fn = Con(cm == 0, 0.01, 0.99)
-        slope_fn = Con(meanSlope <= lowCMSlope, 0.01, Con(meanSlope >=  upCMSlope, 0.99, meanSlope * sl_le[0] + sl_le[1]))
-        inv_cv = Con(IsNull(t2cv), 0.01, t2cv)
+        cm_fn = Con(cm == 0, L_THRESH, H_THRESH)
+        slope_fn = Con(meanSlope <= lowCMSlope, L_THRESH, Con(meanSlope >=  upCMSlope, H_THRESH, meanSlope * sl_le[0] + sl_le[1]))
+        inv_cv = Con(IsNull(t2cv), L_THRESH, t2cv)
         inv_cv2 = 1.0 - inv_cv
         # Calculate and save channel margin output
         rawCM = (cm_fn * slope_fn * inv_cv2)
-        rcCM = Con(IsNull(rawCM), 0.01, rawCM)
+        rcCM = Con(IsNull(rawCM), L_THRESH, rawCM)
         outCM = ExtractByMask(rcCM, bfPoly)
         outCM.save('t2ChMargin_Mem.img')
         # Run output through guThresh function
@@ -604,6 +696,7 @@ class interface(object):
         # Convexity Units
 
         # Read in and assign tier 2 channel margin membership
+        logger.log("Calculating: Convexity Units")
         t2cm = Raster('t2ChMargin_Mem2.img')
         # Get summary stats for use in transform functions
         sdResult = arcpy.GetRasterProperties_management(normBFD, 'STD')
@@ -611,16 +704,16 @@ class interface(object):
         meanResult = arcpy.GetRasterProperties_management(normBFD, 'MEAN')
         mean = float(meanResult.getOutput(0))
         # Calculate transform function line slope + intercept
-        normBFD_le = lineEq(0.99, 0.01, mean, mean + (1 * sd))
-        #normF_le = lineEq(0.99, 0.01, 0, 0.05)
-        invF_le = lineEq(0.01, 0.99, 0.0, 0.1)
+        normBFD_le = lineEq(H_THRESH, L_THRESH, mean, mean + (1 * sd))
+        #normF_le = lineEq(H_THRESH, L_THRESH, 0, 0.05)
+        invF_le = lineEq(L_THRESH, H_THRESH, 0.0, 0.1)
         # Execute Conditional Statements
-        bf_fn = Con(bfPoly == 0, 0.01, 0.99)
-        normF_fn = Con(normF == 0, 0.99, 0.01)
-        invF_fn = Con(normInvF > 0.1, 0.99, Con(normInvF <= 0.0, 0.01, normInvF * invF_le[0] + invF_le[1]))
-        normBFD_fn = Con(normBFD <= mean, 0.99, Con(normBFD >= mean + (1 * sd), 0.01, normBFD * normBFD_le[0] + normBFD_le[1]))
+        bf_fn = Con(bfPoly == 0, L_THRESH, H_THRESH)
+        normF_fn = Con(normF == 0, H_THRESH, L_THRESH)
+        invF_fn = Con(normInvF > 0.1, H_THRESH, Con(normInvF <= 0.0, L_THRESH, normInvF * invF_le[0] + invF_le[1]))
+        normBFD_fn = Con(normBFD <= mean, H_THRESH, Con(normBFD >= mean + (1 * sd), L_THRESH, normBFD * normBFD_le[0] + normBFD_le[1]))
         # Calculate inverse tier 2 unit
-        inv_cm = Con(IsNull(t2cm), 0.01, t2cm)
+        inv_cm = Con(IsNull(t2cm), L_THRESH, t2cm)
         inv_cm2 = 1.0 - inv_cm
         inv_t2 = inv_cv2 * inv_cm2
         # Calculate and save convexity output
@@ -634,23 +727,24 @@ class interface(object):
         # Run/Glide Units
 
         # Read in and assign tier 2 convexity membership
+        logger.log("Calculating: Run/Glide Units")
         t2cx = Raster('t2Convexity_Mem2.img')
         # Calculate transform function line slope + intercept
-        bfeSl_le = lineEq(0.99, 0.01, 1.5, 3.0)
-        normF_le = lineEq(0.99, 0.01, 0.0, 0.1)
-        invF_le = lineEq(0.99, 0.01, 0.0, 0.1)
+        bfeSl_le = lineEq(H_THRESH, L_THRESH, 1.5, 3.0)
+        normF_le = lineEq(H_THRESH, L_THRESH, 0.0, 0.1)
+        invF_le = lineEq(H_THRESH, L_THRESH, 0.0, 0.1)
         # Execute Conditional Statements
-        bf_fn = Con(bfPoly == 0, 0.01, 0.99)
-        bfeSl_fn = Con(bfeSlope > 3.0, 0.01, Con(bfeSlope < 1.5, 0.99, bfeSlope * bfeSl_le[0] + bfeSl_le[1]))
-        normF_fn = Con(normF > 0.1, 0.01, Con(normF <= 0.0, 0.99, normF * normF_le[0] + normF_le[1]))
-        invF_fn = Con(normInvF > 0.1, 0.01, Con(normInvF <= 0.0, 0.99, normInvF * invF_le[0] + invF_le[1]))
+        bf_fn = Con(bfPoly == 0, L_THRESH, H_THRESH)
+        bfeSl_fn = Con(bfeSlope > 3.0, L_THRESH, Con(bfeSlope < 1.5, H_THRESH, bfeSlope * bfeSl_le[0] + bfeSl_le[1]))
+        normF_fn = Con(normF > 0.1, L_THRESH, Con(normF <= 0.0, H_THRESH, normF * normF_le[0] + normF_le[1]))
+        invF_fn = Con(normInvF > 0.1, L_THRESH, Con(normInvF <= 0.0, H_THRESH, normInvF * invF_le[0] + invF_le[1]))
         # Calculate inverse tier 2 unit
-        inv_cx = Con(IsNull(t2cx), 0.01, t2cx)
+        inv_cx = Con(IsNull(t2cx), L_THRESH, t2cx)
         inv_cx2 = 1.0 - inv_cx
         inv_t2 = inv_cv2 * inv_cm2 * inv_cx2
         # Calculate and save run/glide output
         rawPF_01 = (bf_fn * bfeSl_fn * invF_fn * normF_fn * inv_t2)
-        rcPF_01 = Con(IsNull(rawPF_01), 0.01, rawPF_01)
+        rcPF_01 = Con(IsNull(rawPF_01), L_THRESH, rawPF_01)
         outPF_01 = ExtractByMask(rcPF_01, bfPoly)
         outPF_01.save('t2Planar_runglide_Mem.img')
         # Run output through guThresh function
@@ -660,31 +754,26 @@ class interface(object):
         # Rapid/Cascade Units
 
         # Calculate transform function line slope + intercept
-        bfeSl_le_02 = lineEq(0.01, 0.99, 1.5, 3.0)
-        nc_le_02 = lineEq(0.99, 0.01, 0.0, 0.2)
-        invF_le_02 = lineEq(0.99, 0.01, 0.0, 0.2)
+        logger.log("Calculating: Rapid/Cascade Units")
+        bfeSl_le_02 = lineEq(L_THRESH, H_THRESH, 1.5, 3.0)
+        nc_le_02 = lineEq(H_THRESH, L_THRESH, 0.0, 0.2)
+        invF_le_02 = lineEq(H_THRESH, L_THRESH, 0.0, 0.2)
         # Execute Conditional Statements
-        bfeSl_fn_02 = Con(bfeSlope > 3.0, 0.99, Con(bfeSlope < 1.5, 0.01, bfeSlope * bfeSl_le_02[0] + bfeSl_le_02[1]))
-        nc_fn_02 = Con(normF > 0.2, 0.01, Con(normF <= 0.0, 0.99, normF * nc_le_02[0] + nc_le_02[1]))
-        invF_fn_02 = Con(normInvF > 0.2, 0.01, Con(normInvF <= 0.0, 0.99, normInvF * invF_le_02[0] + invF_le_02[1]))
+        bfeSl_fn_02 = Con(bfeSlope > 3.0, H_THRESH, Con(bfeSlope < 1.5, L_THRESH, bfeSlope * bfeSl_le_02[0] + bfeSl_le_02[1]))
+        nc_fn_02 = Con(normF > 0.2, L_THRESH, Con(normF <= 0.0, H_THRESH, normF * nc_le_02[0] + nc_le_02[1]))
+        invF_fn_02 = Con(normInvF > 0.2, L_THRESH, Con(normInvF <= 0.0, H_THRESH, normInvF * invF_le_02[0] + invF_le_02[1]))
         # Calculate rapid/cascade output
         rawPF_02 = (bf_fn * bfeSl_fn_02 * inv_t2)
-        rcPF_02 = Con(IsNull(rawPF_02), 0.01, rawPF_02)
+        rcPF_02 = Con(IsNull(rawPF_02), L_THRESH, rawPF_02)
         outPF_02 = ExtractByMask(rcPF_02, bfPoly)
         outPF_02.save('t2Planar_rapcasc_Mem.img')
         # Run output through guThresh function
         self.guThresh(outPF_02, 't2Planar_rapcasc', 0.5, 'In Channel', 'Planar-RapidCascade', 4, 'FALSE')
 
-    # -----------------------------------------------------------------------
-    # Geomorphic Unit Merge Function
-    # -----------------------------------------------------------------------
-
-    def guMerge(self):
-
-        print('Merging units....')
+        logger.log("Combining Units into one .shp file")
 
         # Create output raster/shapefile names
-        outshp = '{}_Tier2.shp'.format(self.site_name)
+        outshp = 'Tier2.shp'.format(self.site_name)
         # Create empty list
         shpList = []
         # Search workspace folder for all polygon shapefiles that match searchName
@@ -811,14 +900,14 @@ class interface(object):
                     rRegionGrp2 = RegionGroup(rThresh2, 'FOUR')
                     rZonalGeometry2 = ZonalGeometry(rRegionGrp2, 'Value', 'AREA', '0.1')
                     rThresh3 = SetNull(rZonalGeometry2, 1, '"VALUE" < ' + str(areaTh))
-                    pRas = Con(IsNull(rThresh3), 0.01, ras)
+                    pRas = Con(IsNull(rThresh3), L_THRESH, ras)
                 else:
                     rShrink2 = Shrink(rThresh2, 1, 1)
                     rExpand2 = Expand(rShrink2, 1, 1)
                     rRegionGrp2 = RegionGroup(rExpand2, 'FOUR')
                     rZonalGeometry2 = ZonalGeometry(rRegionGrp2, 'Value', 'AREA', '0.1')
                     rThresh3 = SetNull(rZonalGeometry2, 1, '"VALUE" < ' + str(areaTh))
-                    pRas = Con(IsNull(rThresh3), 0.01, ras)
+                    pRas = Con(IsNull(rThresh3), L_THRESH, ras)
 
                 pRasOut = ExtractByMask(pRas, ras)
                 pRasOut.save('{}2.img'.format(os.path.splitext(ras.name)[0]))
@@ -832,19 +921,29 @@ class interface(object):
 
     def Tier3(self):
 
+        tier2Dir = "tier3"
+        tier2Path = os.path.join(self.output_directory, tier2Dir)
+        self.mkdir(tier2Path)
+        arcpy.env.workspace = tier2Path
+        logger = gutlog.Logger(self.output_directory, "tier3.xml", self.config)
+        logger.setMethod("tier3")
+        logger.log("Beginning Tier 3")
+
         # Create copy
-        t2PolyShp = arcpy.ListFiles('*Tier2.shp')[0]
+        logger.log("Making a copy of tier 2")
+        t2PolyShp = arcpy.ListFiles('Tier2.shp')[0]
         arcpy.CopyFeatures_management(t2PolyShp, 'tmp_units.shp')
         units = 'tmp_units.shp'
 
         # Add attribute fields to tier 2 polygon shapefile
+        logger.log("Adding attribute fields to tier2 polygon")
         arcpy.AddField_management(units, 'guArea', 'FLOAT')
         arcpy.AddField_management(units, 'guWidth', 'FLOAT')
         arcpy.AddField_management(units, 'guLength', 'FLOAT')
         arcpy.AddField_management(units, 'guPosition', 'TEXT')
         arcpy.AddField_management(units, 'guOrient', 'TEXT')
 
-        print('Computing tier 3 attributes....')
+        logger.log('Computing tier 3 attributes....')
 
         # Populate area attribute field
         fields = ['SHAPE@Area', 'guArea']
@@ -856,7 +955,7 @@ class interface(object):
         #----------------------------------------------------------
         # Calculate unit position
 
-        print ('...unit position...')
+        logger.log ('...unit position...')
 
         # Step1: Create channel edge polygon
         # Create copy of bfPoly and wPoly
@@ -921,7 +1020,7 @@ class interface(object):
         #----------------------------------------------------------
         # Calculate unit orientation
 
-        print ('...unit orientation...')
+        logger.log ('...unit orientation...')
 
         # Step1: Delete unnecessary fields from xsecs
         # Create copy of xsecs
@@ -1020,7 +1119,7 @@ class interface(object):
         #----------------------------------------------------------
         # Attribute forcing
 
-        print ('...forcing elements...')
+        logger.log ('...forcing elements...')
 
         # Step1: Attribute forcing elements to CHaMP channel unit polygons
         # Convert cover csvs to dbfs
@@ -1075,7 +1174,7 @@ class interface(object):
         #----------------------------------------------------------
         # Attribute low flow roughness
 
-        print ('...low flow relative roughness...')
+        logger.log ('...low flow relative roughness...')
 
         # Step1: Attribute D84 to CHaMP channel unit polygons
         # Convert grain size csv to dbf table
@@ -1116,7 +1215,7 @@ class interface(object):
         #----------------------------------------------------------
         # Attribute bankfull surface slope
 
-        print ('...surface slope.')
+        logger.log ('...surface slope.')
 
         # Step1: Calculate low flow relative roughness raster
         # Read in mean bankfull surface slope raster
@@ -1135,8 +1234,7 @@ class interface(object):
         #----------------------------------------------------------  
         # Clean up shapefile 
 
-        print 'Cleaning up attribute table and creating transition zones...'
-
+        logger.log('Cleaning up attribute table and creating transition zones...')
         # Step1: Keep only required or necessary fields
         # Create list of current fields
         fieldList = arcpy.ListFields(units_join2)
@@ -1222,7 +1320,7 @@ class interface(object):
         #----------------------------------------------------------  
         # Apply tier 3 logic 
 
-        print 'Applying tier 3 logic to in-channel units...'
+        logger.log('Applying tier 3 logic to in-channel units...')
 
         # Add tier 3 attribute field
         arcpy.AddField_management(units_merge, 'Tier3', 'TEXT', 150)
@@ -1306,6 +1404,13 @@ def setConfig(newconf):
     global config
     config = newconf
 
+def get_float_from_config(conf, key):
+    try:
+        val = float(conf[key])
+        return val
+    except Exception, e:
+        raise Exception('{0} could not be parsed from the input XML. Please check that you specified it.'.format(key))
+
 def validate_filepath(file_path):
     if not os.path.isfile(file_path):
         raise Exception('{0} does not exist. Cannot create fns.interface.'.format(file_path))
@@ -1340,8 +1445,13 @@ def copy_feature_class(feature_class, query, output_path, file_name):
 def subset_shapefile(feature_class_list, feature_layer_name, field_name, field_value, output_path, file_name):
     feature_class = feature_class_list[feature_class_list.index(feature_layer_name)]
     query = create_query_string(feature_class, feature_layer_name, field_name, field_value)
-    output_shapefile_path = copy_feature_class(feature_class, query, output_path, file_name)
-    return output_shapefile_path
+    testPath = os.path.join(output_path, file_name + ".shp")
+    # Don't create it if it already exists. We handle cleaning elsewhere
+    if os.path.isfile(testPath):
+        return testPath
+    else:
+        output_shapefile_path = copy_feature_class(feature_class, query, output_path, file_name)
+        return output_shapefile_path
 
 # -----------------------------------------------------------------------
 # Slope Line Equation Function

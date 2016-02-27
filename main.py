@@ -3,54 +3,59 @@
 # Last updated: 10/14/2015
 # Created by: Sara Bangen (sara.bangen@gmail.com)
 # -----------------------------------
-import sys, os, argparse, time, fns, logger, shutil
+import sys, os, argparse, time, fns, gutlog, shutil
 import xml.etree.ElementTree as ET
 
 def main():
     #parse command line options
     parser = argparse.ArgumentParser()
     parser.add_argument('step',
-                        help = 'Which step to run: "all" "prep" "tier2" "tier3"',
+                        help = 'Which step to run: "all" "evidence" "tier2" "tier3"',
                         type = str)
     parser.add_argument('input_xml',
                         help = 'Path to the input XML file.',
+                        type = str)
+    parser.add_argument('--verbose',
+                        help = 'A little more logging.',
                         type = str)
     args = parser.parse_args()
 
     try:
         config = loadConfig(args.input_xml)
-        model = fns.interface(config)
+        outDir = config['output_directory']
 
         # Set up our init and log xml files
-        logger.log('Preparing to Run Gut.....')
+        print('Preparing to Run Gut.....')
 
         # Start timer
         start = time.time()
 
         if args.step == "all":
-            clean()
+            clean(outDir)
+            model = fns.interface(config)
             model.EvidenceRasters()
             model.Tier2()
-            model.guMerge()
             model.Tier3()
 
-        if args.step == "prep":
-            clean()
+        if args.step == "evidence":
+            clean(outDir)
+            model = fns.interface(config)
             model.EvidenceRasters()
 
         if args.step == "tier2":
-            cleanFile("gut.shp")
-            cleanDir("tier2")
-            cleanDir("tier3")
+            cleanFile(outDir, "gut.shp")
+            cleanDir(outDir, "tier2")
+            cleanDir(outDir, "tier3")
+            model = fns.interface(config)
             model.Tier2()
-            model.guMerge()
 
         if args.step == "tier3":
-            cleanDir("tier3")
+            cleanDir(outDir, "tier3")
+            model = fns.interface(config)
             model.Tier3()
 
-        logger.log('Model run completed.')
-        logger.log('It took', time.time() - start, 'seconds.')
+        print 'Model run completed.'
+        print 'It took', time.time() - start, 'seconds.'
 
     except:
         print 'Unxexpected error: {0}'.format(sys.exc_info()[0])
@@ -63,12 +68,13 @@ def main():
 # -----------------------------------------------------------------------
 
 # Clean everything up
-def clean():
-    cleanFile("gut.shp")
-    cleanDir("logs")
-    cleanDir("prep")
-    cleanDir("tier2")
-    cleanDir("tier3")
+def clean(rootPath):
+    cleanFile(rootPath, "gut.shp")
+    cleanDir(rootPath, "logs")
+    cleanDir(rootPath, "inputs")
+    cleanDir(rootPath, "evidence")
+    cleanDir(rootPath, "tier2")
+    cleanDir(rootPath, "tier3")
 
 # Clean up a file
 def cleanFile(rootPath, relFilePath):

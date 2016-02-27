@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <inputs>
-  <output_directory>C:\Users\A01674762\Desktop\Professional\NorthArrowResearch\pyGUT\test-data\pyGUT_test</output_directory>
-  <gdb_path>C:\Users\A01674762\Desktop\Professional\NorthArrowResearch\pyGUT\test-data\SurveyGDB\CBW05583-010495_2014.gdb</gdb_path>
-  <site_name>CBW05583-010495</site_name>
+  <output_directory>E:\win\data\2015\Tucannon\CBW05583-473983\VISIT_3015\GUT</output_directory>
+  <gdb_path>E:\win\data\2015\Tucannon\CBW05583-473983\VISIT_3015\Topo\SurveyGDB\SurveyGeoDatabase.gdb</gdb_path>
+  <site_name>CBW05583-473983</site_name>
 
   <low_slope>10</low_slope>
   <up_slope>15</up_slope>
@@ -12,15 +12,14 @@
   <up_hadbf>1.2</up_hadbf>
   <low_relief>0.8</low_relief>
   <up_relief>1.0</up_relief>
-  <!-- These values will be multiplied by intBFW once that has been calculated -->
   <low_bf_distance>0.1</low_bf_distance>
   <up_bf_distance>0.2</up_bf_distance>
   <fw_relief>0.5</fw_relief>
 
-
+<!--
   <grain_size_distribution_csv_path>C:\Users\A01674762\Desktop\Professional\NorthArrowResearch\pyGUT\test-data\CBW05583-010495_GrainSizeDistributionResults.csv</grain_size_distribution_csv_path>
   <substrate_csv_path>C:\Users\A01674762\Desktop\Professional\NorthArrowResearch\pyGUT\test-data\CBW05583-010495_GrainSizeDistributionResults.csv</substrate_csv_path>
   <lw_csv_path>C:\Users\A01674762\Desktop\Professional\NorthArrowResearch\pyGUT\test-data\LARGEWOODYPIECE_2014_CBW05583-010495_2802.csv</lw_csv_path>
-
+-->
 
 </inputs>
