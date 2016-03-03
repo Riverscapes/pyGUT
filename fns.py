@@ -149,7 +149,7 @@ class interface(object):
         self.intBFW = self.get_integrated_width(self.bfPolyShp.path, self.bfCenterline.path, 'Channel', 'Main')
         self.intWW = self.get_integrated_width(self.wePolyShp.path, self.weCenterline.path)
         self.memTh = 0.68
-        self.fwRelief = 0.5 * self.intBFW
+
 
         # We set these parameters in the input XML file
         self.lowSlope = get_float_from_config(config, 'low_slope')
@@ -161,9 +161,9 @@ class interface(object):
         self.lowCMSlope = get_float_from_config(config, 'low_cm_slope')
         self.upCMSlope = get_float_from_config(config, 'up_cm_slope')
 
-        self.lowBFDist = get_float_from_config(config, 'low_slope') * self.intBFW
-        self.upBFDist = get_float_from_config(config, 'low_slope') * self.intBFW
-
+        self.lowBFDist = get_float_from_config(config, 'low_bf_distance') * self.intBFW
+        self.upBFDist = get_float_from_config(config, 'up_bf_distance') * self.intBFW
+        self.fwRelief = get_float_from_config(config, 'fw_relief') * self.intBFW
 
         ## Set arcpy environment to output_directory and set environment variables from raster
         arcpy.env.workspace = config['output_directory']
@@ -450,7 +450,7 @@ class interface(object):
         BFD.save('bfDepth.img')
         normBFD.save('normBFDepth.img')
         # Delete intermediate shapefiles and rasters
-        # self.Deleter('tmp_rawBFD.img')
+        self.Deleter('tmp_rawBFD.img')
 
         # OUT OF CHANNEL SPECIFIC EVIDENCE RASTERS
 
@@ -526,39 +526,27 @@ class interface(object):
     #
     # -----------------------------------------------------------------------
 
-    def Tier2():
+    def Tier2(self):
         """
         # ---------------------------------------------------------------------
         # Optional input parameters that can be set before a model run.
 
-        # lowSlope:  	 Lower slope (in degress) threshold; used in flooplain, terrace, hillslope
-        # upSlope:   	 Upper slope (in degress) threshold; used in flooplain, terrace, hillslope
-        # lowDMSlope:  	 Lower channel margin slope (in degress) threshold; used in bank + cutbank
-        # upCMSlope:   	 Upper channel margin slope (in degress) threshold; used in bank + cutbank
-        # lowHADBF:      Lower normalized height above detrended bankfull threshold; used in floodplain + terrace
-        # upHADBF:       Upper normalized height above detrended bankfull threshold; used in floodplain + terrace
-        # lowRelief:     Lower DEM relief (m) threshold; used in floodplaink, terrace + hillslope
-        # upRelief: 	 Upper DEM relief (m) threshold; used in floodplaink, terrace + hillslope
-        # lowBFDist:     Lower bankfull distance threshold; used in cutbank + hillslope
-        # upBFDist: 	 Upper bankfull distance threshold; used in cutbank + hillslope
-        # fwRelief:      Focal window size for dem relief call
+        # self.lowSlope:  	 Lower slope (in degress) threshold; used in flooplain, terrace, hillslope
+        # self.upSlope:   	 Upper slope (in degress) threshold; used in flooplain, terrace, hillslope
+        # self.lowDMSlope:  	 Lower channel margin slope (in degress) threshold; used in bank + cutbank
+        # self.upCMSlope:   	 Upper channel margin slope (in degress) threshold; used in bank + cutbank
+        # self.lowHADBF:      Lower normalized height above detrended bankfull threshold; used in floodplain + terrace
+        # self.upHADBF:       Upper normalized height above detrended bankfull threshold; used in floodplain + terrace
+        # self.lowRelief:     Lower DEM relief (m) threshold; used in floodplaink, terrace + hillslope
+        # self.upRelief: 	 Upper DEM relief (m) threshold; used in floodplaink, terrace + hillslope
+        # self.lowBFDist:     Lower bankfull distance threshold; used in cutbank + hillslope
+        # self.upBFDist: 	 Upper bankfull distance threshold; used in cutbank + hillslope
+        # self.fwRelief:      Focal window size for dem relief call
 
-        self, lowSlope, upSlope, lowHADBF, upHADBF, lowRelief, upRelief, lowCMSlope, upCMSlope, lowBFDist, upBFDist
+        self, self.lowSlope, self.upSlope, self.lowHADBF, self.upHADBF, self.lowRelief, self.upRelief, self.lowCMSlope, self.upCMSlope, self.lowBFDist, self.upBFDist
         
         # ---------------------------------------------------------------------
         """
-
-        # Assign input evidence rasters
-        bfPoly = Raster('bfPoly.img')
-        meanSlope = Raster('meanSlope.img')
-        normHADBF = Raster('normHADBF.img')
-        Relief = Raster('detRelief.img')
-        bfDist = Raster('bfDist.img')
-        normBFD = Raster('normBFDepth.img')
-        normF = Raster('normFill.img')
-        cm = Raster('chMargin.img')
-        normInvF = Raster('normInvFill.img')
-        bfeSlope = Raster('bfeSlope_meanBFW.img')
 
         tier2Dir = "tier2"
         tier2Path = os.path.join(self.output_directory, tier2Dir)
@@ -567,7 +555,19 @@ class interface(object):
         logger = gutlog.Logger(self.output_directory, "tier2.xml", self.config)
         logger.setMethod("tier2")
         logger.log("Beginning Tier2")
-        
+
+        # Assign input evidence rasters
+        bfPoly = Raster('../evidence/bfPoly.img')
+        meanSlope = Raster('../evidence/meanSlope.img')
+        normHADBF = Raster('../evidence/normHADBF.img')
+        Relief = Raster('../evidence/detRelief.img')
+        bfDist = Raster('../evidence/bfDist.img')
+        normBFD = Raster('../evidence/normBFDepth.img')
+        normF = Raster('../evidence/normFill.img')
+        cm = Raster('../evidence/chMargin.img')
+        normInvF = Raster('../evidence/normInvFill.img')
+        bfeSlope = Raster('../evidence/bfeSlope_meanBFW.img')
+
 
         # OUT OF CHANNEL UNITS
 
@@ -576,14 +576,14 @@ class interface(object):
 
         # Calculate transform function line slope + intercept
         logger.log("Calculating: Active Floodplain Units")
-        sl_le = lineEq(H_THRESH, L_THRESH, lowSlope, upSlope)
-        hadbf_le = lineEq(H_THRESH, L_THRESH, lowHADBF, upHADBF)
-        r_le = lineEq(H_THRESH, L_THRESH, lowRelief, upRelief)
+        sl_le = lineEq(H_THRESH, L_THRESH, self.lowSlope, self.upSlope)
+        hadbf_le = lineEq(H_THRESH, L_THRESH, self.lowHADBF, self.upHADBF)
+        r_le = lineEq(H_THRESH, L_THRESH, self.lowRelief, self.upRelief)
         # Execute Conditional Statements
         bf_fn = Con(bfPoly == 0, H_THRESH, L_THRESH)
-        sl_fn = Con(meanSlope <= lowSlope, H_THRESH, Con(meanSlope >= upSlope, L_THRESH, meanSlope * sl_le[0] + sl_le[1]))
-        hadbf_fn = Con(normHADBF <= lowHADBF, H_THRESH, Con(normHADBF >= upHADBF, L_THRESH, normHADBF * hadbf_le[0] + hadbf_le[1]))
-        r_fn = Con(Relief <= lowRelief, H_THRESH, Con(Relief >= upRelief, L_THRESH, Relief * r_le[0] + r_le[1]))
+        sl_fn = Con(meanSlope <= self.lowSlope, H_THRESH, Con(meanSlope >= self.upSlope, L_THRESH, meanSlope * sl_le[0] + sl_le[1]))
+        hadbf_fn = Con(normHADBF <= self.lowHADBF, H_THRESH, Con(normHADBF >= self.upHADBF, L_THRESH, normHADBF * hadbf_le[0] + hadbf_le[1]))
+        r_fn = Con(Relief <= self.lowRelief, H_THRESH, Con(Relief >= self.upRelief, L_THRESH, Relief * r_le[0] + r_le[1]))
         # Calculate and save floodplain output
         outAFP = (bf_fn * sl_fn * hadbf_fn * r_fn)
         outAFP.save('t2AFloodplain_Mem.img')
@@ -595,12 +595,12 @@ class interface(object):
 
         # Calculate transform function line slope + intercept
         logger.log("Calculating: Cutbank Units")
-        sl_le = lineEq(L_THRESH, H_THRESH, lowCMSlope, upCMSlope)
-        dist_le = lineEq(H_THRESH, L_THRESH, lowBFDist, upBFDist)
+        sl_le = lineEq(L_THRESH, H_THRESH, self.lowCMSlope, self.upCMSlope)
+        dist_le = lineEq(H_THRESH, L_THRESH, self.lowBFDist, self.upBFDist)
         # Execute Conditional Statements
         bf_fn = Con(bfPoly == 0, H_THRESH, L_THRESH)
-        slope_fn = Con(meanSlope <= lowCMSlope, L_THRESH, Con(meanSlope >= upCMSlope, H_THRESH, meanSlope * sl_le[0] + sl_le[1]))
-        dist_fn = Con(bfDist <= lowBFDist, H_THRESH, Con(bfDist >= upBFDist, L_THRESH, bfDist * dist_le[0] + dist_le[1]))
+        slope_fn = Con(meanSlope <= self.lowCMSlope, L_THRESH, Con(meanSlope >= self.upCMSlope, H_THRESH, meanSlope * sl_le[0] + sl_le[1]))
+        dist_fn = Con(bfDist <= self.lowBFDist, H_THRESH, Con(bfDist >= self.upBFDist, L_THRESH, bfDist * dist_le[0] + dist_le[1]))
         # Calculate cutbank output
         outCB = (bf_fn * slope_fn * dist_fn)
         outCB.save('t2Cutbank_Mem.img')
@@ -612,14 +612,14 @@ class interface(object):
 
         # Calculate transform function line slope + intercept
         logger.log("Calculating: Hillslope/Fan Units")
-        sl_le = lineEq(L_THRESH, H_THRESH, lowSlope, upSlope)
-        dist_le = lineEq(L_THRESH, H_THRESH, lowBFDist, upBFDist)
-        r_le = lineEq(L_THRESH, H_THRESH, lowRelief, upRelief)
+        sl_le = lineEq(L_THRESH, H_THRESH, self.lowSlope, self.upSlope)
+        dist_le = lineEq(L_THRESH, H_THRESH, self.lowBFDist, self.upBFDist)
+        r_le = lineEq(L_THRESH, H_THRESH, self.lowRelief, self.upRelief)
         # Execute Conditional Statements
         bf_fn = Con(bfPoly == 0, H_THRESH, L_THRESH)
-        slope_fn = Con(meanSlope >= upSlope, H_THRESH, Con(meanSlope <= lowSlope, L_THRESH, meanSlope * sl_le[0] + sl_le[1]))
-        dist_fn = Con(bfDist >= upBFDist, H_THRESH, Con(bfDist <= lowBFDist, L_THRESH, bfDist * dist_le[0] + dist_le[1]))
-        r_fn = Con(Relief >= upRelief, H_THRESH, Con(Relief <= lowRelief, L_THRESH, Relief * r_le[0] + r_le[1]))
+        slope_fn = Con(meanSlope >= self.upSlope, H_THRESH, Con(meanSlope <= self.lowSlope, L_THRESH, meanSlope * sl_le[0] + sl_le[1]))
+        dist_fn = Con(bfDist >= self.upBFDist, H_THRESH, Con(bfDist <= self.lowBFDist, L_THRESH, bfDist * dist_le[0] + dist_le[1]))
+        r_fn = Con(Relief >= self.upRelief, H_THRESH, Con(Relief <= self.lowRelief, L_THRESH, Relief * r_le[0] + r_le[1]))
         # Calculate and save hillslope output
         outHS = (bf_fn * slope_fn * dist_fn * r_fn)
         outHS.save('t2HillslopeFan_Mem.img')
@@ -631,14 +631,14 @@ class interface(object):
 
         # Calculate transform function line slope + intercept
         logger.log("Calculating: Inactive Floodplin (i.e. terraces) Units")
-        sl_le = lineEq(H_THRESH, L_THRESH, lowSlope, upSlope)
-        hadbf_le = lineEq(L_THRESH, H_THRESH, lowHADBF, upHADBF)
-        r_le = lineEq(H_THRESH, L_THRESH, lowRelief, upRelief)
+        sl_le = lineEq(H_THRESH, L_THRESH, self.lowSlope, self.upSlope)
+        hadbf_le = lineEq(L_THRESH, H_THRESH, self.lowHADBF, self.upHADBF)
+        r_le = lineEq(H_THRESH, L_THRESH, self.lowRelief, self.upRelief)
         # Execute Conditional Statements
         bf_fn = Con(bfPoly == 0, H_THRESH, L_THRESH)
-        sl_fn = Con(meanSlope <= lowSlope, H_THRESH, Con(meanSlope >= upSlope, L_THRESH, meanSlope * sl_le[0] + sl_le[1]))
-        hadbf_fn = Con(normHADBF <= lowHADBF, L_THRESH, Con(normHADBF >= upHADBF, H_THRESH, normHADBF * hadbf_le[0] + hadbf_le[1]))
-        r_fn = Con(Relief <= lowRelief, H_THRESH, Con(Relief >= upRelief, L_THRESH, Relief * r_le[0] + r_le[1]))
+        sl_fn = Con(meanSlope <= self.lowSlope, H_THRESH, Con(meanSlope >= self.upSlope, L_THRESH, meanSlope * sl_le[0] + sl_le[1]))
+        hadbf_fn = Con(normHADBF <= self.lowHADBF, L_THRESH, Con(normHADBF >= self.upHADBF, H_THRESH, normHADBF * hadbf_le[0] + hadbf_le[1]))
+        r_fn = Con(Relief <= self.lowRelief, H_THRESH, Con(Relief >= self.upRelief, L_THRESH, Relief * r_le[0] + r_le[1]))
         # Calculate and save terrace output
         outIFP = (bf_fn * sl_fn * hadbf_fn * r_fn)
         outIFP.save('t2Terrace_Mem.img')
@@ -677,10 +677,10 @@ class interface(object):
         logger.log("Calculating: Bank Units")
         t2cv = Raster('t2Concavity_Mem2.img')
         # Calculate transform function line slope + intercept
-        sl_le = lineEq(L_THRESH, H_THRESH, lowCMSlope, upCMSlope)
+        sl_le = lineEq(L_THRESH, H_THRESH, self.lowCMSlope, self.upCMSlope)
         # Execute Conditional Statements
         cm_fn = Con(cm == 0, L_THRESH, H_THRESH)
-        slope_fn = Con(meanSlope <= lowCMSlope, L_THRESH, Con(meanSlope >=  upCMSlope, H_THRESH, meanSlope * sl_le[0] + sl_le[1]))
+        slope_fn = Con(meanSlope <= self.lowCMSlope, L_THRESH, Con(meanSlope >=  self.upCMSlope, H_THRESH, meanSlope * sl_le[0] + sl_le[1]))
         inv_cv = Con(IsNull(t2cv), L_THRESH, t2cv)
         inv_cv2 = 1.0 - inv_cv
         # Calculate and save channel margin output
