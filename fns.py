@@ -461,7 +461,7 @@ class interface(object):
         logger.log("Generating: Normalized height above detrended bankfull Z raster")
         tmpPts = 'tmp_bfPoints.shp'
         arcpy.CopyFeatures_management(self.bfPoints.path, tmpPts)
-        ExtractMultiValuesToPoints(tmpPts, [[self.inDET.path, 'detZ']], 'NONE')
+        ExtractMultiValuesToPoints(tmpPts, [[self.inDet.path, 'detZ']], 'NONE')
         # Delete any points where 'detZ' values is NoData
         # Note: in shapefile NoData is -9999, but for some
         # reason when imported here, it is changed to '0.0'
@@ -505,7 +505,7 @@ class interface(object):
 
         # Set neighborhood window
         logger.log("Generating: Detrended DEM relief raster")
-        neighborhood = NbrRectangle(self.fwRelief.path, self.fwRelief.path, 'MAP')
+        neighborhood = NbrRectangle(self.fwRelief, self.fwRelief, 'MAP')
         # Clip detrended DEM area outside bankfull
         tmp_det = SetNull(bfPoly, self.inDet.path, '"VALUE" = 1')
         # Calculate relief as Z range in neighborhood
@@ -514,7 +514,6 @@ class interface(object):
         outRelief = ExtractByMask(Relief, tmp_det)
         # Save output
         outRelief.save('detRelief.img')
-        self.Deleter(neighborhood)
         self.Deleter(tmp_det)
         self.Deleter(Relief)
 
