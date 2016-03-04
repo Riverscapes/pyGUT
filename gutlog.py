@@ -34,17 +34,20 @@ class Logger:
         resultsNode = self.logTree.find("results")
         if resultsNode is None:
             resultsNode = ET.SubElement(self.logTree.getroot(), "results")
-        ET.SubElement(resultsNode, key).text = val
+        ET.SubElement(resultsNode, key).text = "{0}".format(val)
         self.write()
 
-    def log(self, msg, severity="info"):
+    def log(self, msg, severity="info", exception=None):
         dateStr = datetime.datetime.now(pytz.timezone('US/Pacific')).strftime('%Y-%m-%dT%H:%M:%S%z')
         print '[{}] [{}] {}'.format(severity, self.method, msg)
         logNode = self.logTree.find("log")
         if logNode is None:
             logNode = ET.SubElement(self.logTree.getroot(), "log")
 
-        ET.SubElement(logNode, "message", severity=severity, date=dateStr).text = msg
+        messageNode = ET.SubElement(logNode, "message", severity=severity, time=dateStr)
+        ET.SubElement(messageNode, "description").text = msg
+        if exception is not None:
+            ET.SubElement(messageNode, "exception").text = exception
         self.write()
 
     def write(self):

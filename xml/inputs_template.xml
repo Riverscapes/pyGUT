@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <inputs>
+  <!--<output_directory>E:\win\data\2014\Tucannon\CBW05583-010495\VISIT_2802\GUT</output_directory>-->
   <output_directory>E:\win\data\2015\Tucannon\CBW05583-473983\VISIT_3015\GUT</output_directory>
+  <!--<gdb_path>E:\win\data\2014/Tucannon\CBW05583-010495\VISIT_2802\Topo\SurveyGDB\CBW05583-010495_2014.gdb</gdb_path>-->
   <gdb_path>E:\win\data\2015\Tucannon\CBW05583-473983\VISIT_3015\Topo\SurveyGDB\SurveyGeoDatabase.gdb</gdb_path>
-  <site_name>CBW05583-473983</site_name>
+  <site_name>CBW05583-010495</site_name>
 
   <low_slope>10</low_slope>
   <up_slope>15</up_slope>

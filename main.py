@@ -25,7 +25,7 @@ def main():
         outDir = config['output_directory']
 
         # Set up our init and log xml files
-        print('Preparing to Run Gut.....')
+        print('Preparing to Run Gut operation: {0}.....'.format(args.step))
 
         # Start timer
         start = time.time()
@@ -54,8 +54,7 @@ def main():
             model = fns.interface(config)
             model.Tier3()
 
-        print 'Model run completed.'
-        print 'It took', time.time() - start, 'seconds.'
+        print "GUT Operation: {0} Completed in {1} seconds.".format(args.step, int(time.time() - start))
 
     except:
         print 'Unxexpected error: {0}'.format(sys.exc_info()[0])
