@@ -186,6 +186,10 @@ class interface(object):
             if 'substrate_csv_path' in config:
                 logger.log("'substrate_csv_path' specified. Testing path to CSV") 
                 self.champSubstrate = fns_input(config['substrate_csv_path'], 'csv')
+                grainsizeFilePath = os.path.join( input_directory, "grainsize_calc.csv")
+                if not os.path.isfile(grainsizeFilePath):
+                    grainsizecalc.processChannelFileAndWrite(self.champSubstrate.path, grainsizeFilePath)
+                self.champGrainSize = fns_input(grainsizeFilePath, 'csv')
 
             # There are 3 ways to get in woody information
             if 'lwp_csv_path' in config:
@@ -198,9 +202,7 @@ class interface(object):
                 logger.log("'lws_csv_path' specified. Testing path to CSV for Large Woody Information")
                 self.champLWS = fns_input(config['lws_csv_path'], 'csv')
 
-            # if :
-            #     logger.log("'grain_size_distribution_csv_path' not specified. Building from other inputs.")
-            #     grainsizecalc.processChannelFile(self.champSubstrate)
+
 
 
             #numerical values
@@ -1295,9 +1297,9 @@ class interface(object):
             lfr.save('lowFlowRoughess.img')
             # Step3: Assign mean low flow relative roughness value to GUT tier 3 unit shapefiles
             # Get mean value for each tier 3 polygon
-            ZonalStatisticsAsTable(units_join2, 'FID', lfr, 'tbl_lfr', 'DATA', 'MEAN')
+            ZonalStatisticsAsTable(units_join2, 'FID', lfr, 'tbl_lfr.dbf', 'DATA', 'MEAN')
             # Join mean value table to unit shapefile
-            arcpy.JoinField_management(units_join2, 'FID', 'tbl_lfr.dbf', 'FID', 'MEAN')
+            arcpy.JoinField_management(units_join2, 'FID', 'tbl_lfr.dbf', 'MEAN')
             # Change field name from 'MEAN' to 'LFRR'
             # Add new field
             arcpy.AddField_management(units_join2, 'LFRR', 'FLOAT')
@@ -1314,12 +1316,12 @@ class interface(object):
 
             # Step1: Calculate low flow relative roughness raster
             # Read in mean bankfull surface slope raster
-            bfeSlope = Raster('bfeSlope_meanBFW.img')
+            bfeSlope = Raster('../evidence/bfeSlope_meanBFW.img')
             # Step2: Assign mean bankfull surface slope raster to GUT tier 3 unit shapefiles
             # Get mean value for each tier 3 polygon
-            ZonalStatisticsAsTable(units_join2, 'FID', bfeSlope, 'tbl_bfeSlope', 'DATA', 'MEAN')
+            ZonalStatisticsAsTable(units_join2, 'FID', bfeSlope, 'tbl_bfeSlope.dbf', 'DATA', 'MEAN')
             # Join mean value table to unit shapefile
-            arcpy.JoinField_management(units_join2, 'FID', 'tbl_bfeSlope.dbf', 'FID', 'MEAN')
+            arcpy.JoinField_management(units_join2, 'FID', 'tbl_bfeSlope.dbf', 'MEAN')
             # Change field name from 'MEAN' to 'bfeSlope'
             # Add new field
             arcpy.AddField_management(units_join2, 'bfeSlope', 'FLOAT')
@@ -1466,7 +1468,11 @@ class interface(object):
             
                     cursor.updateRow(row)
             # Save output
-            arcpy.CopyFeatures_management(units_merge, '../Tier3.shp')
+            outshp = 'Tier3.shp'
+            arcpy.CopyFeatures_management(units_merge, outshp)
+            # Move the file down one folder
+            os.rename(os.path.join(tier3Path, outshp), os.path.join(self.output_directory, outshp))
+
             # Delete unnecessary files
             arcpy.Delete_management(units_merge)
         except Exception as err:
