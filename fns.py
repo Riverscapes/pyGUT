@@ -3,12 +3,13 @@
 # Last updated: 10/14/2015
 # Created by: Sara Bangen (sara.bangen@gmail.com)
 
-import arcpy, numpy, os, sys, gutlog, traceback, time
+import arcpy, numpy, os, sys, traceback, time
+import gutlog, grainsizecalc
 from arcpy import env
 from arcpy.sa import *
 
 L_THRESH = 0.01
-H_THRESH = 0.99k
+H_THRESH = 0.99
 
 #Check to if 3D analyst extension is available
 if arcpy.CheckExtension('3D') == 'Available':
@@ -71,83 +72,136 @@ class interface(object):
             ##set arcpy environment to gdb to properly get feature classes
             arcpy.env.workspace = config['gdb_path']
             arcpy.env.overwriteOutput = True
-            logger.log("Extracting the `bfPoints.shp` from the GDB")
 
-            # TODO: We don't need to create the files every time. If it exists don't create it
             self.projected_feature_class_list = self.get_feature_class_list('Projected')
-            self.bfPoints = fns_input(subset_shapefile(self.projected_feature_class_list,
-                                             'Topo_Points',
-                                             'DESCRIPTION',
-                                             'bf',
-                                             input_directory,
-                                             'bfPoints'), 'esri')
-            logger.log("Extracting the `bfPolygon.shp` from the GDB")
-            self.bfPolyShp = fns_input(subset_shapefile(self.projected_feature_class_list,
-                                              'Bankfull',
-                                              'ExtentType',
-                                              'Channel',
-                                              input_directory,
-                                              'bfPolygon'), 'esri')
-            logger.log("Extracting the `bfXS.shp` from the GDB")
-            self.bfXS = fns_input(subset_shapefile(self.projected_feature_class_list,
-                                         'BankfullXS',
-                                         'IsValid',
-                                         '1',
-                                         input_directory,
-                                         'bfXS'), 'esri')
-            logger.log("Extracting the `bfCenterline.shp` from the GDB")
-            self.bfCenterline = fns_input(subset_shapefile(self.projected_feature_class_list,
-                                         'BankfullCL',
-                                         'Channel',
-                                         'Main',
-                                         input_directory,
-                                         'bfCenterline'), 'esri')
-            logger.log("Extracting the `wePoly.shp` from the GDB")
-            self.wePolyShp = fns_input(subset_shapefile(self.projected_feature_class_list,
-                                              'WaterExtent',
-                                              'ExtentType',
-                                              'Channel',
-                                              input_directory,
-                                              'wePoly'), 'esri')
-            #TODO: it appears some gdbs have CenterLine while others have Centerline
-            try:
-                logger.log("Extracting the `weCenterline.shp` from the GDB")
-                self.weCenterline = fns_input(subset_shapefile(self.projected_feature_class_list,
-                                                     'Centerline',
-                                                     'Channel',
-                                                     'Main',
-                                                     input_directory,
-                                                     'weCenterline'), 'esri')
-            except:
-                logger.log("WARNING: \"Center(l)ine\" does not exist. Trying \"Center(L)ine\"", "warn", None)
-                self.weCenterline = fns_input(subset_shapefile(self.projected_feature_class_list,
-                                                     'CenterLine',
-                                                     'Channel',
-                                                     'Main',
-                                                     input_directory,
-                                                     'weCenterline'), 'esri')
-            logger.log("Extracting the `channelUnitsClip.shp` from the GDB")   
-            self.champUnits = fns_input(copy_feature_class(self.projected_feature_class_list[self.projected_feature_class_list.index('Channel_Units')],
-                                                 None,
+            bfPointsPath = os.path.join(input_directory, 'bfPoints.shp')
+            if not os.path.isfile(bfPointsPath):
+                logger.log("Extracting the `bfPoints.shp` from the GDB")
+                self.bfPoints = fns_input(subset_shapefile(self.projected_feature_class_list,
+                                                 'Topo_Points',
+                                                 'DESCRIPTION',
+                                                 'bf',
                                                  input_directory,
-                                                 'channelUnitsClip'), 'esri')
+                                                 'bfPoints'), 'esri')
 
-            logger.log("Extracting the `Detrended` raster from the GDB") 
+            else:
+                self.bfPoints = fns_input(bfPointsPath, 'esri')
+                logger.log("`bfPoints.shp` already exists. Proceeding.")
+
+            bfPolygonPath = os.path.join(input_directory, 'bfPolygon.shp')
+            if not os.path.isfile(bfPolygonPath):
+                logger.log("Extracting the `bfPolygon.shp` from the GDB")
+                self.bfPolyShp = fns_input(subset_shapefile(self.projected_feature_class_list,
+                                                  'Bankfull',
+                                                  'ExtentType',
+                                                  'Channel',
+                                                  input_directory,
+                                                  'bfPolygon'), 'esri')
+            else:
+                self.bfPolyShp = fns_input(bfPolygonPath, 'esri')
+                logger.log("`bfPolygon.shp` already exists. Proceeding.")
+
+
+            bfXSPath = os.path.join(input_directory, 'bfXS.shp')
+            if not os.path.isfile(bfXSPath):
+                logger.log("Extracting the `bfXS.shp` from the GDB")
+                self.bfXS = fns_input(subset_shapefile(self.projected_feature_class_list,
+                                             'BankfullXS',
+                                             'IsValid',
+                                             '1',
+                                             input_directory,
+                                             'bfXS'), 'esri')
+            else:
+                self.bfXS = fns_input(bfXSPath, 'esri')
+                logger.log("`bfXS.shp` already exists. Proceeding.")
+
+
+
+            bfCenterlinePath = os.path.join(input_directory, 'bfCenterline.shp')
+            if not os.path.isfile(bfCenterlinePath):
+                logger.log("Extracting the `bfCenterline.shp` from the GDB")
+                self.bfCenterline = fns_input(subset_shapefile(self.projected_feature_class_list,
+                                             'BankfullCL',
+                                             'Channel',
+                                             'Main',
+                                             input_directory,
+                                             'bfCenterline'), 'esri')
+            else:
+                self.bfCenterline = fns_input(bfCenterlinePath, 'esri')
+                logger.log("`bfCenterline.shp` already exists. Proceeding.")
+
+
+            wePolyPath = os.path.join(input_directory, 'wePoly.shp')
+            if not os.path.isfile(wePolyPath):
+                logger.log("Extracting the `wePoly.shp` from the GDB")
+                self.wePolyShp = fns_input(subset_shapefile(self.projected_feature_class_list,
+                                                  'WaterExtent',
+                                                  'ExtentType',
+                                                  'Channel',
+                                                  input_directory,
+                                                  'wePoly'), 'esri')
+            else:
+                self.wePolyShp = fns_input(wePolyPath, 'esri')
+                logger.log("`wePoly.shp` already exists. Proceeding.")
+
+
+            #TODO: it appears some gdbs have CenterLine while others have Centerline
+            weCenterlinePath = os.path.join(input_directory, 'weCenterline.shp')
+            if not os.path.isfile(weCenterlinePath):
+                if (arcpy.Exists()):
+                    logger.log("Extracting the `weCenterline.shp` from the GDB")
+                    layerName = 'Centerline'
+                else:
+                    logger.log("WARNING: \"Center(l)ine\" does not exist. Trying \"Center(L)ine\"", "warn", None)
+                    layerName = 'CenterLine'
+                self.weCenterline = fns_input(subset_shapefile(self.projected_feature_class_list,
+                                                     layerName,
+                                                     'Channel',
+                                                     'Main',
+                                                     input_directory,
+                                                     'weCenterline'), 'esri')
+            else:
+                self.weCenterline = fns_input(weCenterlinePath, 'esri')
+                logger.log("`weCenterline.shp` already exists. Proceeding.")
+
+
+            channelUnitsClipPath = os.path.join(input_directory, 'channelUnitsClip.shp')
+            if not os.path.isfile(channelUnitsClipPath):
+                logger.log("Extracting the `channelUnitsClip.shp` from the GDB")   
+                self.champUnits = fns_input(copy_feature_class(self.projected_feature_class_list[self.projected_feature_class_list.index('Channel_Units')],
+                                                     None,
+                                                     input_directory,
+                                                     'channelUnitsClip'), 'esri')
+            else:
+                self.champUnits = fns_input(channelUnitsClipPath, 'esri')
+                logger.log("`channelUnitsClip.shp` already exists. Proceeding.")
+
+            logger.log("Locating the `Detrended` raster in the GDB") 
             self.inDet = fns_input(os.path.join(self.gdb_path, 'Detrended'), 'esri')
-            logger.log("Extracting the `DEM` raster from the GDB") 
+            logger.log("Locating the `DEM` raster in the GDB") 
             self.inDEM = fns_input(os.path.join(self.gdb_path, 'DEM'), 'esri')
-            logger.log("Extracting the `Water_Depth` raster from the GDB") 
+            logger.log("Locating the `Water_Depth` raster in the GDB") 
             self.inWaterD = fns_input(os.path.join(self.gdb_path, 'Water_Depth'), 'esri')
 
-            if 'grain_size_distribution_csv_path' in config:
-                logger.log("'grain_size_distribution_csv_path' specified. Testing path to CSV") 
-                self.champGrainSize = fns_input(config['grain_size_distribution_csv_path'], 'csv')
             if 'substrate_csv_path' in config:
                 logger.log("'substrate_csv_path' specified. Testing path to CSV") 
                 self.champSubstrate = fns_input(config['substrate_csv_path'], 'csv')
-            if 'lw_csv_path' in config:
-                logger.log("'lw_csv_path' specified. Testing path to CSV") 
-                self.champLW = fns_input(config['lw_csv_path'], 'csv')
+
+            # There are 3 ways to get in woody information
+            if 'lwp_csv_path' in config:
+                logger.log("'lwp_csv_path' specified. Testing path to CSV for Large Woody Pieces")
+                self.champLWP = fns_input(config['lwp_csv_path'], 'csv')
+            elif 'lwd_csv_path' in config:
+                logger.log("'lwd_csv_path' specified. Testing path to CSV for Large Woody Debris.")
+                self.champLWD = fns_input(config['lwd_csv_path'], 'csv')
+            elif 'lws_csv_path' in config:
+                logger.log("'lws_csv_path' specified. Testing path to CSV for Large Woody Information")
+                self.champLWS = fns_input(config['lws_csv_path'], 'csv')
+
+            # if :
+            #     logger.log("'grain_size_distribution_csv_path' not specified. Building from other inputs.")
+            #     grainsizecalc.processChannelFile(self.champSubstrate)
+
 
             #numerical values
             logger.log("Calculating numerical values like intBFW, intWW, memTh and fwRelief") 
@@ -809,8 +863,10 @@ class interface(object):
 
             # Merge all shapefiles in list
             # Create output raster/shapefile names
-            outshp = '../Tier2.shp'
+            outshp = 'Tier2.shp'
             arcpy.Merge_management(shpList, outshp)
+            # Move the file down one folder
+            os.rename(os.path.join(tier2Path, outshp), os.path.join(self.output_directory, outshp))
         except Exception as err:
             logger.log(err.message, "error", 'Error: {0} \n Stack trace: \n{1}'.format(sys.exc_info()[0], traceback.format_exc()))
             logger.addResult("time", int(time.time() - start))
@@ -961,8 +1017,7 @@ class interface(object):
         try: 
             # Create copy
             logger.log("Making a copy of tier 2")
-            t2PolyShp = arcpy.ListFiles('../Tier2.shp')[0]
-            arcpy.CopyFeatures_management(t2PolyShp, 'tmp_units.shp')
+            arcpy.CopyFeatures_management('../Tier2.shp', 'tmp_units.shp')
             units = 'tmp_units.shp'
 
             # Add attribute fields to tier 2 polygon shapefile
@@ -1153,22 +1208,32 @@ class interface(object):
 
             # Step1: Attribute forcing elements to CHaMP channel unit polygons
             # Convert cover csvs to dbfs
-            arcpy.TableToTable_conversion(self.champLW.path, env.workspace, 'tbl_lwd.dbf')
             arcpy.TableToTable_conversion(self.champSubstrate.path, env.workspace, 'tbl_cover.dbf')
-            # Summarise wood data (i.e., sum dry and wet wood)
-            if 'DEBRIS' in str(self.champLW.path):
-                arcpy.Statistics_analysis('tbl_lwd.dbf', 'tbl_lwd_sum.dbf', [['SumLWDCoun', 'SUM']], 'ChannelU_1')
-                arcpy.AddField_management('tbl_lwd_sum.dbf', 'lwdCount', 'SHORT')
-                arcpy.CalculateField_management('tbl_lwd_sum.dbf', 'lwdCount', '[SUM_SumLWD]')
-            if 'PIECE' in str(self.champLW.path):
-                arcpy.Frequency_analysis('tbl_lwd.dbf', 'tbl_lwd_sum.dbf', 'ChannelU_1')
-                arcpy.AddField_management('tbl_lwd_sum.dbf', 'lwdCount', 'SHORT')
-                arcpy.CalculateField_management('tbl_lwd_sum.dbf', 'lwdCount', '[FREQUENCY]')
+
+            # Get the Woody Data one of 3 ways
+            # Summarise wood data (i.e., sum dry and wet wood) from Large Woody Debris file (2011-2013)
+            if hasattr(self, 'champLWD'):
+                arcpy.TableToTable_conversion(self.champLWD.path, env.workspace, 'tbl_lw.dbf')
+                arcpy.Statistics_analysis('tbl_lw.dbf', 'tbl_lw_sum.dbf', [['SumLWDCoun', 'SUM']], 'ChannelU_1')
+                arcpy.AddField_management('tbl_lw_sum.dbf', 'lwdCount', 'SHORT')
+                arcpy.CalculateField_management('tbl_lw_sum.dbf', 'lwdCount', '[SUM_SumLWD]')
+            # Count CSV is generated by frequency analysis using Large Woody Piece file CHaMP (2014-present)
+            elif hasattr(self, 'champLWP'):
+                arcpy.TableToTable_conversion(self.champLWP.path, env.workspace, 'tbl_lw.dbf')
+                arcpy.Frequency_analysis('tbl_lw.dbf', 'tbl_lw_sum.dbf', 'ChannelU_1')
+                arcpy.AddField_management('tbl_lw_sum.dbf', 'lwdCount', 'SHORT')
+                arcpy.CalculateField_management('tbl_lw_sum.dbf', 'lwdCount', '[FREQUENCY]')
+            # Count CSV is directly provided by the user
+            elif hasattr(self, 'champLWS'):
+                arcpy.TableToTable_conversion(self.champLWS.path, env.workspace, 'tbl_lw_sum.dbf')
+            else:
+                raise Exception('{0} could not find valid woody debris/piece information. Please check that you specified it.'.format(key))
+
             # Join aux csv data to CHaMP channel unit shapefile
             arcpy.CopyFeatures_management(self.champUnits.path, 'tmp_champUnits.shp')
             tmp_cus = 'tmp_champUnits.shp'
             arcpy.JoinField_management(tmp_cus, 'Unit_Numbe', 'tbl_cover.dbf', 'ChannelU_1', 'BouldersGT')
-            arcpy.JoinField_management(tmp_cus, 'Unit_Numbe', 'tbl_lwd_sum.dbf', 'ChannelU_1', 'lwdCount')
+            arcpy.JoinField_management(tmp_cus, 'Unit_Numbe', 'tbl_lw_sum.dbf', 'ChannelU_1', 'lwdCount')
          
             # Step2: Spatial join with GUT tier 3 unit shapefile 
             # Create a new fieldmappings and add the input feature classes
@@ -1198,8 +1263,8 @@ class interface(object):
             # Delete temporary files
             arcpy.Delete_management('tmp_units_join.shp')
             arcpy.Delete_management('tbl_cover.dbf')
-            arcpy.Delete_management('tbl_lwd.dbf')
-            arcpy.Delete_management('tbl_lwd_sum.dbf')
+            arcpy.Delete_management('tbl_lw.dbf')
+            arcpy.Delete_management('tbl_lw_sum.dbf')
 
             #----------------------------------------------------------
             # Attribute low flow roughness
