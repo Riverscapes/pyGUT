@@ -3,7 +3,7 @@
 # Last updated: 10/14/2015
 # Created by: Sara Bangen (sara.bangen@gmail.com)
 # -----------------------------------
-import sys, os, argparse, time, fns, gutlog, shutil
+import sys, os, argparse, time, fns, gutlog, shutil, fnmatch
 import xml.etree.ElementTree as ET
 
 def main():
@@ -43,7 +43,9 @@ def main():
             model.EvidenceRasters()
 
         if args.step == "tier2":
-            cleanFile(outDir, "gut.shp")
+            cleanFilePattern(outDir, "gut.*")
+            cleanFile(outDir, "logs/tier2.xml")
+            cleanFile(outDir, "logs/tier3.xml")
             cleanDir(outDir, "tier2")
             cleanDir(outDir, "tier3")
             model = fns.interface(config)
@@ -51,6 +53,7 @@ def main():
 
         if args.step == "tier3":
             cleanDir(outDir, "tier3")
+            cleanFile(outDir, "logs/tier3.xml")
             model = fns.interface(config)
             model.Tier3()
 
@@ -68,7 +71,7 @@ def main():
 
 # Clean everything up
 def clean(rootPath):
-    cleanFile(rootPath, "gut.shp")
+    cleanFilePattern(rootPath, "gut.*")
     cleanDir(rootPath, "logs")
     cleanDir(rootPath, "inputs")
     cleanDir(rootPath, "evidence")
@@ -80,6 +83,11 @@ def cleanFile(rootPath, relFilePath):
     filePath = os.path.join(rootPath, relFilePath)
     if os.path.isfile(filePath):
         os.remove(filePath)
+
+def cleanFilePattern(rootPath, Pattern):
+    for file in os.listdir(rootPath):
+        if fnmatch.fnmatch(file, Pattern):
+            os.remove(file)
 
 # Clean up a folder
 def cleanDir(rootPath, relDirPath):

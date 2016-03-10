@@ -3,7 +3,7 @@
 # Last updated: 10/14/2015
 # Created by: Sara Bangen (sara.bangen@gmail.com)
 
-import arcpy, numpy, os, sys, traceback, time
+import arcpy, numpy, os, sys, traceback, time, fnmatch, shutil
 import gutlog, grainsizecalc
 from arcpy import env
 from arcpy.sa import *
@@ -61,7 +61,7 @@ class interface(object):
         self.mkdir(input_directory)
         self.gdb_path = config['gdb_path']
         self.site_name = config['site_name']
-        ##TODO: validation
+
         logger = gutlog.Logger(self.output_directory, "inputs.xml", config)
         logger.setMethod("inputs")
         logger.log("Beginning Initialization and Extraction of inputs")
@@ -145,15 +145,10 @@ class interface(object):
                 logger.log("`wePoly.shp` already exists. Proceeding.")
 
 
-            #TODO: it appears some gdbs have CenterLine while others have Centerline
             weCenterlinePath = os.path.join(input_directory, 'weCenterline.shp')
             if not os.path.isfile(weCenterlinePath):
-                if (arcpy.Exists()):
-                    logger.log("Extracting the `weCenterline.shp` from the GDB")
-                    layerName = 'Centerline'
-                else:
-                    logger.log("WARNING: \"Center(l)ine\" does not exist. Trying \"Center(L)ine\"", "warn", None)
-                    layerName = 'CenterLine'
+                logger.log("Extracting the `weCenterline.shp` from the GDB")
+                layerName = 'Centerline'
                 self.weCenterline = fns_input(subset_shapefile(self.projected_feature_class_list,
                                                      layerName,
                                                      'Channel',
@@ -644,7 +639,6 @@ class interface(object):
             normInvF = Raster('../evidence/normInvFill.img')
             bfeSlope = Raster('../evidence/bfeSlope_meanBFW.img')
 
-
             # OUT OF CHANNEL UNITS
 
             #----------------------------------------
@@ -865,10 +859,11 @@ class interface(object):
 
             # Merge all shapefiles in list
             # Create output raster/shapefile names
-            outshp = 'Tier2.shp'
+            outshp = 'tier2.shp'
             arcpy.Merge_management(shpList, outshp)
-            # Move the file down one folder
-            os.rename(os.path.join(tier2Path, outshp), os.path.join(self.output_directory, outshp))
+            # Replace old gut with new gut
+            arcpy.CopyFeatures_management(outshp, os.path.join(self.output_directory,'gut.shp'))
+
         except Exception as err:
             logger.log(err.message, "error", 'Error: {0} \n Stack trace: \n{1}'.format(sys.exc_info()[0], traceback.format_exc()))
             logger.addResult("time", int(time.time() - start))
@@ -1019,7 +1014,7 @@ class interface(object):
         try: 
             # Create copy
             logger.log("Making a copy of tier 2")
-            arcpy.CopyFeatures_management('../Tier2.shp', 'tmp_units.shp')
+            arcpy.CopyFeatures_management('../gut.shp', 'tmp_units.shp')
             units = 'tmp_units.shp'
 
             # Add attribute fields to tier 2 polygon shapefile
@@ -1079,7 +1074,7 @@ class interface(object):
 
             cursor = arcpy.UpdateCursor(units)
             for row in cursor:
-                if row.OTier1 == 'In Channel':
+                if PriorityChoose(row.UTier1, row.OTier1) == 'In Channel':
                     poly = row.Shape
                     arcpy.SelectLayerByLocation_management(edge_lyr, 'WITHIN_A_DISTANCE', poly, dTh, 'NEW_SELECTION')
                     edgeCount = int(arcpy.GetCount_management(edge_lyr).getOutput(0))
@@ -1171,30 +1166,30 @@ class interface(object):
             units_join = 'tmp_units_join.shp'
             arcpy.SpatialJoin_analysis(units, xsec_split, units_join, '#', '#', fieldmappings, 'CONTAINS')
             # Calculate  guLength, gu Width
-            fields = ['OTier1', 'guWidth', 'guArea', 'guLength']
+            fields = ['OTier1', 'UTier1', 'guWidth', 'guArea', 'guLength']
             with arcpy.da.UpdateCursor(units_join, fields) as cursor:
                 for row in cursor:
-                    if row[0] == 'In Channel':
-                        if row[1] > 0.0:
-                            row[3] = row[2]/row[1]
+                    if PriorityChoose(row[1], row[0]) == 'In Channel':
+                        if row[2] > 0.0:
+                            row[4] = row[3]/row[2]
                     else:
-                        row[3] = -9999
+                        row[4] = -9999
                     cursor.updateRow(row)
 
             # Step4: Assign orientation
-            fields = ['OTier1', 'guWidth', 'guLength', 'guOrient']
+            fields = ['OTier1', 'UTier1', 'guWidth', 'guLength', 'guOrient']
             with arcpy.da.UpdateCursor(units_join, fields) as cursor:
                 for row in cursor:
-                    if row[0] == 'In Channel':
-                        if row[1] > 0.0:
-                            if row[1]/row[2] > 1.0:
-                                row[3] = 'Transverse'
+                    if PriorityChoose(row[1], row[0]) == 'In Channel':
+                        if row[2] > 0.0:
+                            if row[2]/row[3] > 1.0:
+                                row[4] = 'Transverse'
                             else:
-                                row[3] = 'Streamwise'
+                                row[4] = 'Streamwise'
                         else:
-                            row[3] = 'NA'
+                            row[4] = 'NA'
                     else:
-                        row[3] = 'NA'
+                        row[4] = 'NA'
                     cursor.updateRow(row)
 
             # Delete temporary files
@@ -1225,9 +1220,6 @@ class interface(object):
                 arcpy.Frequency_analysis('tbl_lw.dbf', 'tbl_lw_sum.dbf', 'ChannelU_1')
                 arcpy.AddField_management('tbl_lw_sum.dbf', 'lwdCount', 'SHORT')
                 arcpy.CalculateField_management('tbl_lw_sum.dbf', 'lwdCount', '[FREQUENCY]')
-            # Count CSV is directly provided by the user
-            elif hasattr(self, 'champLWS'):
-                arcpy.TableToTable_conversion(self.champLWS.path, env.workspace, 'tbl_lw_sum.dbf')
             else:
                 raise Exception('{0} could not find valid woody debris/piece information. Please check that you specified it.'.format(key))
 
@@ -1403,15 +1395,15 @@ class interface(object):
             arcpy.Delete_management(rasDomain)
 
             # Step3: Update attribute fields so non in-channel units have NULL boulders, lwd, lfr values
-            fields = ['OTier1', 'pBoulder', 'lwdCount', 'LFRR', 'guWidth', 'bfeSlope']
+            fields = ['OTier1', 'UTier1', 'pBoulder', 'lwdCount', 'LFRR', 'guWidth', 'bfeSlope']
             with arcpy.da.UpdateCursor(units_merge, fields) as cursor:
                 for row in cursor:
-                    if row[0] != 'In Channel':
-                        row[1] = -9999
+                    if PriorityChoose(row[1], row[0]) != 'In Channel':
                         row[2] = -9999
                         row[3] = -9999
                         row[4] = -9999
-                        row[5] = -9999               
+                        row[5] = -9999
+                        row[6] = -9999               
                     cursor.updateRow(row)   
 
             #----------------------------------------------------------  
@@ -1423,22 +1415,26 @@ class interface(object):
             arcpy.AddField_management(units_merge, 'OTier3', 'TEXT', 150)
             arcpy.AddField_management(units_merge, 'UTier3', 'TEXT', 150)
             # Apply tier 3 logic based on attribute fields
-            fields = ['OTier1', 'OTier2', 'OTier3', 'LFRR', 'bfeSlope', 'guOrient', 'lwdCount', 'pBoulder', 'guPosition']
+            fields = ['OTier1', 'OTier2', 'OTier3', 'LFRR', 'bfeSlope', 'guOrient', 'lwdCount', 'pBoulder', 'guPosition', 'OTier1', 'OTier2']
             with arcpy.da.UpdateCursor(units_merge, fields) as cursor:
                 for row in cursor:
-                    if row[0] != 'In Channel':
+                    tier1 = PriorityChoose(row[9], row[0])
+                    tier2 = PriorityChoose(row[10], row[1])
+                    # Default is NA
+                    row[2] = ''
+                    if tier1 != 'In Channel':
                         row[2] = 'NA'
-                    if row[1] == 'Planar-RunGlide':
+                    if tier2 == 'Planar-RunGlide':
                         if row[3] < 0.5:
                             row[2] = 'Glide'
                         else:
                             row[2] = 'Run'
-                    if row[1] == 'Planar-RapidCascade':
+                    if tier2 == 'Planar-RapidCascade':
                         if row[4] < 4.0:
                             row[2] = 'Rapid'
                         else:
                             row[2] = 'Cascade'                
-                    if row[1] == 'Concavity':
+                    if tier2 == 'Concavity':
                         if row[5] == 'Transverse':
                             row[2] = 'Plunge pool'
                         else:
@@ -1451,7 +1447,7 @@ class interface(object):
                                     row[2] = 'Bar-forced Pool; Chute; Confluence Pool; Return Channel; Shallow Thalweg'
                                 else:
                                     row[2] = 'Chute; Confluence Pool; Secondary Channel'
-                    if row[1] == 'Convexity':
+                    if tier2 == 'Convexity':
                         if row[8] == 'Channel Spanning':
                             row[2] = 'Backwater bar; Compound bar; Forced riffle; Riffle; Unit bar'
                         else:
@@ -1468,10 +1464,10 @@ class interface(object):
             
                     cursor.updateRow(row)
             # Save output
-            outshp = 'Tier3.shp'
+            outshp = 'tier3.shp'
             arcpy.CopyFeatures_management(units_merge, outshp)
-            # Move the file down one folder
-            os.rename(os.path.join(tier3Path, outshp), os.path.join(self.output_directory, outshp))
+            # Replace old gut with new gut
+            arcpy.CopyFeatures_management(outshp, os.path.join(self.output_directory,'gut.shp'))
 
             # Delete unnecessary files
             arcpy.Delete_management(units_merge)
@@ -1505,6 +1501,13 @@ class fns_input(object):
         else:
             if validate_filepath(file_path):
                 return True   
+
+# The user can add their own tier values and if they do we use them for the next step.
+def PriorityChoose(Thing1, Thing2):
+    if Thing1 is None or Thing1.strip() != '':
+        return Thing1
+    else:
+        return Thing2
 
 def setConfig(newconf):
     global config
@@ -1549,7 +1552,9 @@ def copy_feature_class(feature_class, query, output_path, file_name):
     return output_shapefile_path
 
 def subset_shapefile(feature_class_list, feature_layer_name, field_name, field_value, output_path, file_name):
-    feature_class = feature_class_list[feature_class_list.index(feature_layer_name)]
+    # ESRI ignores case so we will too
+    new_class_list = [item.lower() for item in feature_class_list]
+    feature_class = feature_class_list[new_class_list.index(feature_layer_name.lower())]
     query = create_query_string(feature_class, feature_layer_name, field_name, field_value)
     testPath = os.path.join(output_path, file_name + ".shp")
     # Don't create it if it already exists. We handle cleaning elsewhere

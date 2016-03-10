@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <inputs>
-  <!--<output_directory>E:\win\data\2014\Tucannon\CBW05583-010495\VISIT_2802\GUT</output_directory>-->
+  <!-- TIER 2 Values -->
+
   <output_directory>E:\win\data\2015\Tucannon\CBW05583-473983\VISIT_3015\GUT</output_directory>
-  <!--<gdb_path>E:\win\data\2014/Tucannon\CBW05583-010495\VISIT_2802\Topo\SurveyGDB\CBW05583-010495_2014.gdb</gdb_path>-->
   <gdb_path>E:\win\data\2015\Tucannon\CBW05583-473983\VISIT_3015\Topo\SurveyGDB\SurveyGeoDatabase.gdb</gdb_path>
   <site_name>CBW05583-010495</site_name>
 
@@ -18,17 +18,14 @@
   <up_bf_distance>0.2</up_bf_distance>
   <fw_relief>0.5</fw_relief>
 
+  <!-- TIER 3 VALUES -->
 
   <substrate_csv_path>E:\win\data\cm.org\2015\Tucannon\CBW05583-473983\VISIT_3015\SUBSTRATECOVER_2015_CBW05583-473983_3015.csv</substrate_csv_path>
-
   <!-- Large woody Piece (2014-Present) -->
   <lwp_csv_path>E:\win\data\cm.org\2015\Tucannon\CBW05583-473983\VISIT_3015\LARGEWOODYPIECE_2015_CBW05583-473983_3015.csv</lwp_csv_path>
 
   <!-- Large Woody Debris (2011-2014) -->
   <!--<lwd_csv_path>C:\Users\A01674762\Desktop\Professional\NorthArrowResearch\pyGUT\test-data\LARGEWOODYPIECE_2014_CBW05583-010495_2802.csv</lwd_csv_path>-->
-
-  <!-- For Workbench Users we will be providing a combined result table -->
-  <!--<lws_csv_path>C:\Users\A01674762\Desktop\Professional\NorthArrowResearch\pyGUT\test-data\LARGEWOODYPIECE_2014_CBW05583-010495_2802.csv</lws_csv_path>-->
 
 
 </inputs>
