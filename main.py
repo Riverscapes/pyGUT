@@ -105,7 +105,10 @@ def loadConfig(xmlFile):
     config = {}
     tree = ET.parse(xmlFile)
     root = tree.getroot()
-    inputs = root.getchildren()
+    meta = root.find('metadata')
+    # Just put the whole meta into the config object
+    config['metadata'] = meta
+    inputs = root.find('inputs')
     for input in inputs:
         config[input.tag] = input.text
     return config
