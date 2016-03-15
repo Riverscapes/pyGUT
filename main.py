@@ -82,12 +82,18 @@ def clean(rootPath):
 def cleanFile(rootPath, relFilePath):
     filePath = os.path.join(rootPath, relFilePath)
     if os.path.isfile(filePath):
-        os.remove(filePath)
+        try:
+            os.remove(filePath)
+        except:
+            print "ERROR Removing File: {0}".format(filePath)
 
 def cleanFilePattern(rootPath, Pattern):
     for file in os.listdir(rootPath):
         if fnmatch.fnmatch(file, Pattern):
-            os.remove(file)
+            try:
+                os.remove(file)
+            except:
+                print "ERROR Removing File: {0}".format(file)
 
 # Clean up a folder
 def cleanDir(rootPath, relDirPath):
