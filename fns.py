@@ -1014,7 +1014,8 @@ class interface(object):
         try: 
             # Create copy
             logger.log("Making a copy of tier 2")
-            arcpy.CopyFeatures_management('../gut.shp', 'tmp_units.shp')
+            t2gut = os.path.join(self.output_directory, 'tier2', 'tier2.shp')
+            arcpy.CopyFeatures_management(t2gut, 'tmp_units.shp')
             units = 'tmp_units.shp'
 
             # Add attribute fields to tier 2 polygon shapefile
@@ -1415,7 +1416,7 @@ class interface(object):
             arcpy.AddField_management(units_merge, 'OTier3', 'TEXT', 150)
             arcpy.AddField_management(units_merge, 'UTier3', 'TEXT', 150)
             # Apply tier 3 logic based on attribute fields
-            fields = ['OTier1', 'OTier2', 'OTier3', 'LFRR', 'bfeSlope', 'guOrient', 'lwdCount', 'pBoulder', 'guPosition', 'OTier1', 'OTier2']
+            fields = ['OTier1', 'OTier2', 'OTier3', 'LFRR', 'bfeSlope', 'guOrient', 'lwdCount', 'pBoulder', 'guPosition', 'UTier1', 'UTier2']
             with arcpy.da.UpdateCursor(units_merge, fields) as cursor:
                 for row in cursor:
                     tier1 = PriorityChoose(row[9], row[0])
@@ -1463,6 +1464,47 @@ class interface(object):
                                     row[2] = 'Backwater bar; Compound bar; Unit bar'    
             
                     cursor.updateRow(row)
+
+            # Now go through and aggregate useful areas
+            logger.log('Summarizing Unit information for logs...')
+            fields = ['OTier1', 'UTier1', 'OTier2', 'UTier2', 'OTier3', 'guOrient', 'guArea', 'guLength', 'guWidth', 'guPosition']
+            summary = {}
+            with arcpy.da.UpdateCursor(units_merge, fields) as cursor:
+                for row in cursor:
+                    iTier1 = PriorityChoose(row[1], row[0])
+                    iTier2 = PriorityChoose(row[3], row[2])
+                    iTier3 = row[4]
+                    iOrient = row[5]
+                    iArea = row[6]
+                    iLength = row[7]
+                    iWidth = row[8]
+                    iPos = row[9]
+
+                    if 'tier2' not in summary:
+                        summary['tier2'] = {}
+                    if iTier2 not in summary['tier2']:
+                        t2 = { 'units': 0, 'tot_area': 0, 'av_area': 0, 'av_length': 0, 'av_width': 0, 'orientations': [], 'positions': [], 'tier3': []}
+                    else:
+                        t2 = summary['tier2'][iTier2]
+                    t2['units']     += 1
+                    t2['tot_area']  += iArea
+                    t2['av_length'] += iLength
+                    t2['av_width']  += iWidth
+
+                    t2['orientations'].append(iOrient)
+                    t2['positions'].append(iPos)
+                    t2['positions'].append(iTier3)
+
+                    summary['tier2'][iTier2] = t2
+
+                for t2 in summary['tier2']:
+                    units = summary['tier2'][t2]['units']
+                    summary['tier2'][t2]['av_width'] = summary['tier2'][t2]['av_width'] / units
+                    summary['tier2'][t2]['av_length'] = summary['tier2'][t2]['av_length'] / units
+                    summary['tier2'][t2]['av_area'] = summary['tier2'][t2]['av_area'] / units
+
+            logger.addResultObj("summary", summary)
+
             # Save output
             outshp = 'tier3.shp'
             arcpy.CopyFeatures_management(units_merge, outshp)
