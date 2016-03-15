@@ -1475,33 +1475,34 @@ class interface(object):
                     iTier2 = PriorityChoose(row[3], row[2])
                     iTier3 = row[4]
                     iOrient = row[5]
-                    iArea = row[6]
-                    iLength = row[7]
-                    iWidth = row[8]
+                    iArea = row[6] if row[7] > 0 else 0
+                    iLength = row[7] if row[7] > 0 else 0
+                    iWidth = row[8] if row[7] > 0 else 0
                     iPos = row[9]
 
                     if 'tier2' not in summary:
                         summary['tier2'] = {}
                     if iTier2 not in summary['tier2']:
-                        t2 = { 'units': 0, 'tot_area': 0, 'av_area': 0, 'av_length': 0, 'av_width': 0, 'orientations': [], 'positions': [], 'tier3': []}
+                        t2 = { 'units': 0, 'tot_area': 0, 'av_area': 0, 'av_length': 0, 'av_width': 0, 'orientations': [], 'positions': [], 'tier3': [] }
                     else:
                         t2 = summary['tier2'][iTier2]
                     t2['units']     += 1
                     t2['tot_area']  += iArea
+                    t2['av_area']   += iArea
                     t2['av_length'] += iLength
                     t2['av_width']  += iWidth
 
                     t2['orientations'].append(iOrient)
                     t2['positions'].append(iPos)
-                    t2['positions'].append(iTier3)
+                    t2['tier3'].append(iTier3)
 
                     summary['tier2'][iTier2] = t2
 
                 for t2 in summary['tier2']:
                     units = summary['tier2'][t2]['units']
-                    summary['tier2'][t2]['av_width'] = summary['tier2'][t2]['av_width'] / units
+                    summary['tier2'][t2]['av_width']  = summary['tier2'][t2]['av_width'] / units
                     summary['tier2'][t2]['av_length'] = summary['tier2'][t2]['av_length'] / units
-                    summary['tier2'][t2]['av_area'] = summary['tier2'][t2]['av_area'] / units
+                    summary['tier2'][t2]['av_area']   = summary['tier2'][t2]['av_area'] / units
 
             logger.addResultObj("summary", summary)
 

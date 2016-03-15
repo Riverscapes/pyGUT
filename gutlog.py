@@ -76,15 +76,17 @@ class Logger:
         if adapt.has_key(obj.__class__):
             adapt[obj.__class__](keyname, obj, resultsNode)
         else:
-            tagname = re.sub('[\W_]+', '', keyname.printable)
-            node = ET.SubElement(resultsNode, tagname.lower()).text = str(obj)
+            node = ET.SubElement(resultsNode, self.SaniTag(keyname)).text = str(obj)
 
     def getXML_dict(self, keyname, indict, rootNode):
-        node = ET.SubElement(rootNode, keyname)
+        node = ET.SubElement(rootNode, self.SaniTag(keyname))
         for k, v in indict.items():
             self.obj2XML(k,v,node)
 
     def getXML_list(self, keyname, inlist, rootNode):
-        node = ET.SubElement(rootNode, keyname)
+        node = ET.SubElement(rootNode, self.SaniTag(keyname))
         for i in inlist:
             self.obj2XML("value",i,node)
+
+    def SaniTag(self, string):
+        return re.sub('[\W]+', '_', string).lower()
