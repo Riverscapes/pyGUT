@@ -99,7 +99,10 @@ def cleanFilePattern(rootPath, Pattern):
 def cleanDir(rootPath, relDirPath):
     dirPath = os.path.join(rootPath, relDirPath)
     if os.path.isdir(dirPath):
-        shutil.rmtree(dirPath)
+        try:
+            shutil.rmtree(dirPath)
+        except:
+            print "ERROR Removing folder: {0}".format(dirPath)
 
 def loadConfig(xmlFile):
     config = {}
