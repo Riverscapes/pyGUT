@@ -26,3 +26,10 @@ Step is which step of gut to run. This is here because sometimes you want to twe
 * `grainsizecalc.py` James wrote this for me so we can get the D50/D84 etc.
 * `fns.py` The guts of gut. This is where the actual arcpy lives. It's pretty long
 * `xml/inputs_template.xml` This is a sample input file. Metadata gets passed through to the output.
+
+### Setting up for a run:
+
+1. Create an `input.xml` file (call it anything you want) from the `inputs_template.xml` provided. 
+2. Make sure to specify an output directory since this will be where all the intermediary files, results and logs will go.
+3. Make sure your SurveyGDB is specified. You will need a bunch of rasters with specific names inside it. The `evidence` step should tell you what it's missing.
+4. Run the python command (see usage above)
