@@ -189,18 +189,18 @@ def main():
         outMeanDetDEM = Raster(os.path.join(evpath, os.path.splitext(os.path.basename(config.inDet))[0] + '_mean.tif'))
 
     #  --in channel mean dem--
-    if not os.path.exists(os.path.join(evpath, 'inCh_' + os.path.basename(config.inDEM) + '.tif')):
+    if not os.path.exists(os.path.join(evpath, 'inCh_' + os.path.basename(config.inDEM))):
         inChDEM = inCh * meanDEM
-        inChDEM.save(os.path.join(evpath, 'inCh_' + os.path.basename(config.inDEM) + '.tif'))  # save output
+        inChDEM.save(os.path.join(evpath, 'inCh_' + os.path.basename(config.inDEM)))  # save output
     else:
-        inChDEM = Raster(os.path.join(evpath, 'inCh_' + os.path.basename(config.inDEM) + '.tif'))
+        inChDEM = Raster(os.path.join(evpath, 'inCh_' + os.path.basename(config.inDEM)))
 
     #  --in channel mean detrended--
-    if not os.path.exists(os.path.join(evpath, 'inCh_' + os.path.basename(config.inDet) + '.tif')):
+    if not os.path.exists(os.path.join(evpath, 'inCh_' + os.path.basename(config.inDet))):
         inChDetDEM = inCh * meanDetDEM
-        inChDetDEM.save(os.path.join(evpath, 'inCh_' + os.path.basename(config.inDet) + '.tif'))  # save output
+        inChDetDEM.save(os.path.join(evpath, 'inCh_' + os.path.basename(config.inDet)))  # save output
     else:
-        inChDetDEM = Raster(os.path.join(evpath, 'inCh_' + os.path.basename(config.inDet) + '.tif'))
+        inChDetDEM = Raster(os.path.join(evpath, 'inCh_' + os.path.basename(config.inDet)))
 
     #  --residual topography--
     if not os.path.exists(os.path.join(evpath, 'resTopo.tif')):
@@ -211,6 +211,36 @@ def main():
     else:
         resTopo = Raster(os.path.join(evpath, 'resTopo.tif'))
 
+    #  --normalized negative residual topography--
+    if not os.path.exists(os.path.join(evpath, 'normNegResTopo.tif')):
+        negResTopo = SetNull(resTopo, resTopo, '"VALUE" > 0')
+        #  c. get min fill value
+        rMinResult = arcpy.GetRasterProperties_management(negResTopo, 'MINIMUM')
+        rMin = float(rMinResult.getOutput(0))
+        #  d. get max fill value
+        rMaxResult = arcpy.GetRasterProperties_management(negResTopo, 'MAXIMUM')
+        rMax = float(rMaxResult.getOutput(0))
+        #  e.  normalize fill values
+        normNegResTopo = (negResTopo - rMax) / (rMin - rMax)
+        normNegResTopo.save(os.path.join(evpath, 'normNegResTopo.tif')) # save output
+    else:
+        normNegResTopo = Raster(os.path.join(evpath, 'normNegResTopo.tif'))
+
+    #  --normalized positive residual topography--
+    if not os.path.exists(os.path.join(evpath, 'normPosResTopo.tif')):
+        posResTopo = SetNull(resTopo, resTopo, '"VALUE" <= 0')
+        #  c. get min fill value
+        rMinResult2 = arcpy.GetRasterProperties_management(posResTopo, 'MINIMUM')
+        rMin2 = float(rMinResult2.getOutput(0))
+        #  d. get max fill value
+        rMaxResult2 = arcpy.GetRasterProperties_management(posResTopo, 'MAXIMUM')
+        rMax2 = float(rMaxResult2.getOutput(0))
+        #  e.  normalize fill values
+        normPosResTopo = (posResTopo - rMin2) / (rMax2 - rMin2)
+        normPosResTopo.save(os.path.join(evpath, 'normPosResTopo.tif')) # save output
+    else:
+        normPosResTopo = Raster(os.path.join(evpath, 'normPosResTopo.tif'))
+
     #  --bf channel slope--
     if not os.path.exists(os.path.join(evpath, 'smDEMSlope.tif')):
         #  a. calculate slope
@@ -220,6 +250,14 @@ def main():
     else:
         bfSlope = Raster(os.path.join(evpath, 'smDEMSlope.tif'))
 
+    if not os.path.exists(os.path.join(evpath, 'smDetrendedSlope.tif')):
+        #  a. calculate slope
+        bfSlope = Slope(inChDetDEM, 'DEGREE')
+        #  b. save output
+        bfSlope.save(os.path.join(evpath, 'smDetrendedSlope.tif'))
+    else:
+        bfSlope = Raster(os.path.join(evpath, 'smDetrendedSlope.tif'))
+
     #  --normalized fill--
     if not os.path.exists(os.path.join(evpath, 'normFill.tif')):
         #  a. fill dem
@@ -227,13 +265,13 @@ def main():
         #  b. difference with dem
         rDiff = (rFill - inChDEM)
         #  c. get min fill value
-        rMinResult = arcpy.GetRasterProperties_management(rDiff, 'MINIMUM')
-        rMin = float(rMinResult.getOutput(0))
+        rMinResult3 = arcpy.GetRasterProperties_management(rDiff, 'MINIMUM')
+        rMin3 = float(rMinResult3.getOutput(0))
         #  d. get max fill value
-        rMaxResult = arcpy.GetRasterProperties_management(rDiff, 'MAXIMUM')
-        rMax = float(rMaxResult.getOutput(0))
+        rMaxResult3 = arcpy.GetRasterProperties_management(rDiff, 'MAXIMUM')
+        rMax3 = float(rMaxResult3.getOutput(0))
         #  e.  normalize fill values
-        normFill = (rDiff - rMin) / (rMax - rMin)
+        normFill = (rDiff - rMin3) / (rMax3 - rMin3)
         #  f. save output
         normFill.save(os.path.join(evpath, 'normFill.tif'))
     else:
@@ -292,6 +330,7 @@ def main():
     threshBar = SetNull(memBar, 1, '"VALUE" <' + str(config.memTh))  # assign NA to clusters that don't meet count threshold
     bar = area_fn(threshBar, 1.0)  # apply area threshold
     bar.save(os.path.join(outpath, 'Tier2_InChannel_Convexity_Bars.tif'))  # save output
+    rawBar.save(os.path.join(outpath, 'rawBar.tif'))
 
     #  ---------------------------------
     #  concavities
@@ -307,6 +346,8 @@ def main():
     threshCV = SetNull(memCV, 1, '"VALUE" <' + str(config.memTh))  # assign NA to clusters that don't meet count threshold
     cv = area_fn(threshCV, 0.25)  # apply area threshold
     cv.save(os.path.join(outpath, 'Tier2_InChannel_Concavity.tif'))
+    posNormFill.save(os.path.join(outpath, 'pos_normFill_Pools.tif'))
+    rawCV.save(os.path.join(outpath, 'rawPools.tif'))
 
     #  ---------------------------------
     #  planar features
@@ -334,6 +375,7 @@ def main():
     expandPF = Expand(shrinkPF, 1, 1)
     pf = area_fn(expandPF, 1.0)  # apply area threshold
     pf.save(os.path.join(outpath, 'Tier2_InChannel_Planar.tif'))
+    rawPF.save(os.path.join(outpath, 'rawPlanar.tif'))
 
     #  ---------------------------------
     #  merge t2 units into single output *.shp

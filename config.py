@@ -25,8 +25,8 @@
 # champGrainSize:   Champ grain size *.csv.  Must have columns: 'ChannelUnitID', 'ChannelUnitNumber', 'D84'.  Filename must end with '*GrainSizeDistributionResults.csv'.
 # ---------------------------------------------------------------------
 
-workspace     = r'C:\et_al\Shared\Projects\USA\CHaMP\ResearchProjects\TopographicGUs\wrk_Data\01_TestSites\Wenatchee\LWIN0001-000041\2015\VISIT_3275\ModelRuns'
-runFolderName = 'GUT_1.1\\Run_001'
+workspace     = r'C:\et_al\Shared\Projects\USA\CHaMP\ResearchProjects\TopographicGUs\wrk_Data\01_TestSites\SFSalmon\CBW05583-206111\2014\VISIT_2057\ModelRuns'
+runFolderName = 'GUT_2.0\\Run_001'
 memTh         = 0.8
 bfCL          = 'Inputs/BankfullCL.shp'
 bfPolyShp     = 'Inputs/Bankfull.shp'
@@ -43,7 +43,7 @@ champUnits   = 'Inputs/xxx.shp'
 inWaterD	 = 'Inputs/xxx.img'
 champGrainSize = 'Inputs/xxx.csv'
 
-execfile('tier1.py')
-execfile('tier2.py')
-#execfile('tier3.py')
+#execfile('tier1.py')
+#execfile('tier2.py')
+execfile('tier3.py')
 
