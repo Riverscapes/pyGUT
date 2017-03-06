@@ -1,29 +1,47 @@
-# -----------------------------------
-# Set user-defined  input parameters
-# -----------------------------------
-workspace    = r'C:\et_al\Shared\Projects\USA\CHaMP\ResearchProjects\TopographicGUs\wrk_Data\61_ASW00001-SF-F5P3BR\2012\VISIT_935\10_modelRuns\12June2015\Run1'
-bfPoints     = 'bfPoints.shp'
-bfPolyShp    = 'bfPolygon.shp'
-inDet        = 'detDEM.img'
-inDEM        = 'dem.img'
-wePolyShp    = 'wePoly.shp'
-bfXS         = 'bfXS.shp'
+# Geomorphic Unit Tool Configuration File
 
-siteName     = 'Asotin'
-intBFW       = 8.9        	# site integrated bankfull width (m)
-intWW        = 4.8         	# site integrated wetted width (m)
-fwSlope      = 0.9        	# Focal window size (m) for mean slope calc
-memTh        = 0.5          # Membership threshold for crisp output
-lowBFSlope	 = 8            # lower bankfull slope (in degress) threshold; used in planar
-upBFSlope	 = 11           # upper bankfull slope (in degress) threshold; used in planar 
-lowSlope     = 10           # lower slope (in degress) threshold; used in flooplain, terrace, hillslope
-upSlope      = 15           # upper slope (in degress) threshold; used in flooplain, terrace, hillslope
-lowCMSlope   = 15           # lower channel margin slope (in degress) threshold; used in bank + cutbank
-upCMSlope    = 25           # upper channel margin slope (in degress) threshold; used in bank + cutbank
-lowHADBF     = 1.0          # lower normalized height above detrended bankfull threshold
-upHADBF      = 1.2          # upper normalized height above detrended bankfull threshold
-lowRelief    = 0.8          # lower dem relief (m) threshold
-upRelief     = 1.0          # upper dem relief (m) threshold
-lowBFDist    = 0.1*intBFW   # lower bankfull distance threshold
-upBFDist     = 0.2*intBFW   # upper bankfull distance threshold
-fwRelief     = 0.5*intBFW   # Focal window size for dem relief call
+# Last updated: 1/25/2017
+# Created by: Sara Bangen (sara.bangen@gmail.com)
+
+# ---------------------------------------------------------------------
+# User-defined input parameters that must be set before each model run.  Include file extension in all filenames.
+
+# workspace: 	    Path to where the inputs are stored.  This is same path where output will be written.
+# bfw:              Site integrated bankfull width (m)
+# ww:			    Site integrated wetted width (m)
+# memTh:			Membership threshold for crisp output
+# bfCL:			    Bankfull centerline shapefile [Required fields: 'Channel', 'CLID']
+# bfPolyShp:	    Bankfull polygon shapefile.
+# bfXS:			    Bankfull cross sections shapefile [Required field: 'Channel']
+# inDet: 		    Detrended DEM raster
+# inDEM:            DEM raster
+# thalwegShp:       Thalweg polyline shapefile
+# wePolyShp:	    Wetted polygon shapefile
+# ***Optional inputs***
+# champUnits:       Champ channel units shapefile
+# inWaterD:		    Water depth raster
+# champGrainSize:   Champ grain size *.csv.  Must have columns: 'ChannelUnitID', 'ChannelUnitNumber', 'D84'.  Filename must end with '*GrainSizeDistributionResults.csv'.
+# ---------------------------------------------------------------------
+
+workspace    = r'C:\et_al\Shared\Projects\USA\CHaMP\ResearchProjects\TopographicGUs\wrk_Data\Logan\LRB_64423\2015\VISIT_3416\ModelRuns\30Jan2017'
+bfw          = 13.1
+ww   	     = 11.4
+memTh        = 0.8
+bfCL         = r'C:\et_al\Shared\Projects\USA\CHaMP\ResearchProjects\TopographicGUs\wrk_Data\Logan\LRB_64423\2015\VISIT_3416\Topo\Centerline.shp'
+bfPolyShp    = r'C:\et_al\Shared\Projects\USA\CHaMP\ResearchProjects\TopographicGUs\wrk_Data\Logan\LRB_64423\2015\VISIT_3416\Topo\Bankfull.shp'
+bfXS         = r'C:\et_al\Shared\Projects\USA\CHaMP\ResearchProjects\TopographicGUs\wrk_Data\Logan\LRB_64423\2015\VISIT_3416\Topo\BankfullXS.shp'
+inDEM        = r'C:\et_al\Shared\Projects\USA\CHaMP\ResearchProjects\TopographicGUs\wrk_Data\Logan\LRB_64423\2015\VISIT_3416\Topo\DEM.tif'
+inDet        = r'C:\et_al\Shared\Projects\USA\CHaMP\ResearchProjects\TopographicGUs\wrk_Data\Logan\LRB_64423\2015\VISIT_3416\Topo\Detrended.tif'
+thalwegShp   = r'C:\et_al\Shared\Projects\USA\CHaMP\ResearchProjects\TopographicGUs\wrk_Data\Logan\LRB_64423\2015\VISIT_3416\Topo\Thalweg.shp'
+wePolyShp    = r'C:\et_al\Shared\Projects\USA\CHaMP\ResearchProjects\TopographicGUs\wrk_Data\Logan\LRB_64423\2015\VISIT_3416\Topo\WaterExtent.shp'
+
+# Optional: Tier 3 Low Flow Roughness
+lowFlowRoughness = 'FALSE'
+champUnits   = 'Inputs/xxx.shp'
+inWaterD	 = 'Inputs/xxx.img'
+champGrainSize = 'Inputs/xxx.csv'
+
+#execfile('tier1.py')
+#execfile('tier2.py')
+execfile('tier3.py')
+
