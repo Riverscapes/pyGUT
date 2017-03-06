@@ -32,12 +32,21 @@ def main():
     arcpy.env.workspace = config.workspace  # set workspace to pf
     arcpy.env.overwriteOutput = True  # set to overwrite output
 
+    #  set output paths
+    evpath = os.path.join(arcpy.env.workspace, 'EvidenceLayers')
+    if config.runFolderName != 'Default' and config.runFolderName != '':
+        outpath = os.path.join(arcpy.env.workspace, 'Output', config.runFolderName)
+    else:
+        runFolders = fnmatch.filter(next(os.walk(os.path.join(arcpy.env.workspace, 'Output')))[1], 'Run_*')
+        runNum = int(max([i.split('_', 1)[1] for i in runFolders]))
+        outpath = os.path.join(arcpy.env.workspace, 'Output', 'Run_%03d' % runNum)
+
     #  clean up!
     #  search for existing tier 2 shapefiles or rasters
     #  if exist, delete from workspace otherwise will lead
     #  to errors in subsequent steps
     for root, dirs, files in os.walk(arcpy.env.workspace):
-        for f in fnmatch.filter(files, 'Tier3*'):
+        for f in fnmatch.filter(files, os.path.join(outpath, 'Tier3*')):
             os.remove(os.path.join(root, f))
 
     arcpy.Delete_management('in_memory')
@@ -53,9 +62,25 @@ def main():
     arcpy.env.outputCoordinateSystem = desc.SpatialReference
     arcpy.env.cellSize = desc.meanCellWidth
 
-    #  set output paths
-    evpath = os.path.join(arcpy.env.workspace, 'EvidenceLayers')
-    outpath = os.path.join(arcpy.env.workspace, 'Output')
+    #  ---------------------------------
+    #  calculate integrated widths
+    #  ---------------------------------
+
+    #  --integrated width function--
+
+    #  calculates integrated width
+    #  as: [polygon area] / [sum(centerline lengths)]
+
+    def intWidth_fn(polygon, centerline):
+        arrPoly = arcpy.da.FeatureClassToNumPyArray(polygon, ['SHAPE@AREA'])
+        arrPolyArea = arrPoly['SHAPE@AREA'].sum()
+        arrCL = arcpy.da.FeatureClassToNumPyArray(centerline, ['SHAPE@LENGTH'])
+        arrCLLength = arrCL['SHAPE@LENGTH'].sum()
+        intWidth = round(arrPolyArea / arrCLLength, 1)
+        return intWidth
+
+    bfw = intWidth_fn(config.bfPolyShp, config.bfCL)
+    ww = intWidth_fn(config.wPolyShp, config.wCL)
 
     #  ---------------------------------
     #  tier 3 evidence rasters + polygons
@@ -65,313 +90,327 @@ def main():
 
     #  --bankfull surface slope--
 
-    print '...bankfull surface slope...'
+    if not os.path.exists(os.path.join(evpath, 'bfeSlope_meanBFW.tif')):
+        print '...bankfull surface slope...'
 
-    #  a. convert bankfull polygon to points
-    if round(0.25 * config.bfw, 1) < float(desc.meanCellWidth):
-        distance = desc.meanCellWidth
+        #  a. convert bankfull polygon to points
+        if round(0.25 * bfw, 1) < float(desc.meanCellWidth):
+            distance = desc.meanCellWidth
+        else:
+            distance = round(0.25 * bfw, 1)
+        bfLine = arcpy.FeatureToLine_management(config.bfPolyShp, 'in_memory/tmp_bfLine')
+        bfPts = arcpy.CreateFeatureclass_management('in_memory', 'tmp_bfPts', 'POINT', '', 'DISABLED', 'DISABLED', dem)
+        arcpy.AddField_management(bfPts, 'UID', 'LONG')
+        arcpy.AddField_management(bfPts, 'lineDist', 'FLOAT')
+
+        search_fields = ['SHAPE@', 'OID@']
+        insert_fields = ['SHAPE@', 'UID', 'lineDist']
+
+        with arcpy.da.SearchCursor(bfLine, search_fields) as search:
+            with arcpy.da.InsertCursor(bfPts, insert_fields) as insert:
+                for row in search:
+                    try:
+                        line_geom = row[0]
+                        length = float(line_geom.length)
+                        count = distance
+                        oid = int(1)
+                        start = arcpy.PointGeometry(line_geom.firstPoint)
+                        end = arcpy.PointGeometry(line_geom.lastPoint)
+
+                        insert.insertRow((start, 0, 0))
+
+                        while count <= length:
+                            point = line_geom.positionAlongLine(count, False)
+                            insert.insertRow((point, oid, count))
+
+                            oid += 1
+                            count += distance
+
+                        insert.insertRow((end, (oid + 1), length))
+
+                    except Exception as e:
+                        arcpy.AddMessage(str(e.message))
+
+        #  b. extract dem Z value to bankfull polygon points
+        bfPtsZ = arcpy.CopyFeatures_management(bfPts, 'in_memory/tmp_bfPtsZ')
+        ExtractMultiValuesToPoints(bfPtsZ, [[dem, 'demZ']], 'NONE')
+
+        #  c. remove points where demZ = -9999 (so, < 0) and where points
+        #     intersect wePoly (this is to remove points at DS and US extent of reach)
+        with arcpy.da.UpdateCursor(bfPtsZ, 'demZ') as cursor:
+            for row in cursor:
+                if row[0] <= 0.0:
+                    cursor.deleteRow()
+
+        arcpy.MakeFeatureLayer_management(bfPtsZ, 'tmp_bfPtsZ_lyr')
+        arcpy.SelectLayerByLocation_management('tmp_bfPtsZ_lyr', 'WITHIN_A_DISTANCE', config.wPolyShp, str(desc.meanCellWidth) + ' Meters')
+        if int(arcpy.GetCount_management('tmp_bfPtsZ_lyr').getOutput(0)) > 0:
+            arcpy.DeleteFeatures_management('tmp_bfPtsZ_lyr')
+
+        #  d. create bankfull elevation raster
+        tmp_raw_bfe = NaturalNeighbor(bfPtsZ, 'demZ', 0.1)
+        tmp_bfe = ExtractByMask(tmp_raw_bfe, config.bfPolyShp)
+
+        #  e. create bfe slope raster
+        bfSlope = Slope(tmp_bfe, 'DEGREE')
+        bfSlope.save(os.path.join(evpath, 'bfeSlope.tif'))
+
+        #  f. calculate mean bfe slope over bfw neighborhood
+        neighborhood = NbrRectangle(bfw, bfw, 'MAP')
+        slope_focal = FocalStatistics(bfSlope, neighborhood, 'MEAN')
+
+        #  g. clip to bankfull polygon
+        meanBFSlope = ExtractByMask(slope_focal, config.bfPolyShp)
+
+        #  h. save output
+        meanBFSlope.save(os.path.join(evpath, 'bfeSlope_meanBFW.tif'))
+
+        #  i. delete intermediate fcs
+        fcs = [bfPts, bfLine, bfPtsZ]
+        for fc in fcs:
+            arcpy.Delete_management(fc)
     else:
-        distance = round(0.25 * config.bfw, 1)
-    bfLine = arcpy.FeatureToLine_management(config.bfPolyShp, 'in_memory/tmp_bfLine')
-    bfPts = arcpy.CreateFeatureclass_management('in_memory', 'tmp_bfPts', 'POINT', '', 'DISABLED', 'DISABLED', dem)
-    arcpy.AddField_management(bfPts, 'UID', 'LONG')
-    arcpy.AddField_management(bfPts, 'lineDist', 'FLOAT')
-
-    search_fields = ['SHAPE@', 'OID@']
-    insert_fields = ['SHAPE@', 'UID', 'lineDist']
-
-    with arcpy.da.SearchCursor(bfLine, search_fields) as search:
-        with arcpy.da.InsertCursor(bfPts, insert_fields) as insert:
-            for row in search:
-                try:
-                    line_geom = row[0]
-                    length = float(line_geom.length)
-                    count = distance
-                    oid = int(1)
-                    start = arcpy.PointGeometry(line_geom.firstPoint)
-                    end = arcpy.PointGeometry(line_geom.lastPoint)
-
-                    insert.insertRow((start, 0, 0))
-
-                    while count <= length:
-                        point = line_geom.positionAlongLine(count, False)
-                        insert.insertRow((point, oid, count))
-
-                        oid += 1
-                        count += distance
-
-                    insert.insertRow((end, (oid + 1), length))
-
-                except Exception as e:
-                    arcpy.AddMessage(str(e.message))
-
-    #  b. extract dem Z value to bankfull polygon points
-    bfPtsZ = arcpy.CopyFeatures_management(bfPts, 'in_memory/tmp_bfPtsZ')
-    ExtractMultiValuesToPoints(bfPtsZ, [[dem, 'demZ']], 'NONE')
-
-    #  c. remove points where demZ = -9999 (so, < 0) and where points
-    #     intersect wePoly (this is to remove points at DS and US extent of reach)
-    with arcpy.da.UpdateCursor(bfPtsZ, 'demZ') as cursor:
-        for row in cursor:
-            if row[0] <= 0.0:
-                cursor.deleteRow()
-
-    arcpy.MakeFeatureLayer_management(bfPtsZ, 'tmp_bfPtsZ_lyr')
-    arcpy.SelectLayerByLocation_management('tmp_bfPtsZ_lyr', 'WITHIN_A_DISTANCE', config.wePolyShp, str(desc.meanCellWidth) + ' Meters')
-    if int(arcpy.GetCount_management('tmp_bfPtsZ_lyr').getOutput(0)) > 0:
-        arcpy.DeleteFeatures_management('tmp_bfPtsZ_lyr')
-
-    #  d. create bankfull elevation raster
-    tmp_raw_bfe = NaturalNeighbor(bfPtsZ, 'demZ', 0.1)
-    tmp_bfe = ExtractByMask(tmp_raw_bfe, config.bfPolyShp)
-
-    #  e. create bfe slope raster
-    bfSlope = Slope(tmp_bfe, 'DEGREE')
-    bfSlope.save(os.path.join(evpath, 'bfeSlope.tif'))
-
-    #  f. calculate mean bfe slope over bfw neighborhood
-    neighborhood = NbrRectangle(config.bfw, config.bfw, 'MAP')
-    slope_focal = FocalStatistics(bfSlope, neighborhood, 'MEAN')
-
-    #  g. clip to bankfull polygon
-    meanBFSlope = ExtractByMask(slope_focal, config.bfPolyShp)
-
-    #  h. save output
-    meanBFSlope.save(os.path.join(evpath, 'bfeSlope_meanBFW.tif'))
-
-    #  i. delete intermediate fcs
-    fcs = [bfPts, bfLine, bfPtsZ]
-    for fc in fcs:
-        arcpy.Delete_management(fc)
+        bfSlope = Raster(os.path.join(evpath, 'bfeSlope.tif'))
+        meanBFSlope = Raster(os.path.join(evpath, 'bfeSlope_meanBFW.tif'))
 
     #  --low flow relative roughness--
 
     if config.lowFlowRoughness == 'True':
 
-        print '...low flow relative roughness...'
+        if not os.path.exists(os.path.join(evpath, 'lowFlowRoughess.tif')):
+            print '...low flow relative roughness...'
 
-        #  a. attribute D84 to CHaMP channel unit polygons
-        #     convert grain size csv to dbf table
-        arcpy.TableToTable_conversion(config.champGrainSize, arcpy.env.workspace, 'tbl_d84.dbf')
+            #  a. attribute D84 to CHaMP channel unit polygons
+            #     convert grain size csv to dbf table
+            arcpy.TableToTable_conversion(config.champGrainSize, arcpy.env.workspace, 'tbl_d84.dbf')
 
-        #  b. create copy of champ channel units
-        cus = arcpy.CopyFeatures_management(config.champUnits, 'in_memory/tmp_cus')
+            #  b. create copy of champ channel units
+            cus = arcpy.CopyFeatures_management(config.champUnits, 'in_memory/tmp_cus')
 
-        #  c. join aux D84 value to CHaMP channel unit shapefile
-        arcpy.JoinField_management(cus, 'Unit_Numbe', 'tbl_d84.dbf', 'ChannelUni', 'D84')
+            #  c. join aux D84 value to CHaMP channel unit shapefile
+            arcpy.JoinField_management(cus, 'Unit_Numbe', 'tbl_d84.dbf', 'ChannelUni', 'D84')
 
-        #  d. make sure D84 field is float
-        #    (Arc Issue that converts field to type integer if first element is integer)
-        arcpy.AddField_management(cus, 'D84_float', 'FLOAT')
-        fields = ['D84', 'D84_float']
-        with arcpy.da.UpdateCursor(cus, fields) as cursor:
-            for row in cursor:
-                row[1] = float(row[0])
-                cursor.updateRow(row)
+            #  d. make sure D84 field is float
+            #    (Arc Issue that converts field to type integer if first element is integer)
+            arcpy.AddField_management(cus, 'D84_float', 'FLOAT')
+            fields = ['D84', 'D84_float']
+            with arcpy.da.UpdateCursor(cus, fields) as cursor:
+                for row in cursor:
+                    row[1] = float(row[0])
+                    cursor.updateRow(row)
 
-        #  e. convert to D84 raster
-        arcpy.FeatureToRaster_conversion(cus, 'D84_float', 'd84.tif', 0.1)
+            #  e. convert to D84 raster
+            arcpy.FeatureToRaster_conversion(cus, 'D84_float', 'd84.tif', 0.1)
 
-        #  f. calculate low flow relative roughness raster
-        #     in low flow relative roughness calculation, convert d84 (in mm) to m
-        wd = Raster(config.inWaterD)
-        lfr = (Raster('d84.tif') / 1000) / wd
+            #  f. calculate low flow relative roughness raster
+            #     in low flow relative roughness calculation, convert d84 (in mm) to m
+            wd = Raster(config.inWaterD)
+            lfr = (Raster('d84.tif') / 1000) / wd
 
-        #  g. save the output
-        lfr.save(os.path.join(evpath, 'lowFlowRoughess.tif'))
+            #  g. save the output
+            lfr.save(os.path.join(evpath, 'lowFlowRoughess.tif'))
 
-        #  h. delete intermediate fcs
-        arcpy.Delete_management(cus)
+            #  h. delete intermediate fcs
+            arcpy.Delete_management(cus)
+        else:
+            lfr = Raster(os.path.join(evpath, 'lowFlowRoughess.tif'))
 
     #  --channel edge polygon--
 
-    print '...channel edge...'
+    if not os.path.exists(os.path.join(evpath, 'channelEdge.shp')):
+        print '...channel edge...'
 
-    #  a. create copy of bfPoly and wPoly
-    bfpoly = arcpy.CopyFeatures_management(config.bfPolyShp, 'in_memory/tmp_bfpoly')
-    wpoly = arcpy.CopyFeatures_management(config.wePolyShp, 'in_memory/tmp_wpoly')
+        #  a. create copy of bfPoly and wPoly
+        bfpoly = arcpy.CopyFeatures_management(config.bfPolyShp, 'in_memory/tmp_bfpoly')
+        wpoly = arcpy.CopyFeatures_management(config.wPolyShp, 'in_memory/tmp_wpoly')
 
-    #  b. remove small polygon parts from bfPoly wPoly
-    #     threshold: < 5% of total area
-    bfelim = arcpy.EliminatePolygonPart_management(bfpoly, 'in_memory/tmp_bfelim', 'PERCENT', '', 15, 'ANY')
+        #  b. remove small polygon parts from bfPoly wPoly
+        #     threshold: < 5% of total area
+        bfelim = arcpy.EliminatePolygonPart_management(bfpoly, 'in_memory/tmp_bfelim', 'PERCENT', '', 15, 'ANY')
 
-    #  c. erase wPoly from bfPoly
-    erase = arcpy.Erase_analysis(bfelim, wpoly, 'in_memory/tmp_erase', '')
+        #  c. erase wPoly from bfPoly
+        erase = arcpy.Erase_analysis(bfelim, wpoly, 'in_memory/tmp_erase', '')
 
-    #  d. buffer output by one cell
-    #     ensures there are no 'breaks' along the banks due to areas
-    #     where bankfull and wetted extent were the same
-    erasebuffer = arcpy.Buffer_analysis(erase, 'in_memory/tmp_buffer', 0.1, 'FULL')
+        #  d. buffer output by one cell
+        #     ensures there are no 'breaks' along the banks due to areas
+        #     where bankfull and wetted extent were the same
+        erasebuffer = arcpy.Buffer_analysis(erase, 'in_memory/tmp_buffer', 0.1, 'FULL')
 
-    edge = arcpy.EliminatePolygonPart_management(erasebuffer, 'in_memory/tmp_edge', 'AREA', 3*config.bfw, '', 'ANY')
+        edge = arcpy.EliminatePolygonPart_management(erasebuffer, 'in_memory/tmp_edge', 'AREA', 3*bfw, '', 'ANY')
 
-    #  e. merge multipart edge polgyons into single part polygon
-    arcpy.MultipartToSinglepart_management(edge, 'EvidenceLayers/channelEdge.shp')
+        #  e. merge multipart edge polgyons into single part polygon
+        arcpy.MultipartToSinglepart_management(edge, 'EvidenceLayers/channelEdge.shp')
 
-    #  f. attribute edge as being mid-channel or not
-    arcpy.AddField_management('EvidenceLayers/channelEdge.shp', 'midEdge', 'TEXT')
-    arcpy.MakeFeatureLayer_management('EvidenceLayers/channelEdge.shp', 'edge_lyr')
+        #  f. attribute edge as being mid-channel or not
+        arcpy.AddField_management('EvidenceLayers/channelEdge.shp', 'midEdge', 'TEXT')
+        arcpy.MakeFeatureLayer_management('EvidenceLayers/channelEdge.shp', 'edge_lyr')
 
-    bfLine2 = arcpy.PolygonToLine_management(bfelim, 'in_memory/tmp_bfLine')
+        bfLine2 = arcpy.PolygonToLine_management(bfelim, 'in_memory/tmp_bfLine')
 
-    arcpy.SelectLayerByLocation_management('edge_lyr', 'INTERSECT', bfLine2, '', 'NEW_SELECTION')
-    with arcpy.da.UpdateCursor('edge_lyr', 'midEdge') as cursor:
-        for row in cursor:
-            row[0] = 'N'
-            cursor.updateRow(row)
+        arcpy.SelectLayerByLocation_management('edge_lyr', 'INTERSECT', bfLine2, '', 'NEW_SELECTION')
+        with arcpy.da.UpdateCursor('edge_lyr', 'midEdge') as cursor:
+            for row in cursor:
+                row[0] = 'N'
+                cursor.updateRow(row)
 
-    # if unit does not intersect thalweg assign 'N'
-    arcpy.SelectLayerByAttribute_management('edge_lyr', 'SWITCH_SELECTION')
-    with arcpy.da.UpdateCursor('edge_lyr', 'midEdge') as cursor:
-        for row in cursor:
-            row[0] = 'Y'
-            cursor.updateRow(row)
+        # if unit does not intersect thalweg assign 'N'
+        arcpy.SelectLayerByAttribute_management('edge_lyr', 'SWITCH_SELECTION')
+        with arcpy.da.UpdateCursor('edge_lyr', 'midEdge') as cursor:
+            for row in cursor:
+                row[0] = 'Y'
+                cursor.updateRow(row)
 
-    arcpy.SelectLayerByAttribute_management('edge_lyr', 'CLEAR_SELECTION')
+        arcpy.SelectLayerByAttribute_management('edge_lyr', 'CLEAR_SELECTION')
 
-    #  delete intermediate fcs
-    fcs = [bfpoly, wpoly, bfelim, erase, erasebuffer, edge, bfLine2]
-    for fc in fcs:
-        arcpy.Delete_management(fc)
+        #  delete intermediate fcs
+        fcs = [bfpoly, wpoly, bfelim, erase, erasebuffer, edge, bfLine2]
+        for fc in fcs:
+            arcpy.Delete_management(fc)
+    else:
+        arcpy.MakeFeatureLayer_management('EvidenceLayers/channelEdge.shp', 'edge_lyr')
 
     #  --thalweg high points--
 
-    print '...thalweg high points...'
+    if not os.path.exists(os.path.join(evpath, 'potentialRiffCrests.shp')):
+        print '...thalweg high points...'
 
-    #  a. create thalweg points along thalweg polyline [distance == dem cell size]
-    distance = float(desc.meanCellWidth)
-    thalPts = arcpy.CreateFeatureclass_management('in_memory', 'tmp_thalPts', 'POINT', '', 'DISABLED', 'DISABLED', dem)
-    arcpy.AddField_management(thalPts, 'UID', 'LONG')
-    arcpy.AddField_management(thalPts, 'thalDist', 'FLOAT')
+        #  a. create thalweg points along thalweg polyline [distance == dem cell size]
+        distance = float(desc.meanCellWidth)
+        thalPts = arcpy.CreateFeatureclass_management('in_memory', 'tmp_thalPts', 'POINT', '', 'DISABLED', 'DISABLED', dem)
+        arcpy.AddField_management(thalPts, 'UID', 'LONG')
+        arcpy.AddField_management(thalPts, 'thalDist', 'FLOAT')
 
-    search_fields = ['SHAPE@', 'OID@']
-    insert_fields = ['SHAPE@', 'UID', 'thalDist']
+        search_fields = ['SHAPE@', 'OID@']
+        insert_fields = ['SHAPE@', 'UID', 'thalDist']
 
-    with arcpy.da.SearchCursor(config.thalwegShp, search_fields) as search:
-        with arcpy.da.InsertCursor(thalPts, insert_fields) as insert:
-            for row in search:
-                try:
-                    line_geom = row[0]
-                    length = float(line_geom.length)
-                    count = distance
-                    oid = int(1)
-                    start = arcpy.PointGeometry(line_geom.firstPoint)
-                    end = arcpy.PointGeometry(line_geom.lastPoint)
+        with arcpy.da.SearchCursor(config.thalwegShp, search_fields) as search:
+            with arcpy.da.InsertCursor(thalPts, insert_fields) as insert:
+                for row in search:
+                    try:
+                        line_geom = row[0]
+                        length = float(line_geom.length)
+                        count = distance
+                        oid = int(1)
+                        start = arcpy.PointGeometry(line_geom.firstPoint)
+                        end = arcpy.PointGeometry(line_geom.lastPoint)
 
-                    insert.insertRow((start, 0, 0))
+                        insert.insertRow((start, 0, 0))
 
-                    while count <= length:
-                        point = line_geom.positionAlongLine(count, False)
-                        insert.insertRow((point, oid, count))
+                        while count <= length:
+                            point = line_geom.positionAlongLine(count, False)
+                            insert.insertRow((point, oid, count))
 
-                        oid += 1
-                        count += distance
+                            oid += 1
+                            count += distance
 
-                    insert.insertRow((end, (oid + 1), length))
+                        insert.insertRow((end, (oid + 1), length))
 
-                except Exception as e:
-                    arcpy.AddMessage(str(e.message))
+                    except Exception as e:
+                        arcpy.AddMessage(str(e.message))
 
-    #  b. extract dem value to thalweg points
-    ExtractMultiValuesToPoints(thalPts, [[dem, 'demZ']])
+        #  b. extract dem value to thalweg points
+        ExtractMultiValuesToPoints(thalPts, [[dem, 'demZ']])
 
-    #  c. remove any thalweg points where DEM Z is < 0
-    #     this assumes that no data/null values are assigned  -9999 during step b
-    with arcpy.da.UpdateCursor(thalPts, 'demZ') as cursor:
-        for row in cursor:
-            if row[0] <= 0.0:
-                cursor.deleteRow()
+        #  c. remove any thalweg points where DEM Z is < 0
+        #     this assumes that no data/null values are assigned  -9999 during step b
+        with arcpy.da.UpdateCursor(thalPts, 'demZ') as cursor:
+            for row in cursor:
+                if row[0] <= 0.0:
+                    cursor.deleteRow()
 
-    # #  d1. method 1: linear regression analysis
-    # #  d1a. run regression on thalweg points using OLS
-    # #       demZ ~ thalDist
-    # arcpy.OrdinaryLeastSquares_stats(thalPts, 'UID', 'EvidenceLayers/thalwegPoints_OLS.shp', 'demZ', 'thalDist')
-    # arcpy.CopyFeatures_management('EvidenceLayers/thalwegPoints_OLS.shp', 'EvidenceLayers/potentialRiffCrests_OLS.shp')
-    #
-    # #  d1b. remove any thalweg points where standardized residual < 1.0 sd
-    # with arcpy.da.UpdateCursor('EvidenceLayers/thalwegPoints_OLS.shp', 'StdResid') as cursor:
-    #     for row in cursor:
-    #         if row[0] < 1.0:
-    #             cursor.deleteRow()
+        # #  d1. method 1: linear regression analysis
+        # #  d1a. run regression on thalweg points using OLS
+        # #       demZ ~ thalDist
+        # arcpy.OrdinaryLeastSquares_stats(thalPts, 'UID', 'EvidenceLayers/thalwegPoints_OLS.shp', 'demZ', 'thalDist')
+        # arcpy.CopyFeatures_management('EvidenceLayers/thalwegPoints_OLS.shp', 'EvidenceLayers/potentialRiffCrests_OLS.shp')
+        #
+        # #  d1b. remove any thalweg points where standardized residual < 1.0 sd
+        # with arcpy.da.UpdateCursor('EvidenceLayers/thalwegPoints_OLS.shp', 'StdResid') as cursor:
+        #     for row in cursor:
+        #         if row[0] < 1.0:
+        #             cursor.deleteRow()
 
-    #  d2. method 2: 3rd order polynomial trend surface
-    #  d2a. create trend surface using thalweg points
-    outTrend = Trend(thalPts, 'demZ', 0.1, 3, 'LINEAR')
-    #  d2b. extract trend DEM Z value to each thalweg point
-    ExtractMultiValuesToPoints(thalPts, [[outTrend, 'trendZ']])
+        #  d2. method 2: 3rd order polynomial trend surface
+        #  d2a. create trend surface using thalweg points
+        outTrend = Trend(thalPts, 'demZ', 0.1, 3, 'LINEAR')
+        #  d2b. extract trend DEM Z value to each thalweg point
+        ExtractMultiValuesToPoints(thalPts, [[outTrend, 'trendZ']])
 
-    #  d2c. calculate residual and standardized residual btwn DEM and trend DEM Z
-    arcpy.AddField_management(thalPts, 'trResid', 'FLOAT')
-    arcpy.AddField_management(thalPts, 'trStResid', 'FLOAT')
-    arcpy.CalculateField_management(thalPts, 'trResid', '[demZ] - [trendZ]', 'VB')
-    arr = arcpy.da.FeatureClassToNumPyArray(thalPts, ['trResid'])
-    trResid_sd = arr['trResid'].std()
-    arcpy.CalculateField_management(thalPts, 'trStResid', '[trResid] /' + str(trResid_sd), 'VB')
-    arcpy.CopyFeatures_management(thalPts, 'EvidenceLayers/potentialRiffCrests.shp')
+        #  d2c. calculate residual and standardized residual btwn DEM and trend DEM Z
+        arcpy.AddField_management(thalPts, 'trResid', 'FLOAT')
+        arcpy.AddField_management(thalPts, 'trStResid', 'FLOAT')
+        arcpy.CalculateField_management(thalPts, 'trResid', '[demZ] - [trendZ]', 'VB')
+        arr = arcpy.da.FeatureClassToNumPyArray(thalPts, ['trResid'])
+        trResid_sd = arr['trResid'].std()
+        arcpy.CalculateField_management(thalPts, 'trStResid', '[trResid] /' + str(trResid_sd), 'VB')
+        arcpy.CopyFeatures_management(thalPts, 'EvidenceLayers/potentialRiffCrests.shp')
 
-    #  d2d. remove any thalweg points where standardized residual < 1.0 sd
-    with arcpy.da.UpdateCursor('EvidenceLayers/potentialRiffCrests.shp', 'trStResid') as cursor:
-        for row in cursor:
-            if row[0] < 1.0:
-                cursor.deleteRow()
+        #  d2d. remove any thalweg points where standardized residual < 1.0 sd
+        with arcpy.da.UpdateCursor('EvidenceLayers/potentialRiffCrests.shp', 'trStResid') as cursor:
+            for row in cursor:
+                if row[0] < 1.0:
+                    cursor.deleteRow()
 
-    #  e. delete intermediate fcs
-    arcpy.Delete_management(thalPts)
+        #  e. delete intermediate fcs
+        arcpy.Delete_management(thalPts)
 
     #  --meander bends--
 
-    print '...meander bends...'
+    if not os.path.exists(os.path.join(evpath, 'mIndex.tif')):
+        print '...meander bends...'
 
-    #  a. isolate wet/dry bf channel
-    bfWet = Con(bf == 1, 1)
-    bfDry = Con(bf == 0, 1)
+        #  a. isolate wet/dry bf channel
+        bfWet = Con(bf == 1, 1)
+        bfDry = Con(bf == 0, 1)
 
-    #  b. delineate edge cells
-    #  buffer bf channel by one cell using euclidean distance
-    bfChDist = EucDistance(bfDry, float(desc.meanCellWidth), desc.meanCellWidth)
-    #  define edge and assign value of 0
-    bfEdgeRaw = Con(bfChDist > 0, 0)
-    bfEdge = ExtractByMask(bfEdgeRaw, bfWet)
+        #  b. delineate edge cells
+        #  buffer bf channel by one cell using euclidean distance
+        bfChDist = EucDistance(bfDry, float(desc.meanCellWidth), desc.meanCellWidth)
+        #  define edge and assign value of 0
+        bfEdgeRaw = Con(bfChDist > 0, 0)
+        bfEdge = ExtractByMask(bfEdgeRaw, bfWet)
 
-    #  c. for each edge cell, get count of number of wet and dry cells
-    #  note: In most cases the CHaMP surveys don't extend that far from the bfWet channel.
-    #  as such, we can't simply count and difference wet/dry cells (we could if the window
-    #  size used fell fully within the survey area) bc the number of wet cells will always be greater
-    #  than the number of dry cells resulting in most of the channel being classifies
-    #  as the inside of a bend.  As a work around, here we indirectly extend
-    #  the number of dry cells by first getting a count of the wet and then infer the remainder of
-    #  cells in the window are dry cells. This results in some false positives at the ds and us
-    #  extent of the reach.
-    nCellWidth = round(config.bfw / desc.meanCellWidth)
-    neigh = NbrRectangle(nCellWidth, nCellWidth, 'CELL')  # set neighborhood size
-    ebfWet = Con(IsNull(bfEdge), bfWet, bfEdge)
-    wetCount = Con(ebfWet == 0, FocalStatistics(ebfWet, neigh, 'SUM'))
-    dryCount = (nCellWidth * nCellWidth) - wetCount
+        #  c. for each edge cell, get count of number of wet and dry cells
+        #  note: In most cases the CHaMP surveys don't extend that far from the bfWet channel.
+        #  as such, we can't simply count and difference wet/dry cells (we could if the window
+        #  size used fell fully within the survey area) bc the number of wet cells will always be greater
+        #  than the number of dry cells resulting in most of the channel being classifies
+        #  as the inside of a bend.  As a work around, here we indirectly extend
+        #  the number of dry cells by first getting a count of the wet and then infer the remainder of
+        #  cells in the window are dry cells. This results in some false positives at the ds and us
+        #  extent of the reach.
+        nCellWidth = round(bfw / desc.meanCellWidth)
+        neigh = NbrRectangle(nCellWidth, nCellWidth, 'CELL')  # set neighborhood size
+        ebfWet = Con(IsNull(bfEdge), bfWet, bfEdge)
+        wetCount = Con(ebfWet == 0, FocalStatistics(ebfWet, neigh, 'SUM'))
+        dryCount = (nCellWidth * nCellWidth) - wetCount
 
-    #  d. for each edge cell, difference wet and dry cells to
-    #  negative value = inside of bend
-    #  positive values = outside of bend
-    rawIndex = dryCount - wetCount
-    rawIndexClip = ExtractByMask(rawIndex, bfEdge)
+        #  d. for each edge cell, difference wet and dry cells to
+        #  negative value = inside of bend
+        #  positive values = outside of bend
+        rawIndex = dryCount - wetCount
+        rawIndexClip = ExtractByMask(rawIndex, bfEdge)
 
-    #  e. run low pass filter to smooth output
-    fIndex = lpf_fn(rawIndexClip, 5)
+        #  e. run low pass filter to smooth output
+        fIndex = lpf_fn(rawIndexClip, 5)
 
-    #  f. normalize output as ratio of total (non-Edge) cells in window
-    nIndex = fIndex / (nCellWidth * nCellWidth)
+        #  f. normalize output as ratio of total (non-Edge) cells in window
+        nIndex = fIndex / (nCellWidth * nCellWidth)
 
-    #  g. covert to points
-    nIndexPts = arcpy.RasterToPoint_conversion(nIndex, 'in_memory/tmp_nIndex', 'VALUE')
+        #  g. covert to points
+        nIndexPts = arcpy.RasterToPoint_conversion(nIndex, 'in_memory/tmp_nIndex', 'VALUE')
 
-    #  h. interpolate points across entire surface using idw
-    rawIDW = Idw(nIndexPts, 'GRID_CODE', desc.meanCellWidth)
+        #  h. interpolate points across entire surface using idw
+        rawIDW = Idw(nIndexPts, 'GRID_CODE', desc.meanCellWidth)
 
-    #  i. clip to in-channel
-    mIndex = ExtractByMask(rawIDW, bfWet)
-    mIndex.save(os.path.join(evpath, 'mIndex.tif'))
+        #  i. clip to in-channel
+        mIndex = ExtractByMask(rawIDW, bfWet)
+        mIndex.save(os.path.join(evpath, 'mIndex.tif'))
 
-    #  j. delete intermediate fcs
-    arcpy.Delete_management(nIndexPts)
+        #  j. delete intermediate fcs
+        arcpy.Delete_management(nIndexPts)
+    else:
+        mIndex = Raster((os.path.join(evpath, 'mIndex.tif')))
 
     #  --width expansion ratio--
 
@@ -446,61 +485,62 @@ def main():
 
     #  --channel nodes--
 
-    print '...channel nodes...'
+    if not os.path.exists(os.path.join(evpath, 'channelNodes.shp')):
+        print '...channel nodes...'
 
-    chNodes_mpart = arcpy.Intersect_analysis(config.bfCL, 'in_memory/tmp_chNodes_multiPart', 'NO_FID', '', 'POINT')
+        chNodes_mpart = arcpy.Intersect_analysis(config.bfCL, 'in_memory/tmp_chNodes_multiPart', 'NO_FID', '', 'POINT')
 
-    if arcpy.management.GetCount(chNodes_mpart)[0] != '0':
+        if arcpy.management.GetCount(chNodes_mpart)[0] != '0':
 
-        arcpy.MultipartToSinglepart_management(chNodes_mpart, os.path.join(evpath, 'channelNodes.shp'))
+            arcpy.MultipartToSinglepart_management(chNodes_mpart, os.path.join(evpath, 'channelNodes.shp'))
 
-        arcpy.AddField_management('EvidenceLayers/channelNodes.shp', 'ChNodeID', 'SHORT')
-        arcpy.AddField_management('EvidenceLayers/channelNodes.shp', 'SideChID', 'TEXT', 10)
-        arcpy.AddField_management('EvidenceLayers/channelNodes.shp', 'ChNodeType', 'TEXT', 10)
+            arcpy.AddField_management('EvidenceLayers/channelNodes.shp', 'ChNodeID', 'SHORT')
+            arcpy.AddField_management('EvidenceLayers/channelNodes.shp', 'SideChID', 'TEXT', 10)
+            arcpy.AddField_management('EvidenceLayers/channelNodes.shp', 'ChNodeType', 'TEXT', 10)
 
-        fields = ['OID@', 'Channel', 'CLID', 'ChNodeID', 'SideChID']
-        with arcpy.da.UpdateCursor('EvidenceLayers/channelNodes.shp', fields) as cursor:
-            for row in cursor:
-                if row[1] == 'Main':
-                    cursor.deleteRow()
-                else:
-                    row[3] = row[0]
-                    row[4] = row[1] + str(row[2])
+            fields = ['OID@', 'Channel', 'CLID', 'ChNodeID', 'SideChID']
+            with arcpy.da.UpdateCursor('EvidenceLayers/channelNodes.shp', fields) as cursor:
+                for row in cursor:
+                    if row[1] == 'Main':
+                        cursor.deleteRow()
+                    else:
+                        row[3] = row[0]
+                        row[4] = row[1] + str(row[2])
+                        cursor.updateRow(row)
+
+            arcpy.MakeFeatureLayer_management(config.bfCL, 'mainCL_lyr', """ "Channel" = 'Main' """)
+            mainCL = arcpy.CopyFeatures_management('mainCL_lyr', 'in_memory/tmp_mainCL')
+
+            arcpy.AddField_management(mainCL, 'From_', 'DOUBLE')
+            arcpy.AddField_management(mainCL, 'To_', 'DOUBLE')
+
+            fields = ['SHAPE@LENGTH', 'From_', 'To_']
+            with arcpy.da.UpdateCursor(mainCL, fields) as cursor:
+                for row in cursor:
+                    row[1] = 0.0
+                    row[2] = row[0]
                     cursor.updateRow(row)
 
-        arcpy.MakeFeatureLayer_management(config.bfCL, 'mainCL_lyr', """ "Channel" = 'Main' """)
-        mainCL = arcpy.CopyFeatures_management('mainCL_lyr', 'in_memory/tmp_mainCL')
+            mainCL_Route = arcpy.CreateRoutes_lr(mainCL, 'CLID', 'in_memory/mainCL_Route', 'TWO_FIELDS', 'From_', 'To_')
 
-        arcpy.AddField_management(mainCL, 'From_', 'DOUBLE')
-        arcpy.AddField_management(mainCL, 'To_', 'DOUBLE')
+            arcpy.LocateFeaturesAlongRoutes_lr('EvidenceLayers/channelNodes.shp', mainCL_Route, 'CLID', float(desc.meanCellWidth), 'tbl_Routes.dbf', 'RID POINT MEAS')
 
-        fields = ['SHAPE@LENGTH', 'From_', 'To_']
-        with arcpy.da.UpdateCursor(mainCL, fields) as cursor:
-            for row in cursor:
-                row[1] = 0.0
-                row[2] = row[0]
-                cursor.updateRow(row)
+            arcpy.JoinField_management('EvidenceLayers/channelNodes.shp', 'ChNodeID', 'tbl_Routes.dbf', 'ChNodeID', ['MEAS'])
 
-        mainCL_Route = arcpy.CreateRoutes_lr(mainCL, 'CLID', 'in_memory/mainCL_Route', 'TWO_FIELDS', 'From_', 'To_')
+            arcpy.Statistics_analysis('EvidenceLayers/channelNodes.shp', 'tbl_chNodeMax.dbf', [['MEAS', 'MAX']], 'SideChID')
 
-        arcpy.LocateFeaturesAlongRoutes_lr('EvidenceLayers/channelNodes.shp', mainCL_Route, 'CLID', float(desc.meanCellWidth), 'tbl_Routes.dbf', 'RID POINT MEAS')
+            arcpy.JoinField_management('EvidenceLayers/channelNodes.shp', 'SideChID', 'tbl_chNodeMax.dbf', 'SideChID', ['MAX_MEAS'])
 
-        arcpy.JoinField_management('EvidenceLayers/channelNodes.shp', 'ChNodeID', 'tbl_Routes.dbf', 'ChNodeID', ['MEAS'])
+            fields = ['MEAS', 'MAX_MEAS', 'ChNodeType']
+            with arcpy.da.UpdateCursor('EvidenceLayers/channelNodes.shp', fields) as cursor:
+                for row in cursor:
+                    if row[0] < row[1]:
+                        row[2] = 'Diffluence'
+                    else:
+                        row[2] = 'Confluence'
+                    cursor.updateRow(row)
 
-        arcpy.Statistics_analysis('EvidenceLayers/channelNodes.shp', 'tbl_chNodeMax.dbf', [['MEAS', 'MAX']], 'SideChID')
-
-        arcpy.JoinField_management('EvidenceLayers/channelNodes.shp', 'SideChID', 'tbl_chNodeMax.dbf', 'SideChID', ['MAX_MEAS'])
-
-        fields = ['MEAS', 'MAX_MEAS', 'ChNodeType']
-        with arcpy.da.UpdateCursor('EvidenceLayers/channelNodes.shp', fields) as cursor:
-            for row in cursor:
-                if row[0] < row[1]:
-                    row[2] = 'Diffluence'
-                else:
-                    row[2] = 'Confluence'
-                cursor.updateRow(row)
-
-        arcpy.Delete_management(chNodes_mpart)
+            arcpy.Delete_management(chNodes_mpart)
 
     #  ---------------------------------
     #  tier 3 classification
@@ -509,7 +549,7 @@ def main():
     print '...attributing each unit...'
 
     #  create copy of tier 2 shapefile
-    units = arcpy.CopyFeatures_management('Output/Tier2_InChannel.shp', 'in_memory/tmp_tier3_inChannel')
+    units = arcpy.CopyFeatures_management(os.path.join(outpath, 'Tier2_InChannel.shp'), 'in_memory/tmp_tier3_inChannel')
     arcpy.MakeFeatureLayer_management(units, 'units_lyr')
 
     #  add attribute fields to tier 2 polygon shapefile
@@ -579,7 +619,7 @@ def main():
 
     print '...unit position...'
 
-    edge_units = arcpy.SpatialJoin_analysis('edge_lyr', units, 'in_memory/tmp_edge_units', 'JOIN_ONE_TO_MANY', '', '', 'WITHIN_A_DISTANCE', 0.1 * config.ww)
+    edge_units = arcpy.SpatialJoin_analysis('edge_lyr', units, 'in_memory/tmp_edge_units', 'JOIN_ONE_TO_MANY', '', '', 'WITHIN_A_DISTANCE', 0.1 * ww)
     arcpy.Frequency_analysis(edge_units, 'tbl_edge_units.dbf', ['unitID'])
     arcpy.AddField_management('tbl_edge_units.dbf', 'edgeCount', 'SHORT')
     arcpy.CalculateField_management('tbl_edge_units.dbf', 'edgeCount', '[FREQUENCY]')
@@ -723,7 +763,7 @@ def main():
         arcpy.MakeFeatureLayer_management('EvidenceLayers/channelNodes.shp', 'diffluence_lyr', """ "ChNodeType" = 'Diffluence' """)
 
         #  identify units that are in close proximity to channel confluence [assigning Y/N]
-        arcpy.SelectLayerByLocation_management('units_lyr', 'WITHIN_A_DISTANCE', 'confluence_lyr', str(0.1 * config.bfw) + ' Meters', 'NEW_SELECTION')
+        arcpy.SelectLayerByLocation_management('units_lyr', 'WITHIN_A_DISTANCE', 'confluence_lyr', str(0.1 * bfw) + ' Meters', 'NEW_SELECTION')
         with arcpy.da.UpdateCursor('units_lyr', 'Confluence') as cursor:
             for row in cursor:
                 row[0] = 'Y'
@@ -736,7 +776,7 @@ def main():
                 cursor.updateRow(row)
 
         #  identify units that are in close proximity to channel diffluence [assigning Y/N]
-        arcpy.SelectLayerByLocation_management('units_lyr', 'WITHIN_A_DISTANCE', 'diffluence_lyr', str(0.1 * config.bfw) + ' Meters', 'NEW_SELECTION')
+        arcpy.SelectLayerByLocation_management('units_lyr', 'WITHIN_A_DISTANCE', 'diffluence_lyr', str(0.1 * bfw) + ' Meters', 'NEW_SELECTION')
         with arcpy.da.UpdateCursor('units_lyr', 'Diffluence') as cursor:
             for row in cursor:
                 row[0] = 'Y'
@@ -879,7 +919,7 @@ def main():
     with arcpy.da.UpdateCursor(units, fields) as cursor:
         for row in cursor:
             if row[0] == 'Concavity':
-                if row[8] > 0.25 * config.bfw:
+                if row[8] > 0.25 * bfw:
                     if row[1] == 'NA': # if not forced
                         if row[3] == 'Transverse':
                             if row[4] == 'Y': # intersects thalweg
@@ -914,7 +954,7 @@ def main():
     with arcpy.da.UpdateCursor('units_lyr', ['Tier2', 'meanSlope', 'Tier3', 'Area']) as cursor:
         for row in cursor:
             if row[0] == 'Convexity':
-                if row[3] > 0.25 * config.bfw:
+                if row[3] > 0.25 * bfw:
                     if row[1] >= 12.0:
                         row[2] = 'Bank'
                 else:
@@ -928,7 +968,7 @@ def main():
     with arcpy.da.UpdateCursor(units, fields) as cursor:
         for row in cursor:
             if row[0] == 'Convexity' and row[5] != 'Bank':
-                if row[6] > config.bfw:
+                if row[6] > bfw:
                     if row[1] == 'NA':
                         if row[3] == 'Transverse':
                             if row[2] == 'Mid Channel':
@@ -944,7 +984,7 @@ def main():
                                 else:
                                     row[5] = 'Lateral Bar'
                             elif row[2] == 'Mid Channel':
-                                arcpy.SelectLayerByLocation_management('units_lyr', 'WITHIN_A_DISTANCE', 'chute_lyr', str(config.bfw * 0.25) + ' Meters', 'NEW_SELECTION')
+                                arcpy.SelectLayerByLocation_management('units_lyr', 'WITHIN_A_DISTANCE', 'chute_lyr', str(bfw * 0.25) + ' Meters', 'NEW_SELECTION')
                                 row[5] = 'Diagonal Bar'
                                 arcpy.SelectLayerByAttribute_management('units_lyr', 'SWITCH_SELECTION')
                                 row[5] = 'Longitudinal Bar'
@@ -964,7 +1004,7 @@ def main():
     with arcpy.da.UpdateCursor(units, fields) as cursor:
         for row in cursor:
             if row[0] == 'Planar':
-                if row[6] > config.bfw:
+                if row[6] > bfw:
                     if row[1] == 'NA':  # if not forced
                         if row[2] == 'Transverse':
                             if row[3] == 'Y':
@@ -972,7 +1012,7 @@ def main():
                                 row[5] = 'Riffle'
                             else:
                                 row[0] = 'TransitionZone'
-                        elif row[7] < config.bfw:
+                        elif row[7] < bfw:
                             row[0] = 'TransitionZone'
                         else:  # if streamwise
                             if row[4] < 0.5:
@@ -993,7 +1033,11 @@ def main():
     print '...cleaning up transition zones...'
 
     arcpy.SelectLayerByAttribute_management('units_lyr', 'NEW_SELECTION', """ "Tier2" = 'TransitionZone' """)
+    #arcpy.CopyFeatures_management('units_lyr', 'in_memory/tmp_TransitionZone')
     transitionzone = arcpy.Dissolve_management('units_lyr', 'in_memory/tmp_TransitionZoneMerge', ['Tier2'])
+    #transitionzone = arcpy.Dissolve_management('in_memory/tmp_TransitionZone', 'in_memory/tmp_TransitionZoneMerge', ['Tier2'])
+
+    print 'Got to line 1038'
 
     with arcpy.da.UpdateCursor(units, 'Tier2') as cursor:
         for row in cursor:
@@ -1001,6 +1045,8 @@ def main():
                 cursor.deleteRow()
 
     arcpy.Merge_management([units, transitionzone], os.path.join(outpath, 'Tier3_InChannel.shp'))
+
+    print 'Got to line 1047'
 
     fields = ['Tier1', 'Tier2', 'Tier3', 'SHAPE@Area', 'Area', 'OID@', 'unitID']
 
@@ -1013,6 +1059,7 @@ def main():
                 row[6] = row[5]
             cursor.updateRow(row)
 
+    print 'Got to line 1060'
     # ----------------------------------------------------------
     # Remove temporary files
     print '...removing intermediary surfaces...'

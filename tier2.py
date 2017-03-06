@@ -3,6 +3,7 @@ import arcpy
 import os
 import config
 import fnmatch
+import math
 from arcpy.sa import *
 arcpy.CheckOutExtension('Spatial')
 
@@ -15,12 +16,21 @@ def main():
     arcpy.env.workspace = config.workspace  # set workspace to pf
     arcpy.env.overwriteOutput = True  # set to overwrite output
 
+    #  set output paths
+    evpath = os.path.join(arcpy.env.workspace, 'EvidenceLayers')
+    if config.runFolderName != 'Default' and config.runFolderName != '':
+        outpath = os.path.join(arcpy.env.workspace, 'Output', config.runFolderName)
+    else:
+        runFolders = fnmatch.filter(next(os.walk(os.path.join(arcpy.env.workspace, 'Output')))[1], 'Run_*')
+        runNum = int(max([i.split('_', 1)[1] for i in runFolders]))
+        outpath = os.path.join(arcpy.env.workspace, 'Output', 'Run_%03d' % runNum)
+
     #  clean up!
     #  search for existing tier 2 shapefiles or rasters
     #  if exist, delete from workspace otherwise will lead
     #  to errors in subsequent steps
     for root, dirs, files in os.walk(arcpy.env.workspace):
-        for f in fnmatch.filter(files, 'Tier2*'):
+        for f in fnmatch.filter(files, os.path.join(outpath, 'Tier2*')):
             os.remove(os.path.join(root, f))
 
     #  import required rasters
@@ -34,84 +44,22 @@ def main():
     arcpy.env.outputCoordinateSystem = desc.SpatialReference
     arcpy.env.cellSize = desc.meanCellWidth
 
-    #  set output paths
-    evpath = os.path.join(arcpy.env.workspace, 'EvidenceLayers')
-    outpath = os.path.join(arcpy.env.workspace, 'Output')
-
-    #  ---------------------------------
-    #  tier 2 evidence rasters
-    #  ---------------------------------
-
-    print '...deriving evidence rasters...'
-
-    #  --mean dem--
-    neigh = NbrRectangle(round(config.bfw * 0.1, 1), round(config.bfw * 0.1, 1), 'MAP')  # set neighborhood size
-    meanDEM = FocalStatistics(dem, neigh, 'MEAN', 'DATA')  # calculate mean z
-    outMeanDEM = ExtractByMask(meanDEM, dem)  # clip output to input
-    outMeanDEM.save(os.path.join(evpath, os.path.splitext(os.path.basename(config.inDEM))[0] + '_mean.tif'))  # save output
-
-    #  --mean detrended dem--
-    meanDetDEM = FocalStatistics(det, neigh, 'MEAN', 'DATA')  # calculate mean z
-    outMeanDetDEM = ExtractByMask(meanDetDEM, det)  # clip output to input
-    outMeanDetDEM.save(os.path.join(evpath, os.path.splitext(os.path.basename(config.inDet))[0] + '_mean.tif'))  # save output
-
-    #  --in channel mean dem--
-    inCh = SetNull(bf, 1, '"VALUE" = 0')
-    inChDEM = inCh * meanDEM
-    inChDEM.save(os.path.join(evpath, 'inCh_' + os.path.basename(config.inDEM) + '.tif'))  # save output
-
-    #  --in channel mean detrended--
-    inChDetDEM = inCh * meanDetDEM
-    inChDetDEM.save(os.path.join(evpath, 'inCh_' + os.path.basename(config.inDet) + '.tif'))  # save output
-
-    #  --residual topography--
-    neigh2 = NbrRectangle(config.bfw, config.bfw, 'MAP')  # set neighborhood size
-    smDEM = FocalStatistics(inChDEM, neigh2, 'MEAN', 'DATA')  # calculate mean z ('smoothed' DEM)
-    resTopo = inChDEM - smDEM  # calculate residual topogaphy
-    resTopo.save(os.path.join(evpath, 'resTopo.tif')) # save output
-
-    #  --bf channel slope--
-    #  a. calculate slope
-    bfSlope = Slope(inChDEM, 'DEGREE')
-    #  b. save output
-    bfSlope.save(os.path.join(evpath, 'smDEMSlope.tif'))
-
-    #  --normalized fill--
-    #  a. fill dem
-    rFill = Fill(inChDEM)
-    #  b. difference with dem
-    rDiff = (rFill - inChDEM)
-    #  c. get min fill value
-    rMinResult = arcpy.GetRasterProperties_management(rDiff, 'MINIMUM')
-    rMin = float(rMinResult.getOutput(0))
-    #  d. get max fill value
-    rMaxResult = arcpy.GetRasterProperties_management(rDiff, 'MAXIMUM')
-    rMax = float(rMaxResult.getOutput(0))
-    #  e.  normalize fill values
-    normFill = (rDiff - rMin) / (rMax - rMin)
-    #  f. save output
-    normFill.save(os.path.join(evpath, 'normFill.tif'))
-
-    #  --channel margin--
-    #  a. remove any wePoly parts < 5% of total area
-    wePolyElim = arcpy.EliminatePolygonPart_management(config.wePolyShp, 'in_memory/tmp_wePolyElim', 'PERCENT', '', 5, 'ANY')
-    #  b. erase wePolyelim from bankfull polygon
-    polyErase = arcpy.Erase_analysis(config.bfPolyShp, wePolyElim, 'in_memory/tmp_polyErase', '')
-    #  c. buffer the output by 10% of the integrated wetted width
-    bufferDist = 0.1 * config.ww
-    polyBuffer = arcpy.Buffer_analysis(polyErase, 'in_memory/tmp_polyBuffer', bufferDist, 'FULL')
-    #  d. clip the output to the bankull polygon
-    arcpy.Clip_analysis(polyBuffer, config.bfPolyShp, 'EvidenceLayers/chMargin.shp')
-    #  e. convert the output to a raster
-    arcpy.PolygonToRaster_conversion('EvidenceLayers/chMargin.shp', 'FID', 'tmp_outRas.tif', 'CELL_CENTER', 'NONE', '0.1')
-    #  f. set all cells inside/outside the bankfull ratser to 1/0
-    cm = Con(IsNull('tmp_outRas.tif'), 0, 1)
-    #  g. save the ouput
-    cm.save(os.path.join(evpath, 'chMargin.tif'))
-
     #  ---------------------------------
     #  tier 2 functions
     #  ---------------------------------
+
+    #  --integrated width function--
+
+    #  calculates integrated width
+    #  as: [polygon area] / [sum(centerline lengths)]
+
+    def intWidth_fn(polygon, centerline):
+        arrPoly = arcpy.da.FeatureClassToNumPyArray(polygon, ['SHAPE@AREA'])
+        arrPolyArea = arrPoly['SHAPE@AREA'].sum()
+        arrCL = arcpy.da.FeatureClassToNumPyArray(centerline, ['SHAPE@LENGTH'])
+        arrCLLength = arrCL['SHAPE@LENGTH'].sum()
+        intWidth = round(arrPolyArea / arrCLLength, 1)
+        return intWidth
 
     #  --area threshold function--
 
@@ -127,7 +75,7 @@ def main():
         rGroup = RegionGroup(ras, 'FOUR')  # caclulate cell group (i.e., cluster)
         rArea = ZonalGeometry(rGroup, 'Value', 'AREA', '0.1')  # calculate indiv cluster area
         rAreaTh = SetNull(rArea, 1,
-                          '"VALUE" <' + str(area_th * config.bfw))  # assign NA to clusters that don't meet area threshold
+                          '"VALUE" <' + str(area_th * bfw))  # assign NA to clusters that don't meet area threshold
         return rAreaTh
 
     #  --membership function--
@@ -142,9 +90,9 @@ def main():
 
     def mem_fn(ras, ws):
         ras2 = Con(IsNull(ras), 0, 1)  # set na cells to 0 for focal stats purposes
-        wsCell = int(round((ws * config.bfw) / desc.meanCellWidth))  # convert neighborhood size from ratio of bfw to number of cells
-        print wsCell
-        if int(round((ws * config.bfw) / desc.meanCellWidth)) < 3:
+        wsCell = int(math.ceil((ws * bfw) / desc.meanCellWidth))  # convert neighborhood size from ratio of bfw to number of cells
+        print 'Membership function window size: ' + str(wsCell) + ' x ' + str(wsCell) + ' cells'
+        if int(math.ceil((ws * bfw) / desc.meanCellWidth)) < 3:
             wsCell = 3
         neigh = NbrRectangle(wsCell, wsCell, 'CELL')  # set neighborhood size
         rCount = FocalStatistics(ras2, neigh, 'SUM', 'DATA')  # calculate sum of cells
@@ -203,8 +151,113 @@ def main():
                 if f.endswith('.shp'):
                     shps.append(os.path.join(root, f))
         arcpy.Merge_management(shps, os.path.join(outpath, 'Tier2_InChannel.shp'))
+        arcpy.CopyFeatures_management(os.path.join(outpath, 'Tier2_InChannel.shp'), os.path.join(outpath, 'Tier2_InChannel_Raw.shp'))
         for shp in shps:
             arcpy.Delete_management(shp)
+
+    #  ---------------------------------
+    #  calculate integrated widths
+    #  ---------------------------------
+    
+    bfw = intWidth_fn(config.bfPolyShp, config.bfCL)
+    ww = intWidth_fn(config.wPolyShp, config.wCL)
+    print 'Integrated bankfull width: ' + str(bfw) + ' m'
+    print 'Integrated wetted width: ' + str(ww) + ' m'
+
+    #  ---------------------------------
+    #  tier 2 evidence rasters
+    #  ---------------------------------
+    inCh = SetNull(bf, 1, '"VALUE" = 0')
+
+    print '...deriving evidence rasters...'
+
+    #  --mean dem--
+    if not os.path.exists(os.path.join(evpath, os.path.splitext(os.path.basename(config.inDEM))[0] + '_mean.tif')):
+        neigh = NbrRectangle(round(math.ceil(bfw) * 0.1, 1), round(math.ceil(bfw) * 0.1, 1), 'MAP')  # set neighborhood size
+        meanDEM = FocalStatistics(dem, neigh, 'MEAN', 'DATA')  # calculate mean z
+        outMeanDEM = ExtractByMask(meanDEM, dem)  # clip output to input
+        outMeanDEM.save(os.path.join(evpath, os.path.splitext(os.path.basename(config.inDEM))[0] + '_mean.tif'))  # save output
+    else:
+        outMeanDEM = Raster(os.path.join(evpath, os.path.splitext(os.path.basename(config.inDEM))[0] + '_mean.tif'))
+
+    #  --mean detrended dem--
+    if not os.path.exists(os.path.join(evpath, os.path.splitext(os.path.basename(config.inDet))[0] + '_mean.tif')):
+        meanDetDEM = FocalStatistics(det, neigh, 'MEAN', 'DATA')  # calculate mean z
+        outMeanDetDEM = ExtractByMask(meanDetDEM, det)  # clip output to input
+        outMeanDetDEM.save(os.path.join(evpath, os.path.splitext(os.path.basename(config.inDet))[0] + '_mean.tif'))  # save output
+    else:
+        outMeanDetDEM = Raster(os.path.join(evpath, os.path.splitext(os.path.basename(config.inDet))[0] + '_mean.tif'))
+
+    #  --in channel mean dem--
+    if not os.path.exists(os.path.join(evpath, 'inCh_' + os.path.basename(config.inDEM) + '.tif')):
+        inChDEM = inCh * meanDEM
+        inChDEM.save(os.path.join(evpath, 'inCh_' + os.path.basename(config.inDEM) + '.tif'))  # save output
+    else:
+        inChDEM = Raster(os.path.join(evpath, 'inCh_' + os.path.basename(config.inDEM) + '.tif'))
+
+    #  --in channel mean detrended--
+    if not os.path.exists(os.path.join(evpath, 'inCh_' + os.path.basename(config.inDet) + '.tif')):
+        inChDetDEM = inCh * meanDetDEM
+        inChDetDEM.save(os.path.join(evpath, 'inCh_' + os.path.basename(config.inDet) + '.tif'))  # save output
+    else:
+        inChDetDEM = Raster(os.path.join(evpath, 'inCh_' + os.path.basename(config.inDet) + '.tif'))
+
+    #  --residual topography--
+    if not os.path.exists(os.path.join(evpath, 'resTopo.tif')):
+        neigh2 = NbrRectangle(bfw, bfw, 'MAP')  # set neighborhood size
+        smDEM = FocalStatistics(inChDEM, neigh2, 'MEAN', 'DATA')  # calculate mean z ('smoothed' DEM)
+        resTopo = inChDEM - smDEM  # calculate residual topogaphy
+        resTopo.save(os.path.join(evpath, 'resTopo.tif')) # save output
+    else:
+        resTopo = Raster(os.path.join(evpath, 'resTopo.tif'))
+
+    #  --bf channel slope--
+    if not os.path.exists(os.path.join(evpath, 'smDEMSlope.tif')):
+        #  a. calculate slope
+        bfSlope = Slope(inChDEM, 'DEGREE')
+        #  b. save output
+        bfSlope.save(os.path.join(evpath, 'smDEMSlope.tif'))
+    else:
+        bfSlope = Raster(os.path.join(evpath, 'smDEMSlope.tif'))
+
+    #  --normalized fill--
+    if not os.path.exists(os.path.join(evpath, 'normFill.tif')):
+        #  a. fill dem
+        rFill = Fill(inChDEM)
+        #  b. difference with dem
+        rDiff = (rFill - inChDEM)
+        #  c. get min fill value
+        rMinResult = arcpy.GetRasterProperties_management(rDiff, 'MINIMUM')
+        rMin = float(rMinResult.getOutput(0))
+        #  d. get max fill value
+        rMaxResult = arcpy.GetRasterProperties_management(rDiff, 'MAXIMUM')
+        rMax = float(rMaxResult.getOutput(0))
+        #  e.  normalize fill values
+        normFill = (rDiff - rMin) / (rMax - rMin)
+        #  f. save output
+        normFill.save(os.path.join(evpath, 'normFill.tif'))
+    else:
+        normFill = Raster(os.path.join(evpath, 'normFill.tif'))
+
+    #  --channel margin--
+    if not os.path.exists(os.path.join(evpath, 'chMargin.tif')):
+        #  a. remove any wePoly parts < 5% of total area
+        wPolyElim = arcpy.EliminatePolygonPart_management(config.wPolyShp, 'in_memory/tmp_wPolyElim', 'PERCENT', '', 5, 'ANY')
+        #  b. erase wPolyElim from bankfull polygon
+        polyErase = arcpy.Erase_analysis(config.bfPolyShp, wPolyElim, 'in_memory/tmp_polyErase', '')
+        #  c. buffer the output by 10% of the integrated wetted width
+        bufferDist = 0.1 * ww
+        polyBuffer = arcpy.Buffer_analysis(polyErase, 'in_memory/tmp_polyBuffer', bufferDist, 'FULL')
+        #  d. clip the output to the bankull polygon
+        arcpy.Clip_analysis(polyBuffer, config.bfPolyShp, 'EvidenceLayers/chMargin.shp')
+        #  e. convert the output to a raster
+        arcpy.PolygonToRaster_conversion('EvidenceLayers/chMargin.shp', 'FID', 'tmp_outRas.tif', 'CELL_CENTER', 'NONE', '0.1')
+        #  f. set all cells inside/outside the bankfull ratser to 1/0
+        cm = Con(IsNull('tmp_outRas.tif'), 0, 1)
+        #  g. save the ouput
+        cm.save(os.path.join(evpath, 'chMargin.tif'))
+    else:
+        cm = Raster(os.path.join(evpath, 'chMargin.tif'))
 
     # ---------------------------------
     #  tier 2 classification
@@ -271,7 +324,7 @@ def main():
     rConInv = Con(IsNull(rCon), 1)
     rGroup2 = RegionGroup(rConInv, 'FOUR')  # caclulate cell group (i.e., cluster)
     rArea2 = ZonalGeometry(rGroup2, 'Value', 'AREA', '0.1')  # calculate indiv cluster area
-    rArea2Th = SetNull(rArea2, 1, '"VALUE" > ' + str(0.25 * config.bfw))
+    rArea2Th = SetNull(rArea2, 1, '"VALUE" > ' + str(0.25 * bfw))
     rawPF = Con(IsNull(rCon), rArea2Th, rCon)
 
     memPF = mem_fn(rawPF, 0.1)
