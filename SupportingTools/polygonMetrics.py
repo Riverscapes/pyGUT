@@ -17,6 +17,7 @@ arcpy.CheckOutExtension('Spatial')
 
 def main():
 
+    print "initializing..."
     #  set environment settings
     arcpy.env.workspace = outFolder
     arcpy.env.overwriteOutput = True
@@ -34,6 +35,7 @@ def main():
     unit_poly = arcpy.CopyFeatures_management(guPolyShp, 'in_memory/unit_poly')
     unit_lyr = arcpy.MakeFeatureLayer_management(unit_poly, 'units_lyr')
 
+    print "calculating unit area and perimeter"
     #  calculate unit area and perimeter
     arcpy.AddField_management(unit_poly, 'UnitID', 'SHORT')
     arcpy.AddField_management(unit_poly, 'Area', 'DOUBLE')
@@ -48,7 +50,8 @@ def main():
             row[5] = row[3]
             row[6] = row[4] / (row[5]**2)
             cursor.updateRow(row)
-
+            
+     print "creating minumum bounding box of unit to measure length, width and orientation"
     #  calculate unit length, width, orientation (i.e., angle) using minimum bounding polygon
     unit_minbound = arcpy.MinimumBoundingGeometry_management(unit_poly, 'in_memory/units_minbound', 'RECTANGLE_BY_WIDTH', '', '', 'MBG_FIELDS')
     arcpy.AddField_management(unit_minbound, 'Width', 'DOUBLE')
@@ -146,6 +149,7 @@ def main():
 
     arcpy.DeleteField_management(unit_poly, ['unitOrient', 'clOrient'])
 
+    print "calculating unit slope and curvature metrics"
     #  unit bed slope raster mean and sd
     bed_slope = Slope(dem, 'DEGREE')
     bed_slope.save('in_memory/BedSl')
@@ -196,6 +200,7 @@ def main():
     #  save unit poly shp with metrics to new shp
     out_fname = os.path.splitext(os.path.basename(guPolyShp))[0]
 
+    print "saving attributes to .csv"
     #  output attribute table to a *csv
     nparr = arcpy.da.FeatureClassToNumPyArray(unit_poly, ['*'])
     field_names = [f.name for f in arcpy.ListFields(unit_poly)]
