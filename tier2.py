@@ -4,6 +4,7 @@ import os
 import config
 import fnmatch
 import math
+import numpy
 from arcpy.sa import *
 arcpy.CheckOutExtension('Spatial')
 
@@ -29,13 +30,13 @@ def main():
     #  search for existing tier 2 shapefiles or rasters
     #  if exist, delete from workspace otherwise will lead
     #  to errors in subsequent steps
-    for root, dirs, files in os.walk(arcpy.env.workspace):
-        for f in fnmatch.filter(files, os.path.join(outpath, 'Tier2*')):
-            os.remove(os.path.join(root, f))
+    for root, dirs, files in os.walk(outpath):
+        for file in files:
+            if 'Tier2' in file:
+                os.remove(os.path.join(outpath, file))
 
     #  import required rasters
     dem = Raster(config.inDEM)
-    det = Raster(config.inDet)
     bf = Raster('EvidenceLayers/bfCh.tif')  # created in 'tier1' module
 
     #  set raster environment settings
@@ -61,104 +62,50 @@ def main():
         intWidth = round(arrPolyArea / arrCLLength, 1)
         return intWidth
 
-    #  --area threshold function--
-
-    #  calculates raster clusters (or groups)
-    #  and their individual area.  Threshold
-    #  based on bfw and area.th (area threshold;
-    #  ratio of bfw).  All clusters that have
-    #  an area < the (area.th*bfw) are set to
-    #  no data.  All clusters that meet the
-    #  threshold are set to a value of 1.
-
-    def area_fn(ras, area_th):
-        rGroup = RegionGroup(ras, 'FOUR')  # caclulate cell group (i.e., cluster)
-        rArea = ZonalGeometry(rGroup, 'Value', 'AREA', '0.1')  # calculate indiv cluster area
-        rAreaTh = SetNull(rArea, 1,
-                          '"VALUE" <' + str(area_th * bfw))  # assign NA to clusters that don't meet area threshold
-        return rAreaTh
-
-    #  --membership function--
-
-    #  counts the number of cells within window
-    #  that have been classified as the given
-    #  unit.  window size (based on ratio of
-    #  bankfull width) and count threshold
-    #  (percentage of count) are set by the user.
-    #  all cells that don't meet threshold are
-    #  set to no data.
-
-    def mem_fn(ras, ws):
-        ras2 = Con(IsNull(ras), 0, 1)  # set na cells to 0 for focal stats purposes
-        wsCell = int(math.ceil((ws * bfw) / desc.meanCellWidth))  # convert neighborhood size from ratio of bfw to number of cells
-        print 'Membership function window size: ' + str(wsCell) + ' x ' + str(wsCell) + ' cells'
-        if int(math.ceil((ws * bfw) / desc.meanCellWidth)) < 3:
-            wsCell = 3
-        neigh = NbrRectangle(wsCell, wsCell, 'CELL')  # set neighborhood size
-        rCount = FocalStatistics(ras2, neigh, 'SUM', 'DATA')  # calculate sum of cells
-        rCountNorm = rCount / float(wsCell * wsCell)  # normalize by window size
-        rCountNorm2 = Con(IsNull(rCountNorm), 0, rCountNorm)
-        rMem = ExtractByMask(rCountNorm2, inCh)
-        return rMem
-
     #  --tier 2 raster to polygon function--
 
-    #  reads in all tier 2 rasters, creates
-    #  transition zones (i.e., all unclassified
-    #  cells/no data cells in the bf channel)
-    #  and merges them into a single shapefile.
-    #  attributes tier1 and tier2 names shapefile fields
-
-    def ras2poly_fn(inChDEM):
-        rasters = []
-        for root, dirs, files in os.walk(arcpy.env.workspace):
-            for f in fnmatch.filter(files, 'Tier2_*'):
-                if f.endswith('.tif'):
-                    if 'Membership' not in f:
-                        rasters.append(os.path.join(root, f))
-        arcpy.MosaicToNewRaster_management(rasters, arcpy.env.workspace, 'tmp_rasMosaic.tif', number_of_bands=1)
-        rSetNull = Con(IsNull('tmp_rasMosaic.tif'), 1, SetNull('tmp_rasMosaic.tif', 1, '"VALUE" >= 0'))
-        rTransition = ExtractByMask(rSetNull, inChDEM)
-        rTransition.save(os.path.join(outpath, 'Tier2_InChannel_TransitionZone.tif'))
-        rasters.append(os.path.join(outpath, 'Tier2_InChannel_TransitionZone.tif'))
-        for raster in rasters:
-            print raster
-            fn = os.path.splitext(os.path.basename(raster))[0]
-            t1Name = fn.split('_')[1]
-            t2Name = fn.split('_')[2]
-            tmp_poly = fn + '.shp'
-            arcpy.RasterToPolygon_conversion(raster, tmp_poly, 'NO_SIMPLIFY', 'VALUE')
-            if 'Transition' in tmp_poly:
-                arcpy.Dissolve_management(tmp_poly, 'tmp_poly2.shp', ['GRIDCODE'])
-                arcpy.Delete_management(tmp_poly)
-                arcpy.CopyFeatures_management('tmp_poly2.shp', tmp_poly)
-            # Add Tier 1 and Tier 2 Names to attribute table
-            arcpy.AddField_management(tmp_poly, 'Tier1', 'TEXT', '', '', 20)
-            arcpy.AddField_management(tmp_poly, 'Tier2', 'TEXT', '', '', 25)
-            arcpy.AddField_management(tmp_poly, 'Forcing', 'TEXT', '', '', 25)
-            # Populate fields
-            fields = ['Tier1', 'Tier2', 'Forcing']
-            with arcpy.da.UpdateCursor(tmp_poly, fields) as cursor:
-                for row in cursor:
-                    row[0] = t1Name
-                    row[1] = t2Name
-                    row[2] = 'NA'
-                    cursor.updateRow(row)
-            arcpy.Delete_management(raster)
+    def ras2poly_cn(Mound, Planar, Bowl, Trough):
         shps = []
-        for root, dirs, files in os.walk(arcpy.env.workspace):
-            for f in fnmatch.filter(files, 'Tier2_*'):
-                if f.endswith('.shp'):
-                    shps.append(os.path.join(root, f))
-        arcpy.Merge_management(shps, os.path.join(outpath, 'Tier2_InChannel.shp'))
-        arcpy.CopyFeatures_management(os.path.join(outpath, 'Tier2_InChannel.shp'), os.path.join(outpath, 'Tier2_InChannel_Raw.shp'))
+        formDict = locals()
+        for key, value in formDict.iteritems():
+            if key in ['Mound', 'Planar', 'Bowl', 'Trough']:
+                tmp_fn = 'in_memory/tmp_' + str(key)
+                shps.extend([tmp_fn])
+                arcpy.RasterToPolygon_conversion(value, tmp_fn, 'NO_SIMPLIFY', 'VALUE')
+                arcpy.AddField_management(tmp_fn, 'Tier1', 'TEXT', '', '', 15)
+                arcpy.AddField_management(tmp_fn, 'Tier2', 'TEXT', '', '', 15)
+                arcpy.AddField_management(tmp_fn, 'Form', 'TEXT', '', '', 10)
+                with arcpy.da.UpdateCursor(tmp_fn, ['Tier1', 'Tier2', 'Form']) as cursor:
+                    for row in cursor:
+                        row[0] = 'InChannel'
+                        row[2] = str(key)
+                        if row[2] == 'Planar':
+                            row[1] = 'Planar'
+                        elif row[2] == 'Mound':
+                            row[1] = 'Convexity'
+                        else:
+                            row[1] = 'Concavity'
+                        cursor.updateRow(row)
+
+        tmp_units = arcpy.Merge_management(shps, 'in_memory/tmp_merge')
+        arcpy.AddField_management(tmp_units, 'Area', 'DOUBLE')
+        arcpy.AddField_management(tmp_units, 'UnitID', 'SHORT')
+        with arcpy.da.UpdateCursor(tmp_units, ['OID@', 'UnitID', 'SHAPE@AREA', 'Area']) as cursor:
+            for row in cursor:
+                row[1] = row[0]
+                row[3] = row[2]
+                cursor.updateRow(row)
+        arcpy.CopyFeatures_management(tmp_units, os.path.join(outpath, 'Tier2_InChannel_Raw.shp'))
+        arcpy.CopyFeatures_management(tmp_units, os.path.join(outpath, 'Tier2_InChannel.shp'))
+
+        # shps.extend([tmp_units])
         for shp in shps:
             arcpy.Delete_management(shp)
 
     #  ---------------------------------
     #  calculate integrated widths
     #  ---------------------------------
-    
+
     bfw = intWidth_fn(config.bfPolyShp, config.bfCL)
     ww = intWidth_fn(config.wPolyShp, config.wCL)
     print 'Integrated bankfull width: ' + str(bfw) + ' m'
@@ -180,27 +127,12 @@ def main():
     else:
         outMeanDEM = Raster(os.path.join(evpath, os.path.splitext(os.path.basename(config.inDEM))[0] + '_mean.tif'))
 
-    #  --mean detrended dem--
-    if not os.path.exists(os.path.join(evpath, os.path.splitext(os.path.basename(config.inDet))[0] + '_mean.tif')):
-        meanDetDEM = FocalStatistics(det, neigh, 'MEAN', 'DATA')  # calculate mean z
-        outMeanDetDEM = ExtractByMask(meanDetDEM, det)  # clip output to input
-        outMeanDetDEM.save(os.path.join(evpath, os.path.splitext(os.path.basename(config.inDet))[0] + '_mean.tif'))  # save output
-    else:
-        outMeanDetDEM = Raster(os.path.join(evpath, os.path.splitext(os.path.basename(config.inDet))[0] + '_mean.tif'))
-
     #  --in channel mean dem--
     if not os.path.exists(os.path.join(evpath, 'inCh_' + os.path.basename(config.inDEM))):
-        inChDEM = inCh * meanDEM
+        inChDEM = inCh * outMeanDEM
         inChDEM.save(os.path.join(evpath, 'inCh_' + os.path.basename(config.inDEM)))  # save output
     else:
         inChDEM = Raster(os.path.join(evpath, 'inCh_' + os.path.basename(config.inDEM)))
-
-    #  --in channel mean detrended--
-    if not os.path.exists(os.path.join(evpath, 'inCh_' + os.path.basename(config.inDet))):
-        inChDetDEM = inCh * meanDetDEM
-        inChDetDEM.save(os.path.join(evpath, 'inCh_' + os.path.basename(config.inDet)))  # save output
-    else:
-        inChDetDEM = Raster(os.path.join(evpath, 'inCh_' + os.path.basename(config.inDet)))
 
     #  --residual topography--
     if not os.path.exists(os.path.join(evpath, 'resTopo.tif')):
@@ -210,53 +142,6 @@ def main():
         resTopo.save(os.path.join(evpath, 'resTopo.tif')) # save output
     else:
         resTopo = Raster(os.path.join(evpath, 'resTopo.tif'))
-
-    #  --normalized negative residual topography--
-    if not os.path.exists(os.path.join(evpath, 'normNegResTopo.tif')):
-        negResTopo = SetNull(resTopo, resTopo, '"VALUE" > 0')
-        #  c. get min fill value
-        rMinResult = arcpy.GetRasterProperties_management(negResTopo, 'MINIMUM')
-        rMin = float(rMinResult.getOutput(0))
-        #  d. get max fill value
-        rMaxResult = arcpy.GetRasterProperties_management(negResTopo, 'MAXIMUM')
-        rMax = float(rMaxResult.getOutput(0))
-        #  e.  normalize fill values
-        normNegResTopo = (negResTopo - rMax) / (rMin - rMax)
-        normNegResTopo.save(os.path.join(evpath, 'normNegResTopo.tif')) # save output
-    else:
-        normNegResTopo = Raster(os.path.join(evpath, 'normNegResTopo.tif'))
-
-    #  --normalized positive residual topography--
-    if not os.path.exists(os.path.join(evpath, 'normPosResTopo.tif')):
-        posResTopo = SetNull(resTopo, resTopo, '"VALUE" <= 0')
-        #  c. get min fill value
-        rMinResult2 = arcpy.GetRasterProperties_management(posResTopo, 'MINIMUM')
-        rMin2 = float(rMinResult2.getOutput(0))
-        #  d. get max fill value
-        rMaxResult2 = arcpy.GetRasterProperties_management(posResTopo, 'MAXIMUM')
-        rMax2 = float(rMaxResult2.getOutput(0))
-        #  e.  normalize fill values
-        normPosResTopo = (posResTopo - rMin2) / (rMax2 - rMin2)
-        normPosResTopo.save(os.path.join(evpath, 'normPosResTopo.tif')) # save output
-    else:
-        normPosResTopo = Raster(os.path.join(evpath, 'normPosResTopo.tif'))
-
-    #  --bf channel slope--
-    if not os.path.exists(os.path.join(evpath, 'smDEMSlope.tif')):
-        #  a. calculate slope
-        bfSlope = Slope(inChDEM, 'DEGREE')
-        #  b. save output
-        bfSlope.save(os.path.join(evpath, 'smDEMSlope.tif'))
-    else:
-        bfSlope = Raster(os.path.join(evpath, 'smDEMSlope.tif'))
-
-    if not os.path.exists(os.path.join(evpath, 'smDetrendedSlope.tif')):
-        #  a. calculate slope
-        bfSlope = Slope(inChDetDEM, 'DEGREE')
-        #  b. save output
-        bfSlope.save(os.path.join(evpath, 'smDetrendedSlope.tif'))
-    else:
-        bfSlope = Raster(os.path.join(evpath, 'smDetrendedSlope.tif'))
 
     #  --normalized fill--
     if not os.path.exists(os.path.join(evpath, 'normFill.tif')):
@@ -277,124 +162,58 @@ def main():
     else:
         normFill = Raster(os.path.join(evpath, 'normFill.tif'))
 
-    #  --channel margin--
-    if not os.path.exists(os.path.join(evpath, 'chMargin.tif')):
-        #  a. remove any wePoly parts < 5% of total area
-        wPolyElim = arcpy.EliminatePolygonPart_management(config.wPolyShp, 'in_memory/tmp_wPolyElim', 'PERCENT', '', 5, 'ANY')
-        #  b. erase wPolyElim from bankfull polygon
-        polyErase = arcpy.Erase_analysis(config.bfPolyShp, wPolyElim, 'in_memory/tmp_polyErase', '')
-        #  c. buffer the output by 10% of the integrated wetted width
-        bufferDist = 0.1 * ww
-        polyBuffer = arcpy.Buffer_analysis(polyErase, 'in_memory/tmp_polyBuffer', bufferDist, 'FULL')
-        #  d. clip the output to the bankull polygon
-        arcpy.Clip_analysis(polyBuffer, config.bfPolyShp, 'EvidenceLayers/chMargin.shp')
-        #  e. convert the output to a raster
-        arcpy.PolygonToRaster_conversion('EvidenceLayers/chMargin.shp', 'FID', 'tmp_outRas.tif', 'CELL_CENTER', 'NONE', '0.1')
-        #  f. set all cells inside/outside the bankfull ratser to 1/0
-        cm = Con(IsNull('tmp_outRas.tif'), 0, 1)
-        #  g. save the ouput
-        cm.save(os.path.join(evpath, 'chMargin.tif'))
-    else:
-        cm = Raster(os.path.join(evpath, 'chMargin.tif'))
+    # #  --channel margin--
+    # if not os.path.exists(os.path.join(evpath, 'chMargin.tif')):
+    #     #  a. remove any wePoly parts < 5% of total area
+    #     wPolyElim = arcpy.EliminatePolygonPart_management(config.wPolyShp, 'in_memory/tmp_wPolyElim', 'PERCENT', '', 5, 'ANY')
+    #     #  b. erase wPolyElim from bankfull polygon
+    #     polyErase = arcpy.Erase_analysis(config.bfPolyShp, wPolyElim, 'in_memory/tmp_polyErase', '')
+    #     #  c. buffer the output by 10% of the integrated wetted width
+    #     bufferDist = 0.1 * ww
+    #     polyBuffer = arcpy.Buffer_analysis(polyErase, 'in_memory/tmp_polyBuffer', bufferDist, 'FULL')
+    #     #  d. clip the output to the bankull polygon
+    #     arcpy.Clip_analysis(polyBuffer, config.bfPolyShp, 'EvidenceLayers/chMargin.shp')
+    #     #  e. convert the output to a raster
+    #     arcpy.PolygonToRaster_conversion('EvidenceLayers/chMargin.shp', 'FID', 'tmp_outRas.tif', 'CELL_CENTER', 'NONE', '0.1')
+    #     #  f. set all cells inside/outside the bankfull ratser to 1/0
+    #     cm = Con(IsNull('tmp_outRas.tif'), 0, 1)
+    #     #  g. save the ouput
+    #     cm.save(os.path.join(evpath, 'chMargin.tif'))
+    # else:
+    #     cm = Raster(os.path.join(evpath, 'chMargin.tif'))
 
     # ---------------------------------
     #  tier 2 classification
     #  ---------------------------------
-    #  ---------------------------------
-    #  convexities
-    #  ---------------------------------
 
-    print '...classifying convexities...'
+    # covert residual topo raster to numpy array
+    arr = arcpy.RasterToNumPyArray(resTopo)
+    desc2 = arcpy.Describe(resTopo)
+    NDV = desc2.noDataValue
+    arr[arr == NDV] = numpy.nan
+    q25pos = numpy.percentile(arr[arr > 0], 25)
+    q25neg = numpy.percentile(numpy.negative(arr[arr <= 0]), 25)
+    q50neg = numpy.percentile(numpy.negative(arr[arr <= 0]), 50)
 
-    rawCX = SetNull(resTopo, 1, '"VALUE" <= 0')  # set all residual topo values > 0 to 1
+    print '...classifying forms...'
 
-    #  calculate bank slope threshold
-    slopeMeanResult = arcpy.GetRasterProperties_management(bfSlope, 'MEAN')
-    slopeMean = float(slopeMeanResult.getOutput(0))
-    slopeSTDResult = arcpy.GetRasterProperties_management(bfSlope, 'STD')
-    slopeSTD = float(slopeSTDResult.getOutput(0))
-    slopeTh = slopeMean + slopeSTD
-
-    #  segregate banks
-    cm2 = SetNull(cm, 1, '"VALUE" <= 0')  # set all values outside channel margin to NA
-    cmSlope = rawCX * cm2 * bfSlope  # isolate slope values for channel margin convexities
-    rawBank = SetNull(cmSlope, 1, '"VALUE" <= ' + str(slopeTh))  # apply slope threshold
-    bank = area_fn(rawBank, 0.25)  # apply area threshold
-    bank.save(os.path.join(outpath, 'Tier2_InChannel_Convexity_Bank.tif')) # save output
-
-    # segregate bars
-    # rawBar = SetNull(cmSlope, 1, '"VALUE" > 12') # qualifying cells in channel margin
-    rawBar = SetNull((rawCX - Con(IsNull(bank), 0, 1)) == 0, 1)
-    memBar = mem_fn(rawBar, 0.1)
-    memBar.save(os.path.join(outpath, 'Tier2_InChannel_Convexity_Bars_Membership.tif'))
-    threshBar = SetNull(memBar, 1, '"VALUE" <' + str(config.memTh))  # assign NA to clusters that don't meet count threshold
-    bar = area_fn(threshBar, 1.0)  # apply area threshold
-    bar.save(os.path.join(outpath, 'Tier2_InChannel_Convexity_Bars.tif'))  # save output
-    rawBar.save(os.path.join(outpath, 'rawBar.tif'))
-
-    #  ---------------------------------
-    #  concavities
-    #  ---------------------------------
-
-    print '...classifying concavities...'
-
-    posNormFill = SetNull(normFill, 1, '"VALUE" <= 0')
-    negResTopo = SetNull(resTopo, 1, '"VALUE" > 0')  # set all residual topo values > 0 to 1
-    rawCV = posNormFill + negResTopo
-    memCV = mem_fn(rawCV, 0.1)
-    memCV.save(os.path.join(outpath, 'Tier2_InChannel_Concavity_Membership.tif'))
-    threshCV = SetNull(memCV, 1, '"VALUE" <' + str(config.memTh))  # assign NA to clusters that don't meet count threshold
-    cv = area_fn(threshCV, 0.25)  # apply area threshold
-    cv.save(os.path.join(outpath, 'Tier2_InChannel_Concavity.tif'))
-    posNormFill.save(os.path.join(outpath, 'pos_normFill_Pools.tif'))
-    rawCV.save(os.path.join(outpath, 'rawPools.tif'))
-
-    #  ---------------------------------
-    #  planar features
-    #  ---------------------------------
-
-    print '...classifying planar features...'
-
-    #  candidate planar: all cells with neg residual topo + that weren't filled
-    #  !NOTE!: fill in all 'holes' in candidate planar raster with an area < concavity filter
-    #  bc even though these aren't strictly planar cells: i) they may have a concave
-    #  or convex signal due to noise in the data that wasn't filtered out during the
-    #  dem smooth process, and ii) some planar units (i.e., rapids, cascades) have
-    #  small concave or convex features in them
-    rCon = Con(negResTopo - Con(normFill <= 0, 1, 0) == 0, 1)
-    rConInv = Con(IsNull(rCon), 1)
-    rGroup2 = RegionGroup(rConInv, 'FOUR')  # caclulate cell group (i.e., cluster)
-    rArea2 = ZonalGeometry(rGroup2, 'Value', 'AREA', '0.1')  # calculate indiv cluster area
-    rArea2Th = SetNull(rArea2, 1, '"VALUE" > ' + str(0.25 * bfw))
-    rawPF = Con(IsNull(rCon), rArea2Th, rCon)
-
-    memPF = mem_fn(rawPF, 0.1)
-    memPF.save(os.path.join(outpath, 'Tier2_InChannel_Planar_Membership.tif'))
-    threshPF = SetNull(memPF, 1, '"VALUE" <' + str(config.memTh))  # assign NA to clusters that don't meet count threshold
-    shrinkPF = Shrink(threshPF, 1, 1)  # shrink/expand by 1 cell to remove thin bands - likely transitions
-    expandPF = Expand(shrinkPF, 1, 1)
-    pf = area_fn(expandPF, 1.0)  # apply area threshold
-    pf.save(os.path.join(outpath, 'Tier2_InChannel_Planar.tif'))
-    rawPF.save(os.path.join(outpath, 'rawPlanar.tif'))
-
-    #  ---------------------------------
-    #  merge t2 units into single output *.shp
-    #  ---------------------------------
-
-    print '...merging into single output shapefile...'
-
-    ras2poly_fn(inChDEM)
-
-    # ----------------------------------------------------------
-    # Remove temporary files
-
-    print '...removing intermediary surfaces...'
-
-    for root, dirs, files in os.walk(arcpy.env.workspace):
-        for f in fnmatch.filter(files, 'tmp_*'):
-            os.remove(os.path.join(root, f))
-
-    print '...done with Tier 2 classification.'
+    mounds = SetNull(resTopo, 1, '"VALUE" < ' + str(q25pos))
+    planar = SetNull(resTopo, 1, '"VALUE" >= ' + str(q25pos)) * SetNull(resTopo, 1, '"VALUE" <= -' + str(q25neg))
+    bowls = SetNull(resTopo, 1, '"VALUE" > -' + str(q50neg)) * SetNull(normFill, 1, '"VALUE" <= 0')
+    troughs = Con(IsNull(bowls), 1) * SetNull(resTopo, 1, '"VALUE" > -' + str(q25neg))
+    ras2poly_cn(mounds, planar, bowls, troughs)
+    #
+    #
+    # # ----------------------------------------------------------
+    # # Remove temporary files
+    #
+    # print '...removing intermediary surfaces...'
+    #
+    # for root, dirs, files in os.walk(arcpy.env.workspace):
+    #     for f in fnmatch.filter(files, 'tmp_*'):
+    #         os.remove(os.path.join(root, f))
+    #
+    # print '...done with Tier 2 classification.'
 
 if __name__ == '__main__':
     main()
