@@ -22,7 +22,7 @@
 # Set user-defined  input parameters
 # -----------------------------------
 
-folderPath = r"C:\et_al\Shared\Projects\USA\CHaMP\ResearchProjects\TopographicGUs\wrk_Data\Logan\LRB_64423\2015"
+folderPath = r"C:\et_al\Shared\Projects\USA\CHaMP\ResearchProjects\TopographicGUs\wrk_Data\01_TestSites\Wenatchee\LWIN0001-000041\2014"
 
 # -----------------------------------
 # Start of script
@@ -58,8 +58,7 @@ def fcToShp(folderPath): # change name before sending to natalie, add bankfull c
             arcpy.CopyRaster_management("Detrended", os.path.join(outFolder, "Detrended.tif"))
             arcpy.CopyRaster_management("DEM", os.path.join(outFolder, "DEM.tif"))
 
-            arcpy.FeatureClassToShapefile_conversion(["Bankfull", "BankfullXS", "Centerline",
-                "Thalweg", "WaterExtent"], outFolder)
+            arcpy.FeatureClassToShapefile_conversion(["Bankfull", "BankfullCL", "BankfullXS", "CenterLine", "Thalweg", "WaterExtent"], outFolder)
 
             arcpy.env.workspace = outFolder
             detHS = Hillshade("Detrended.tif", model_shadows="SHADOWS")
