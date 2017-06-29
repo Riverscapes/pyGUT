@@ -94,8 +94,26 @@ def main():
         #units_merge = arcpy.Merge_management(shps, 'in_memory/units_merge')
         units_merge = arcpy.Merge_management(['in_memory/Mound', 'in_memory/Planar', 'in_memory/Bowl', 'in_memory/Trough'], 'in_memory/units_merge')
         units_update = arcpy.Update_analysis('in_memory/units_merge', 'in_memory/Saddle', 'in_memory/units_update')
-        tmp_units = arcpy.Update_analysis('in_memory/units_update', 'in_memory/Wall', 'in_memory/tmp_units')
-        arcpy.AddField_management(tmp_units, 'Area', 'DOUBLE')
+        units_update2 = arcpy.Update_analysis('in_memory/units_update', 'in_memory/Wall', 'in_memory/units_update2')
+        units_sp = arcpy.MultipartToSinglepart_management(units_update2, 'in_memory/units_sp')
+        arcpy.AddField_management(units_sp, 'Area', 'DOUBLE')
+        with arcpy.da.UpdateCursor(units_sp, ['SHAPE@AREA', 'Area']) as cursor:
+            for row in cursor:
+                row[1] = row[0]
+                cursor.updateRow(row)
+        # Execute MakeFeatureLayer
+        units_sp_lyr = arcpy.MakeFeatureLayer_management(units_sp, 'units_sp_lyr')
+        # Execute SelectLayerByAttribute to define features to be eliminated
+        arcpy.SelectLayerByAttribute_management(units_sp_lyr, 'NEW_SELECTION', '"Area" < ' + str(0.05 * bfw))
+        # Execute Eliminate
+        units_elim = arcpy.Eliminate_management(units_sp_lyr, 'in_memory/units_elim', "LENGTH")
+        # Execute MakeFeatureLayer
+        units_elim_lyr = arcpy.MakeFeatureLayer_management(units_elim, 'units_elim_lyr')
+        # Execute SelectLayerByAttribute to define features to be eliminated
+        arcpy.SelectLayerByAttribute_management(units_elim_lyr, 'NEW_SELECTION', '"Area" < ' + str(0.05 * bfw))
+        # Execute Eliminate
+        tmp_units = arcpy.Eliminate_management(units_elim_lyr, 'in_memory/tmp_units', "LENGTH")
+        arcpy.CopyFeatures_management(tmp_units, os.path.join(evpath, 'tmp_units.shp'))
         arcpy.AddField_management(tmp_units, 'UnitID', 'SHORT')
         with arcpy.da.UpdateCursor(tmp_units, ['OID@', 'UnitID', 'SHAPE@AREA', 'Area']) as cursor:
             for row in cursor:
@@ -142,7 +160,6 @@ def main():
         inChDEM = Raster(os.path.join(evpath, 'inCh_' + os.path.basename(config.inDEM)))
 
     #  --in channel mean dem slope--
-    print os.path.join(evpath, 'slope_inCh_' + os.path.basename(config.inDEM))
     if not os.path.exists(os.path.join(evpath, 'slope_inCh_' + os.path.basename(config.inDEM))):
         inChDEMSlope = Slope(inChDEM, 'DEGREE')
         inChDEMSlope.save(os.path.join(evpath, 'slope_inCh_' + os.path.basename(config.inDEM)))  # save output
@@ -425,7 +442,9 @@ def main():
     arr = arcpy.RasterToNumPyArray(resTopo)
     desc2 = arcpy.Describe(resTopo)
     NDV = desc2.noDataValue
-    arr[arr == NDV] = numpy.nan
+    arr[arr == NDV] = numpy.nan  # set array no data to raster no data value
+    arr = arr[~numpy.isnan(arr)]  # remove no data from array
+
     #  calculate residual topography quantiles to use in thresholding
     q25pos = numpy.percentile(arr[arr > 0], 25)
     q25neg = numpy.percentile(numpy.negative(arr[arr <= 0]), 25)
