@@ -91,7 +91,6 @@ def main():
                             row[1] = 'Concavity'
                         cursor.updateRow(row)
 
-        #units_merge = arcpy.Merge_management(shps, 'in_memory/units_merge')
         units_merge = arcpy.Merge_management(['in_memory/Mound', 'in_memory/Planar', 'in_memory/Bowl', 'in_memory/Trough'], 'in_memory/units_merge')
         units_update = arcpy.Update_analysis('in_memory/units_merge', 'in_memory/Saddle', 'in_memory/units_update')
         units_update2 = arcpy.Update_analysis('in_memory/units_update', 'in_memory/Wall', 'in_memory/units_update2')
@@ -101,25 +100,27 @@ def main():
             for row in cursor:
                 row[1] = row[0]
                 cursor.updateRow(row)
-        # Execute MakeFeatureLayer
+        # find tiny units (area < 0.05 * bfw) and merge with unit that shares longest border
+        # run 2x
         units_sp_lyr = arcpy.MakeFeatureLayer_management(units_sp, 'units_sp_lyr')
-        # Execute SelectLayerByAttribute to define features to be eliminated
         arcpy.SelectLayerByAttribute_management(units_sp_lyr, 'NEW_SELECTION', '"Area" < ' + str(0.05 * bfw))
-        # Execute Eliminate
         units_elim = arcpy.Eliminate_management(units_sp_lyr, 'in_memory/units_elim', "LENGTH")
-        # Execute MakeFeatureLayer
         units_elim_lyr = arcpy.MakeFeatureLayer_management(units_elim, 'units_elim_lyr')
-        # Execute SelectLayerByAttribute to define features to be eliminated
         arcpy.SelectLayerByAttribute_management(units_elim_lyr, 'NEW_SELECTION', '"Area" < ' + str(0.05 * bfw))
-        # Execute Eliminate
         tmp_units = arcpy.Eliminate_management(units_elim_lyr, 'in_memory/tmp_units', "LENGTH")
-        arcpy.CopyFeatures_management(tmp_units, os.path.join(evpath, 'tmp_units.shp'))
+        # create unit id field and update area field
         arcpy.AddField_management(tmp_units, 'UnitID', 'SHORT')
         with arcpy.da.UpdateCursor(tmp_units, ['OID@', 'UnitID', 'SHAPE@AREA', 'Area']) as cursor:
             for row in cursor:
                 row[1] = row[0]
                 row[3] = row[2]
                 cursor.updateRow(row)
+        # remove unnecessary fields
+        fields = arcpy.ListFields(tmp_units)
+        keep = ['OID', 'Shape','Tier1', 'Tier2', 'Form', 'Area', 'UnitID']
+        drop = [x.name for x in fields if x.name not in keep]
+        arcpy.DeleteField_management(tmp_units, drop)
+
         arcpy.CopyFeatures_management(tmp_units, os.path.join(outpath, 'Tier2_InChannel_Raw.shp'))
         arcpy.CopyFeatures_management(tmp_units, os.path.join(outpath, 'Tier2_InChannel.shp'))
 
@@ -133,8 +134,8 @@ def main():
 
     bfw = intWidth_fn(config.bfPolyShp, config.bfCL)
     ww = intWidth_fn(config.wPolyShp, config.wCL)
-    print 'Integrated bankfull width: ' + str(bfw) + ' m'
-    print 'Integrated wetted width: ' + str(ww) + ' m'
+    print '...integrated bankfull width: ' + str(bfw) + ' m...'
+    print '...integrated wetted width: ' + str(ww) + ' m...'
 
     #  ---------------------------------
     #  tier 2 evidence layers
@@ -450,7 +451,7 @@ def main():
     q25neg = numpy.percentile(numpy.negative(arr[arr <= 0]), 25)
     q50neg = numpy.percentile(numpy.negative(arr[arr <= 0]), 50)
 
-    print '...classifying tier 2 shapes and forms...'
+    print '...classifying Tier 2 shapes and forms...'
     mounds = SetNull(resTopo, 1, '"VALUE" < ' + str(q25pos))
     planar = SetNull(resTopo, 1, '"VALUE" >= ' + str(q25pos)) * SetNull(resTopo, 1, '"VALUE" <= -' + str(q25neg))
     bowls = SetNull(resTopo, 1, '"VALUE" > -' + str(q50neg)) * SetNull(normFill, 1, '"VALUE" <= 0')
@@ -525,13 +526,59 @@ def main():
     slopeSTDResult = arcpy.GetRasterProperties_management(inChDEMSlope, 'STD')
     slopeSTD = float(slopeSTDResult.getOutput(0))
     slopeTh = slopeMean + slopeSTD
-    print slopeTh
+    print '...wall slope threshold: ' + str(slopeTh) + '...'
 
     #  b. segregate walls
     cmSlope = cm *inChDEMSlope * SetNull(resTopo, 1, '"VALUE" < 0')  # isolate slope values for channel margin convexities
     walls = SetNull(cmSlope, 1, '"VALUE" <= ' + str(slopeTh))  # apply slope threshold
 
     ras2poly_cn(mounds, planar, bowls, troughs, saddles, walls)
+
+    # ---------------------------------
+    #  tier 2 flow type
+    #  ---------------------------------
+    print '...classifying Tier 2 flow type...'
+
+    #  add macrounit (i.e, flow type) and unique id to bankfull and wetted extent polygons
+    bfPoly = arcpy.CopyFeatures_management(config.bfPolyShp, 'in_memory/bfPoly')
+    arcpy.AddField_management(bfPoly, 'MacroUnit', 'TEXT', '', '', 12)
+    arcpy.AddField_management(bfPoly, 'MacroID', 'SHORT')
+    with arcpy.da.UpdateCursor(bfPoly, ['MacroUnit', 'MacroID']) as cursor:
+        for row in cursor:
+            row[0] = 'Emergent'
+            row[1] = 2
+            cursor.updateRow(row)
+    wPoly = arcpy.CopyFeatures_management(config.wPolyShp, 'in_memory/wPoly')
+    arcpy.AddField_management(wPoly, 'MacroUnit', 'TEXT', '', '', 12)
+    arcpy.AddField_management(wPoly, 'MacroID', 'SHORT')
+    with arcpy.da.UpdateCursor(wPoly, ['MacroUnit', 'MacroID']) as cursor:
+        for row in cursor:
+            row[0] = 'Submergent'
+            row[1] = 1
+            cursor.updateRow(row)
+
+    #  create flow type polygon
+    flowtype = arcpy.Update_analysis(bfPoly, wPoly, 'in_memory/flowtype')
+    #  intersect flow type polygon with tier 2 units
+    flowtype_tier2 = arcpy.Intersect_analysis([os.path.join(outpath, 'Tier2_InChannel.shp'), flowtype], 'in_memory/flowtype_tier2', 'ALL')
+    #  add subunit id field
+    arcpy.AddField_management(flowtype_tier2, 'SubUnitID', 'TEXT', '', '', 6)
+    with arcpy.da.UpdateCursor(flowtype_tier2, ['UnitID', 'MacroID', 'SubUnitID']) as cursor:
+        for row in cursor:
+            row[2] = str(row[0]) + '.' + str(row[1])
+            cursor.updateRow(row)
+    arcpy.CopyFeatures_management(flowtype_tier2, os.path.join(evpath, 'tmp_flowtype_tier2.shp'))
+    # remove unnecessary fields
+    fields = arcpy.ListFields(flowtype_tier2)
+    keep = ['FID', 'Shape','Tier1', 'Tier2', 'Form', 'Area', 'UnitID', 'SubUnitID', 'MacroUnit']
+    drop = [x.name for x in fields if x.name not in keep]
+    arcpy.DeleteField_management(flowtype_tier2, drop)
+
+    arcpy.CopyFeatures_management(flowtype_tier2, os.path.join(outpath, 'Tier2_InChannel_Flowtype.shp'))
+
+
+
+
     #
     #
     # # ----------------------------------------------------------
@@ -543,7 +590,7 @@ def main():
     #     for f in fnmatch.filter(files, 'tmp_*'):
     #         os.remove(os.path.join(root, f))
     #
-    # print '...done with Tier 2 classification.'
+    print '...done with Tier 2 classification.'
 
 if __name__ == '__main__':
     main()
