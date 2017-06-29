@@ -509,7 +509,7 @@ def main():
     print slopeTh
 
     #  b. segregate walls
-    cmSlope = cm *inChDEMSlope  # isolate slope values for channel margin convexities
+    cmSlope = cm *inChDEMSlope * SetNull(resTopo, 1, '"VALUE" < 0')  # isolate slope values for channel margin convexities
     walls = SetNull(cmSlope, 1, '"VALUE" <= ' + str(slopeTh))  # apply slope threshold
 
     ras2poly_cn(mounds, planar, bowls, troughs, saddles, walls)
