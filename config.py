@@ -25,17 +25,17 @@
 # champGrainSize:   Champ grain size *.csv.  Must have columns: 'ChannelUnitID', 'ChannelUnitNumber', 'D84'.  Filename must end with '*GrainSizeDistributionResults.csv'.
 # ---------------------------------------------------------------------
 
-workspace     = r'C:\et_al\Shared\Projects\USA\CHaMP\ResearchProjects\TopographicGUs\wrk_Data\01_TestSites\SFSalmon\CBW05583-206111\2014\VISIT_2057\ModelRuns'
-runFolderName = 'GUT_2.0\\Run_001'
-memTh         = 0.8
-bfCL          = 'Inputs/BankfullCL.shp'
-bfPolyShp     = 'Inputs/Bankfull.shp'
-bfXS          = 'Inputs/BankfullXS.shp'
-inDEM         = 'Inputs/DEM.tif'
-inDet         = 'Inputs/Detrended.tif'
-thalwegShp    = 'Inputs/Thalweg.shp'
-wCL           = 'Inputs/CenterLine.shp'
-wPolyShp      = 'Inputs/WaterExtent.shp'
+workspace      = r'C:\et_al\Shared\Projects\USA\CHaMP\ResearchProjects\TopographicGUs\wrk_Data\01_TestSites\Logan\LRB_BC3220\2015\VISIT_3413\ModelRuns'
+runFolderName  = 'GUT_2.0\\Run_002'
+bowlPercentile = 50
+bfCL           = 'Inputs/BankfullCL.shp'
+bfPolyShp      = 'Inputs/Bankfull.shp'
+bfXS           = 'Inputs/BankfullXS.shp'
+inDEM          = 'Inputs/DEM.tif'
+inDet          = 'Inputs/Detrended.tif'
+thalwegShp     = 'Inputs/Thalweg.shp'
+wCL            = 'Inputs/CenterLine.shp'
+wPolyShp       = 'Inputs/WaterExtent.shp'
 
 # Optional: Tier 3 Low Flow Roughness
 lowFlowRoughness = 'FALSE'
@@ -43,7 +43,7 @@ champUnits   = 'Inputs/xxx.shp'
 inWaterD	 = 'Inputs/xxx.img'
 champGrainSize = 'Inputs/xxx.csv'
 
-#execfile('tier1.py')
-#execfile('tier2.py')
-execfile('tier3.py')
+execfile('tier1.py')
+execfile('tier2.py')
+#execfile('tier3.py')
 
