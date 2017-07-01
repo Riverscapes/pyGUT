@@ -65,35 +65,41 @@ def main():
     #  --tier 2 raster to polygon function--
 
     def ras2poly_cn(Mound, Planar, Bowl, Trough, Saddle, Wall):
-        shps = []
+        shpList = []
         formDict = locals()
         for key, value in formDict.iteritems():
             if key in ['Mound', 'Planar', 'Bowl', 'Trough', 'Saddle', 'Wall']:
-                tmp_fn = 'in_memory/' + str(key)
-                shps.extend([tmp_fn])
-                arcpy.RasterToPolygon_conversion(value, tmp_fn, 'NO_SIMPLIFY', 'VALUE')
-                arcpy.AddField_management(tmp_fn, 'Tier1', 'TEXT', '', '', 15)
-                arcpy.AddField_management(tmp_fn, 'Tier2', 'TEXT', '', '', 15)
-                arcpy.AddField_management(tmp_fn, 'Form', 'TEXT', '', '', 10)
-                with arcpy.da.UpdateCursor(tmp_fn, ['Tier1', 'Tier2', 'Form']) as cursor:
-                    for row in cursor:
-                        row[0] = 'InChannel'
-                        row[2] = str(key)
-                        if row[2] == 'Planar':
-                            row[1] = 'Planar'
-                        elif row[2] == 'Mound':
-                            row[1] = 'Convexity'
-                        elif row[2] == 'Saddle':
-                            row[1] = 'Convexity'
-                        elif row[2] == 'Wall':
-                            row[1] = 'Planar'
-                        else:
-                            row[1] = 'Concavity'
-                        cursor.updateRow(row)
+                if int(arcpy.GetRasterProperties_management(value, "ALLNODATA").getOutput(0)) < 1:
+                    tmp_fn = 'in_memory/' + str(key)
+                    shpList.append(tmp_fn)
+                    arcpy.RasterToPolygon_conversion(value, tmp_fn, 'NO_SIMPLIFY', 'VALUE')
+                    arcpy.AddField_management(tmp_fn, 'Tier1', 'TEXT', '', '', 15)
+                    arcpy.AddField_management(tmp_fn, 'Tier2', 'TEXT', '', '', 15)
+                    arcpy.AddField_management(tmp_fn, 'Form', 'TEXT', '', '', 10)
+                    with arcpy.da.UpdateCursor(tmp_fn, ['Tier1', 'Tier2', 'Form']) as cursor:
+                        for row in cursor:
+                            row[0] = 'InChannel'
+                            row[2] = str(key)
+                            if row[2] == 'Planar':
+                                row[1] = 'Planar'
+                            elif row[2] == 'Mound':
+                                row[1] = 'Convexity'
+                            elif row[2] == 'Saddle':
+                                row[1] = 'Convexity'
+                            elif row[2] == 'Wall':
+                                row[1] = 'Planar'
+                            else:
+                                row[1] = 'Concavity'
+                            cursor.updateRow(row)
 
-        units_merge = arcpy.Merge_management(['in_memory/Mound', 'in_memory/Planar', 'in_memory/Bowl', 'in_memory/Trough'], 'in_memory/units_merge')
-        units_update = arcpy.Update_analysis('in_memory/units_merge', 'in_memory/Saddle', 'in_memory/units_update')
-        units_update2 = arcpy.Update_analysis('in_memory/units_update', 'in_memory/Wall', 'in_memory/units_update2')
+        mergeList = [i for i in shpList if i not in ('in_memory/Saddle', 'in_memory/Wall')]
+
+        units_merge = arcpy.Merge_management(mergeList, 'in_memory/units_merge')
+        if 'in_memory/Saddle' in shpList:
+            units_update = arcpy.Update_analysis('in_memory/units_merge', 'in_memory/Saddle', 'in_memory/units_update')
+            units_update2 = arcpy.Update_analysis('in_memory/units_update', 'in_memory/Wall', 'in_memory/units_update2')
+        else:
+            units_update2 = arcpy.Update_analysis('in_memory/units_merge', 'in_memory/Wall', 'in_memory/units_update2')
         units_sp = arcpy.MultipartToSinglepart_management(units_update2, 'in_memory/units_sp')
         arcpy.AddField_management(units_sp, 'Area', 'DOUBLE')
         with arcpy.da.UpdateCursor(units_sp, ['SHAPE@AREA', 'Area']) as cursor:
@@ -125,7 +131,7 @@ def main():
         arcpy.CopyFeatures_management(tmp_units, os.path.join(outpath, 'Tier2_InChannel.shp'))
 
         # shps.extend([tmp_units])
-        for shp in shps:
+        for shp in shpList:
             arcpy.Delete_management(shp)
 
     #  ---------------------------------
@@ -449,7 +455,7 @@ def main():
     #  calculate residual topography quantiles to use in thresholding
     q25pos = numpy.percentile(arr[arr > 0], 25)
     q25neg = numpy.percentile(numpy.negative(arr[arr <= 0]), 25)
-    q50neg = numpy.percentile(numpy.negative(arr[arr <= 0]), 50)
+    q50neg = numpy.percentile(numpy.negative(arr[arr <= 0]), config.bowlPercentile)
 
     print '...classifying Tier 2 shapes and forms...'
     mounds = SetNull(resTopo, 1, '"VALUE" < ' + str(q25pos))
@@ -518,6 +524,7 @@ def main():
     arcpy.SelectLayerByLocation_management('riff_poly_lyr', 'INTERSECT', 'downstream_lyr', '', 'NEW_SELECTION')
     arcpy.SelectLayerByLocation_management('riff_poly_lyr', 'INTERSECT', 'upstream_lyr', '', 'SUBSET_SELECTION')
     saddles = arcpy.PolygonToRaster_conversion('riff_poly_lyr', 'RiffleID', 'in_memory/saddles_raw', 'CELL_CENTER', '', 0.1)
+    arcpy.CopyRaster_management(saddles, os.path.join(evpath, 'tmp_saddles_raw.tif'))
 
     #  walls/banks
     #  a. calculate bank slope threshold
@@ -526,7 +533,7 @@ def main():
     slopeSTDResult = arcpy.GetRasterProperties_management(inChDEMSlope, 'STD')
     slopeSTD = float(slopeSTDResult.getOutput(0))
     slopeTh = slopeMean + slopeSTD
-    print '...wall slope threshold: ' + str(slopeTh) + '...'
+    print '...wall slope threshold: ' + str(slopeTh) + ' degrees...'
 
     #  b. segregate walls
     cmSlope = cm *inChDEMSlope * SetNull(resTopo, 1, '"VALUE" < 0')  # isolate slope values for channel margin convexities
@@ -562,15 +569,18 @@ def main():
     #  intersect flow type polygon with tier 2 units
     flowtype_tier2 = arcpy.Intersect_analysis([os.path.join(outpath, 'Tier2_InChannel.shp'), flowtype], 'in_memory/flowtype_tier2', 'ALL')
     #  add subunit id field
+    arcpy.AddField_management(flowtype_tier2, 'MacroArea', 'DOUBLE')
     arcpy.AddField_management(flowtype_tier2, 'SubUnitID', 'TEXT', '', '', 6)
-    with arcpy.da.UpdateCursor(flowtype_tier2, ['UnitID', 'MacroID', 'SubUnitID']) as cursor:
+
+    with arcpy.da.UpdateCursor(flowtype_tier2, ['UnitID', 'MacroID', 'SubUnitID', 'SHAPE@AREA', 'MacroArea']) as cursor:
         for row in cursor:
             row[2] = str(row[0]) + '.' + str(row[1])
+            row[4] = row[3]
             cursor.updateRow(row)
     arcpy.CopyFeatures_management(flowtype_tier2, os.path.join(evpath, 'tmp_flowtype_tier2.shp'))
     # remove unnecessary fields
     fields = arcpy.ListFields(flowtype_tier2)
-    keep = ['FID', 'Shape','Tier1', 'Tier2', 'Form', 'Area', 'UnitID', 'SubUnitID', 'MacroUnit']
+    keep = ['FID', 'Shape','Tier1', 'Tier2', 'Form', 'Area', 'UnitID', 'MacroUnit', 'MacroID', 'SubUnitID', 'MacroArea']
     drop = [x.name for x in fields if x.name not in keep]
     arcpy.DeleteField_management(flowtype_tier2, drop)
 
