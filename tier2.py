@@ -13,6 +13,8 @@ def main():
 
     print 'Starting Tier 2 classification...'
 
+    arcpy.Delete_management("in_memory")
+
     #  environment settings
     arcpy.env.workspace = config.workspace  # set workspace to pf
     arcpy.env.overwriteOutput = True  # set to overwrite output
@@ -64,23 +66,23 @@ def main():
 
     #  --tier 2 raster to polygon function--
 
-    def ras2poly_cn(Mound, Planar, Bowl, Trough, Saddle, Wall):
+    def ras2poly_cn(Mound, Plane, Bowl, Trough, Saddle, Wall):
         shpList = []
         formDict = locals()
         for key, value in formDict.iteritems():
-            if key in ['Mound', 'Planar', 'Bowl', 'Trough', 'Saddle', 'Wall']:
+            if key in ['Mound', 'Plane', 'Bowl', 'Trough', 'Saddle', 'Wall']:
                 if int(arcpy.GetRasterProperties_management(value, "ALLNODATA").getOutput(0)) < 1:
                     tmp_fn = 'in_memory/' + str(key)
                     shpList.append(tmp_fn)
                     arcpy.RasterToPolygon_conversion(value, tmp_fn, 'NO_SIMPLIFY', 'VALUE')
-                    arcpy.AddField_management(tmp_fn, 'Tier1', 'TEXT', '', '', 15)
-                    arcpy.AddField_management(tmp_fn, 'Tier2', 'TEXT', '', '', 15)
+                    arcpy.AddField_management(tmp_fn, 'ValleyUnit', 'TEXT', '', '', 20)
+                    arcpy.AddField_management(tmp_fn, 'Shape2', 'TEXT', '', '', 15)
                     arcpy.AddField_management(tmp_fn, 'Form', 'TEXT', '', '', 10)
-                    with arcpy.da.UpdateCursor(tmp_fn, ['Tier1', 'Tier2', 'Form']) as cursor:
+                    with arcpy.da.UpdateCursor(tmp_fn, ['ValleyUnit', 'Shape2', 'Form']) as cursor:
                         for row in cursor:
-                            row[0] = 'InChannel'
+                            row[0] = 'In-Channel'
                             row[2] = str(key)
-                            if row[2] == 'Planar':
+                            if row[2] == 'Plane':
                                 row[1] = 'Planar'
                             elif row[2] == 'Mound':
                                 row[1] = 'Convexity'
@@ -123,7 +125,7 @@ def main():
                 cursor.updateRow(row)
         # remove unnecessary fields
         fields = arcpy.ListFields(tmp_units)
-        keep = ['OID', 'Shape','Tier1', 'Tier2', 'Form', 'Area', 'UnitID']
+        keep = ['OID', 'Shape','ValleyUnit', 'Shape2', 'Form', 'Area', 'UnitID']
         drop = [x.name for x in fields if x.name not in keep]
         arcpy.DeleteField_management(tmp_units, drop)
 
@@ -355,8 +357,8 @@ def main():
                 row[4] = row[3]
                 cursor.updateRow(row)
         arcpy.CreateRoutes_lr('in_memory/thalweg', 'ThID', 'in_memory/thalweg_route', 'TWO_FIELDS', 'From_', 'To_')
-        arcpy.LocateFeaturesAlongRoutes_lr(contour_nodes, 'in_memory/thalweg_route', 'ThID', float(desc.meanCellWidth), 'tbl_Routes.dbf', 'RID POINT MEAS')
-        arcpy.JoinField_management(contour_nodes, 'NodeID', 'tbl_Routes.dbf', 'NodeID', ['MEAS'])
+        route_tbl = arcpy.LocateFeaturesAlongRoutes_lr(contour_nodes, 'in_memory/thalweg_route', 'ThID', float(desc.meanCellWidth), os.path.join(evpath, 'tbl_Routes.dbf'), 'RID POINT MEAS')
+        arcpy.JoinField_management(contour_nodes, 'NodeID', route_tbl, 'NodeID', ['MEAS'])
         contour_nodes_join = arcpy.SpatialJoin_analysis(contour_nodes, contours, 'in_memory/contour_nodes_join', 'JOIN_ONE_TO_MANY', 'KEEP_ALL', '', 'INTERSECT')
 
         #  k. sort contour nodes by flowline distance (in downstream direction)
@@ -459,7 +461,7 @@ def main():
 
     print '...classifying Tier 2 shapes and forms...'
     mounds = SetNull(resTopo, 1, '"VALUE" < ' + str(q25pos))
-    planar = SetNull(resTopo, 1, '"VALUE" >= ' + str(q25pos)) * SetNull(resTopo, 1, '"VALUE" <= -' + str(q25neg))
+    planes = SetNull(resTopo, 1, '"VALUE" >= ' + str(q25pos)) * SetNull(resTopo, 1, '"VALUE" <= -' + str(q25neg))
     bowls = SetNull(resTopo, 1, '"VALUE" > -' + str(q50neg)) * SetNull(normFill, 1, '"VALUE" <= 0')
     troughs = Con(IsNull(bowls), 1) * SetNull(resTopo, 1, '"VALUE" > -' + str(q25neg))
 
@@ -524,7 +526,7 @@ def main():
     arcpy.SelectLayerByLocation_management('riff_poly_lyr', 'INTERSECT', 'downstream_lyr', '', 'NEW_SELECTION')
     arcpy.SelectLayerByLocation_management('riff_poly_lyr', 'INTERSECT', 'upstream_lyr', '', 'SUBSET_SELECTION')
     saddles = arcpy.PolygonToRaster_conversion('riff_poly_lyr', 'RiffleID', 'in_memory/saddles_raw', 'CELL_CENTER', '', 0.1)
-    arcpy.CopyRaster_management(saddles, os.path.join(evpath, 'tmp_saddles_raw.tif'))
+    #arcpy.CopyRaster_management(saddles, os.path.join(evpath, 'tmp_saddles_raw.tif'))
 
     #  walls/banks
     #  a. calculate bank slope threshold
@@ -539,28 +541,28 @@ def main():
     cmSlope = cm *inChDEMSlope * SetNull(resTopo, 1, '"VALUE" < 0')  # isolate slope values for channel margin convexities
     walls = SetNull(cmSlope, 1, '"VALUE" <= ' + str(slopeTh))  # apply slope threshold
 
-    ras2poly_cn(mounds, planar, bowls, troughs, saddles, walls)
+    ras2poly_cn(mounds, planes, bowls, troughs, saddles, walls)
 
     # ---------------------------------
     #  tier 2 flow type
     #  ---------------------------------
     print '...classifying Tier 2 flow type...'
 
-    #  add macrounit (i.e, flow type) and unique id to bankfull and wetted extent polygons
+    #  add flow type and unique id to bankfull and wetted extent polygons
     bfPoly = arcpy.CopyFeatures_management(config.bfPolyShp, 'in_memory/bfPoly')
-    arcpy.AddField_management(bfPoly, 'MacroUnit', 'TEXT', '', '', 12)
-    arcpy.AddField_management(bfPoly, 'MacroID', 'SHORT')
-    with arcpy.da.UpdateCursor(bfPoly, ['MacroUnit', 'MacroID']) as cursor:
+    arcpy.AddField_management(bfPoly, 'FlowUnit', 'TEXT', '', '', 12)
+    arcpy.AddField_management(bfPoly, 'FlowID', 'SHORT')
+    with arcpy.da.UpdateCursor(bfPoly, ['FlowUnit', 'FlowID']) as cursor:
         for row in cursor:
             row[0] = 'Emergent'
             row[1] = 2
             cursor.updateRow(row)
     wPoly = arcpy.CopyFeatures_management(config.wPolyShp, 'in_memory/wPoly')
-    arcpy.AddField_management(wPoly, 'MacroUnit', 'TEXT', '', '', 12)
-    arcpy.AddField_management(wPoly, 'MacroID', 'SHORT')
-    with arcpy.da.UpdateCursor(wPoly, ['MacroUnit', 'MacroID']) as cursor:
+    arcpy.AddField_management(wPoly, 'FlowUnit', 'TEXT', '', '', 12)
+    arcpy.AddField_management(wPoly, 'FlowID', 'SHORT')
+    with arcpy.da.UpdateCursor(wPoly, ['FlowUnit', 'FlowID']) as cursor:
         for row in cursor:
-            row[0] = 'Submergent'
+            row[0] = 'Submerged'
             row[1] = 1
             cursor.updateRow(row)
 
@@ -569,27 +571,22 @@ def main():
     #  intersect flow type polygon with tier 2 units
     flowtype_tier2 = arcpy.Intersect_analysis([os.path.join(outpath, 'Tier2_InChannel.shp'), flowtype], 'in_memory/flowtype_tier2', 'ALL')
     #  add subunit id field
-    arcpy.AddField_management(flowtype_tier2, 'MacroArea', 'DOUBLE')
+    arcpy.AddField_management(flowtype_tier2, 'FlowArea', 'DOUBLE')
     arcpy.AddField_management(flowtype_tier2, 'SubUnitID', 'TEXT', '', '', 6)
 
-    with arcpy.da.UpdateCursor(flowtype_tier2, ['UnitID', 'MacroID', 'SubUnitID', 'SHAPE@AREA', 'MacroArea']) as cursor:
+    with arcpy.da.UpdateCursor(flowtype_tier2, ['UnitID', 'FlowID', 'SubUnitID', 'SHAPE@AREA', 'FlowArea']) as cursor:
         for row in cursor:
             row[2] = str(row[0]) + '.' + str(row[1])
             row[4] = row[3]
             cursor.updateRow(row)
-    arcpy.CopyFeatures_management(flowtype_tier2, os.path.join(evpath, 'tmp_flowtype_tier2.shp'))
+
     # remove unnecessary fields
     fields = arcpy.ListFields(flowtype_tier2)
-    keep = ['FID', 'Shape','Tier1', 'Tier2', 'Form', 'Area', 'UnitID', 'MacroUnit', 'MacroID', 'SubUnitID', 'MacroArea']
+    keep = ['FID', 'Shape','ValleyUnit', 'Shape2', 'Form', 'Area', 'UnitID', 'FlowUnit', 'FlowID', 'SubUnitID', 'FlowArea']
     drop = [x.name for x in fields if x.name not in keep]
     arcpy.DeleteField_management(flowtype_tier2, drop)
 
     arcpy.CopyFeatures_management(flowtype_tier2, os.path.join(outpath, 'Tier2_InChannel_Flowtype.shp'))
-
-
-
-
-    #
     #
     # # ----------------------------------------------------------
     # # Remove temporary files
@@ -599,7 +596,21 @@ def main():
     # for root, dirs, files in os.walk(arcpy.env.workspace):
     #     for f in fnmatch.filter(files, 'tmp_*'):
     #         os.remove(os.path.join(root, f))
+    #arcpy.Delete_management(os.path.join(evpath, 'tbl_Routes.dbf'))
+    arcpy.Delete_management("in_memory")
     #
+
+    #  Save config file settings to output folder
+    f = open("./config.py", "r")
+    copy = open(os.path.join(config.workspace, 'Output', config.runFolderName, "configSettings.txt"), "w")
+    for line in f:
+        copy.write(line)
+    f.close()
+    copy.write('Integrated bankfull width: ' + str(bfw) + ' m' + '\n')
+    copy.write('Integrated wetted width: ' + str(ww) + ' m' + '\n')
+    copy.write('Wall slope threshold: ' + str(slopeTh) + ' degrees')
+    copy.close()
+
     print '...done with Tier 2 classification.'
 
 if __name__ == '__main__':
