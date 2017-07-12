@@ -2,6 +2,7 @@
 import arcpy
 import config
 import os
+import subprocess
 import fnmatch
 from arcpy.sa import *
 arcpy.CheckOutExtension('Spatial')
@@ -46,6 +47,25 @@ def main():
     evpath = os.path.join(arcpy.env.workspace, 'EvidenceLayers')
 
     #  ---------------------------------
+    #  calculate integrated widths
+    #  ---------------------------------
+
+    #  --integrated width function--
+
+    #  calculates integrated width
+    #  as: [polygon area] / [sum(centerline lengths)]
+
+    def intWidth_fn(polygon, centerline):
+        arrPoly = arcpy.da.FeatureClassToNumPyArray(polygon, ['SHAPE@AREA'])
+        arrPolyArea = arrPoly['SHAPE@AREA'].sum()
+        arrCL = arcpy.da.FeatureClassToNumPyArray(centerline, ['SHAPE@LENGTH'])
+        arrCLLength = arrCL['SHAPE@LENGTH'].sum()
+        intWidth = round(arrPolyArea / arrCLLength, 1)
+        return intWidth
+
+    bfw = intWidth_fn(config.bfPolyShp, config.bfCL)
+
+    #  ---------------------------------
     #  tier 1 evidence raster
     #  ---------------------------------
 
@@ -53,9 +73,11 @@ def main():
         print '...deriving evidence rasters...'
         #  --bankfull polygon raster--
         #  a. convert bankfulll channel polygon to raster
-        arcpy.PolygonToRaster_conversion(config.bfPolyShp, 'FID', 'tmp_bfCh.tif', 'CELL_CENTER')
+        #arcpy.PolygonToRaster_conversion(config.bfPolyShp, 'FID', 'tmp_bfCh.tif', 'CELL_CENTER')
+        bf_raw = arcpy.PolygonToRaster_conversion(config.bfPolyShp, 'FID', 'in_memory/tmp_bfCh', 'CELL_CENTER')
         #  b. set cells inside/outside bankfull channel polygon to 1/0
-        outCon = Con(IsNull('tmp_bfCh.tif'), 0, 1)
+        #outCon = Con(IsNull('tmp_bfCh.tif'), 0, 1)
+        outCon = Con(IsNull(bf_raw), 0, 1)
         #  c. clip to detrended DEM
         bf = ExtractByMask(outCon, dem)
         #  d. save output
@@ -67,47 +89,101 @@ def main():
     #  tier 1 classification
     #  ---------------------------------
 
-    print '...classifying in-channel vs out-of-channel...'
+    print '...classifying in-channel vs out-of-channel units...'
 
     #  creates in channel vs out of channel
     #  breaks based on bankfull raster
 
-    #  create out of channel channel raster
-    #  convert to polygon and save output
-    outCh = SetNull(bf, 1, '"VALUE" = 1')
-    outChShp = os.path.join(outpath, 'Tier1_OutOfChannel.shp')
-    arcpy.RasterToPolygon_conversion(outCh, outChShp, 'NO_SIMPLIFY', 'VALUE')
+    #  convert bankfull channel raster to polygon
+    units = arcpy.RasterToPolygon_conversion(bf, 'in_memory/t1_units', 'NO_SIMPLIFY', 'VALUE')
 
-    #  create in channel channel raster
-    #  convert to polygon and save output
-    inCh = SetNull(bf, 1, '"VALUE" = 0')
-    inChShp = os.path.join(outpath, 'Tier1_InChannel.shp')
-    arcpy.RasterToPolygon_conversion(inCh, inChShp, 'NO_SIMPLIFY', 'VALUE')
+    #  covert units from multipart to singlepart polygons
+    units_sp = arcpy.MultipartToSinglepart_management(units, 'in_memory/t1_units_sp')
 
-    #  create and attribute 'Tier1' field
-    arcpy.AddField_management(outChShp, 'Tier1', 'TEXT', 20)
-    arcpy.AddField_management(inChShp, 'Tier1', 'TEXT', 20)
+    #  create and attribute 'UnitID' and 'ValleyUnit' fields
+    arcpy.AddField_management(units_sp, 'UnitID', 'SHORT')
+    arcpy.AddField_management(units_sp, 'ValleyUnit', 'TEXT', '', '', 20)
 
-    fields = ['Tier1']
-
-    with arcpy.da.UpdateCursor(outChShp, fields) as cursor:
+    with arcpy.da.UpdateCursor(units_sp, ['ID', 'UnitID', 'GRIDCODE', 'ValleyUnit']) as cursor:
         for row in cursor:
-            row[0] = 'Out of Channel'
+            row[1] = row[0]
+            if row[2] == 0:
+                row[3] = 'Out-of-Channel'
+            else:
+                row[3] = 'In-Channel'
             cursor.updateRow(row)
 
-    with arcpy.da.UpdateCursor(inChShp, fields) as cursor:
+    print '...classifying flow units...'
+
+    #  add flow type and unique id to tier 1 units
+    flowtype_raw = arcpy.CopyFeatures_management(units_sp, 'in_memory/flowtype_raw')
+    arcpy.AddField_management(flowtype_raw, 'FlowUnit', 'TEXT', '', '', 12)
+    arcpy.AddField_management(flowtype_raw, 'FlowID', 'SHORT')
+    with arcpy.da.UpdateCursor(flowtype_raw, ['ValleyUnit', 'FlowUnit', 'FlowID']) as cursor:
         for row in cursor:
-            row[0] = 'In Channel'
+            if row[0] == 'Out-of-Channel':
+                row[1] = 'High'
+                row[2] = 3
+            else:
+                row[1] = 'Emergent'
+                row[2] = 2
             cursor.updateRow(row)
+    wPoly = arcpy.CopyFeatures_management(config.wPolyShp, 'in_memory/wPoly')
+    arcpy.AddField_management(wPoly, 'FlowUnit', 'TEXT', '', '', 12)
+    arcpy.AddField_management(wPoly, 'FlowID', 'SHORT')
+    with arcpy.da.UpdateCursor(wPoly, ['FlowUnit', 'FlowID']) as cursor:
+        for row in cursor:
+            row[0] = 'Submerged'
+            row[1] = 1
+            cursor.updateRow(row)
+
+    #  create flow type polygon
+    flowtype = arcpy.Update_analysis(flowtype_raw, wPoly, 'in_memory/flowtype')
+    #  intersect flow type polygon with tier 1 units
+    flowtype_units_raw = arcpy.Intersect_analysis([units_sp, flowtype], 'in_memory/flowtype_units_raw', 'ALL')
+    #  covert units from multipart to singlepart polygons
+    flowtype_units_sp = arcpy.MultipartToSinglepart_management(flowtype_units_raw, 'in_memory/flowtype_units_sp')
+
+    # calculate area
+    arcpy.AddField_management(flowtype_units_sp, 'Area', 'DOUBLE')
+    with arcpy.da.UpdateCursor(flowtype_units_sp, ['SHAPE@AREA', 'Area']) as cursor:
+        for row in cursor:
+            row[1] = row[0]
+            cursor.updateRow(row)
+
+    # find tiny units (area < 0.05 * bfw) and merge with unit that shares longest border
+    flowtype_units_lyr = arcpy.MakeFeatureLayer_management(flowtype_units_sp, 'flowtype_units_lyr')
+    arcpy.SelectLayerByAttribute_management(flowtype_units_lyr, 'NEW_SELECTION', '"Area" < ' + str(0.05 * bfw))
+    flowtype_units = arcpy.Eliminate_management(flowtype_units_lyr, 'in_memory/flowtype_units_elim', "LENGTH")
+
+    #  add subunit id field
+    arcpy.AddField_management(flowtype_units, 'SubUnitID', 'TEXT', '', '', 6)
+
+    with arcpy.da.UpdateCursor(flowtype_units, ['UnitID', 'FlowID', 'SubUnitID']) as cursor:
+        for row in cursor:
+            row[2] = str(row[0]) + '.' + str(row[1])
+            cursor.updateRow(row)
+
+    # remove unnecessary fields
+    fields = arcpy.ListFields(flowtype_units)
+    keep = ['OBJECTID', 'Shape', 'UnitID', 'ValleyUnit', 'FlowUnit', 'FlowID', 'SubUnitID']
+    drop = [x.name for x in fields if x.name not in keep]
+    arcpy.DeleteField_management(flowtype_units, drop)
+
+    arcpy.CopyFeatures_management(flowtype_units, os.path.join(outpath, 'Tier1.shp'))
 
     # ----------------------------------------------------------
-    # Remove temporary files
+    # remove temporary files
 
     print '...removing intermediary surfaces...'
 
-    for root, dirs, files in os.walk(arcpy.env.workspace):
-        for f in fnmatch.filter(files, 'tmp_*'):
-            os.remove(os.path.join(root, f))
+    # arcpy.env.workspace = 'in_memory'
+    # fcs = arcpy.ListFeatureClasses()
+    arcpy.Delete_management("in_memory")
+    #
+    # for root, dirs, files in os.walk(arcpy.env.workspace):
+    #     for f in fnmatch.filter(files, 'tmp_*'):
+    #         os.remove(os.path.join(root, f))
 
     print '...done with Tier 1 classification.'
 
