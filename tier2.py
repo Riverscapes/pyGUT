@@ -318,6 +318,7 @@ def main():
         contours_gap_merge = arcpy.Merge_management([line_lyr, gap_lines], 'in_memory/contours_gap_merge')
         #  dissolve all lines that are touching into single line
         contours_repaired = arcpy.Dissolve_management(contours_gap_merge, 'in_memory/contours_repaired', '', '', '', 'UNSPLIT_LINES')
+        arcpy.CopyFeatures_management(contours_repaired, os.path.join(evpath, 'DEM_Contours.shp'))
         #  c. merge repaired lines with bankfull line
         contours_bankfull_merge2 = arcpy.Merge_management([contours_repaired, bankfull_line], 'in_memory/contours_bankfull_merge2')
         #  d. close contour lines by extending to bankfull line
@@ -330,6 +331,7 @@ def main():
                 row[1] = row[0]
                 cursor.updateRow(row)
         #  f. convert contour lines to polygon and clip to bankfull polygon
+        arcpy.CopyFeatures_management(contours_bankfull_merge2, os.path.join(evpath, 'tmp_contours_bankfull_merge2.shp'))
         contour_poly_raw = arcpy.FeatureToPolygon_management(contours_bankfull_merge2, 'in_memory/raw_contour_poly')
         contour_poly_clip = arcpy.Clip_analysis(contour_poly_raw, os.path.join(config.workspace, config.bfPolyShp), 'in_memory/contour_polygons_clip')
 
