@@ -2,8 +2,8 @@
 import arcpy
 import config
 import os
-import subprocess
 import fnmatch
+import tempfile
 from arcpy.sa import *
 arcpy.CheckOutExtension('Spatial')
 
@@ -12,12 +12,15 @@ def main():
 
     print 'Starting Tier 1 classification...'
 
+    #  create temporary workspace
+    tmp_dir = tempfile.mkdtemp()
+
     #  environment settings
-    arcpy.env.workspace = config.workspace # set workspace to pf
+    arcpy.env.workspace = tmp_dir # set workspace to pf
     arcpy.env.overwriteOutput = True  # set to overwrite output
 
     #  import required rasters
-    dem = Raster(config.inDEM)
+    dem = Raster(os.path.join(config.workspace, config.inDEM))
 
     #  set raster environment settings
     desc = arcpy.Describe(dem)
@@ -28,23 +31,23 @@ def main():
     #  if don't already exist, create evidence layer and output folders
     folder_list = ['EvidenceLayers', 'Output']
     for folder in folder_list:
-        if not os.path.exists(os.path.join(arcpy.env.workspace, folder)):
-            os.makedirs(os.path.join(arcpy.env.workspace, folder))
+        if not os.path.exists(os.path.join(config.workspace, folder)):
+            os.makedirs(os.path.join(config.workspace, folder))
 
     if config.runFolderName != 'Default' and config.runFolderName != '':
-        outpath = os.path.join(arcpy.env.workspace, 'Output', config.runFolderName)
+        outpath = os.path.join(config.workspace, 'Output', config.runFolderName)
     else:
-        runFolders = fnmatch.filter(next(os.walk(os.path.join(arcpy.env.workspace, 'Output')))[1], 'Run_*')
+        runFolders = fnmatch.filter(next(os.walk(os.path.join(config.workspace, 'Output')))[1], 'Run_*')
         if len(runFolders) >= 1:
             runNum = int(max([i.split('_', 1)[1] for i in runFolders])) + 1
         else:
             runNum = 1
-        outpath = os.path.join(arcpy.env.workspace, 'Output', 'Run_%03d' % runNum)
+        outpath = os.path.join(config.workspace, 'Output', 'Run_%03d' % runNum)
 
     os.makedirs(outpath)
 
     #  set output paths
-    evpath = os.path.join(arcpy.env.workspace, 'EvidenceLayers')
+    evpath = os.path.join(config.workspace, 'EvidenceLayers')
 
     #  ---------------------------------
     #  calculate integrated widths
@@ -63,7 +66,7 @@ def main():
         intWidth = round(arrPolyArea / arrCLLength, 1)
         return intWidth
 
-    bfw = intWidth_fn(config.bfPolyShp, config.bfCL)
+    bfw = intWidth_fn(os.path.join(config.workspace, config.bfPolyShp), os.path.join(config.workspace,config.bfCL))
 
     #  ---------------------------------
     #  tier 1 evidence raster
@@ -74,7 +77,7 @@ def main():
         #  --bankfull polygon raster--
         #  a. convert bankfulll channel polygon to raster
         #arcpy.PolygonToRaster_conversion(config.bfPolyShp, 'FID', 'tmp_bfCh.tif', 'CELL_CENTER')
-        bf_raw = arcpy.PolygonToRaster_conversion(config.bfPolyShp, 'FID', 'in_memory/tmp_bfCh', 'CELL_CENTER')
+        bf_raw = arcpy.PolygonToRaster_conversion(os.path.join(config.workspace, config.bfPolyShp), 'FID', 'in_memory/tmp_bfCh', 'CELL_CENTER')
         #  b. set cells inside/outside bankfull channel polygon to 1/0
         #outCon = Con(IsNull('tmp_bfCh.tif'), 0, 1)
         outCon = Con(IsNull(bf_raw), 0, 1)
@@ -128,7 +131,7 @@ def main():
                 row[1] = 'Emergent'
                 row[2] = 2
             cursor.updateRow(row)
-    wPoly = arcpy.CopyFeatures_management(config.wPolyShp, 'in_memory/wPoly')
+    wPoly = arcpy.CopyFeatures_management(os.path.join(config.workspace, config.wPolyShp), 'in_memory/wPoly')
     arcpy.AddField_management(wPoly, 'FlowUnit', 'TEXT', '', '', 12)
     arcpy.AddField_management(wPoly, 'FlowID', 'SHORT')
     with arcpy.da.UpdateCursor(wPoly, ['FlowUnit', 'FlowID']) as cursor:
@@ -180,6 +183,7 @@ def main():
     # arcpy.env.workspace = 'in_memory'
     # fcs = arcpy.ListFeatureClasses()
     arcpy.Delete_management("in_memory")
+    arcpy.Delete_management(tmp_dir)
     #
     # for root, dirs, files in os.walk(arcpy.env.workspace):
     #     for f in fnmatch.filter(files, 'tmp_*'):

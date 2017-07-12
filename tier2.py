@@ -5,6 +5,7 @@ import config
 import fnmatch
 import math
 import numpy
+import tempfile
 from arcpy.sa import *
 arcpy.CheckOutExtension('Spatial')
 
@@ -15,18 +16,21 @@ def main():
 
     arcpy.Delete_management("in_memory")
 
+    #  create temporary workspace
+    tmp_dir = tempfile.mkdtemp()
+
     #  environment settings
-    arcpy.env.workspace = config.workspace  # set workspace to pf
+    arcpy.env.workspace = tmp_dir # set workspace to pf
     arcpy.env.overwriteOutput = True  # set to overwrite output
 
     #  set output paths
-    evpath = os.path.join(arcpy.env.workspace, 'EvidenceLayers')
+    evpath = os.path.join(config.workspace, 'EvidenceLayers')
     if config.runFolderName != 'Default' and config.runFolderName != '':
-        outpath = os.path.join(arcpy.env.workspace, 'Output', config.runFolderName)
+        outpath = os.path.join(config.workspace, 'Output', config.runFolderName)
     else:
-        runFolders = fnmatch.filter(next(os.walk(os.path.join(arcpy.env.workspace, 'Output')))[1], 'Run_*')
+        runFolders = fnmatch.filter(next(os.walk(os.path.join(config.workspace, 'Output')))[1], 'Run_*')
         runNum = int(max([i.split('_', 1)[1] for i in runFolders]))
-        outpath = os.path.join(arcpy.env.workspace, 'Output', 'Run_%03d' % runNum)
+        outpath = os.path.join(config.workspace, 'Output', 'Run_%03d' % runNum)
 
     #  clean up!
     #  search for existing tier 2 shapefiles or rasters
@@ -38,8 +42,8 @@ def main():
                 os.remove(os.path.join(outpath, file))
 
     #  import required rasters
-    dem = Raster(config.inDEM)
-    bf = Raster('EvidenceLayers/bfCh.tif')  # created in 'tier1' module
+    dem = Raster(os.path.join(config.workspace, config.inDEM))
+    bf = Raster(os.path.join(config.workspace, 'EvidenceLayers/bfCh.tif'))  # created in 'tier1' module
 
     #  set raster environment settings
     desc = arcpy.Describe(dem)
@@ -140,8 +144,8 @@ def main():
     #  calculate integrated widths
     #  ---------------------------------
 
-    bfw = intWidth_fn(config.bfPolyShp, config.bfCL)
-    ww = intWidth_fn(config.wPolyShp, config.wCL)
+    bfw = intWidth_fn(os.path.join(config.workspace, config.bfPolyShp), os.path.join(config.workspace, config.bfCL))
+    ww = intWidth_fn(os.path.join(config.workspace, config.wPolyShp), os.path.join(config.workspace, config.wCL))
     print '...integrated bankfull width: ' + str(bfw) + ' m...'
     print '...integrated wetted width: ' + str(ww) + ' m...'
 
@@ -153,27 +157,27 @@ def main():
     print '...deriving evidence layers...'
 
     #  --mean dem--
-    if not os.path.exists(os.path.join(evpath, os.path.splitext(os.path.basename(config.inDEM))[0] + '_mean.tif')):
+    if not os.path.exists(os.path.join(evpath, os.path.splitext(os.path.basename(os.path.join(config.workspace, config.inDEM)))[0] + '_mean.tif')):
         neigh = NbrRectangle(round(math.ceil(bfw) * 0.1, 1), round(math.ceil(bfw) * 0.1, 1), 'MAP')  # set neighborhood size
         meanDEM = FocalStatistics(dem, neigh, 'MEAN', 'DATA')  # calculate mean z
         outMeanDEM = ExtractByMask(meanDEM, dem)  # clip output to input
-        outMeanDEM.save(os.path.join(evpath, os.path.splitext(os.path.basename(config.inDEM))[0] + '_mean.tif'))  # save output
+        outMeanDEM.save(os.path.join(evpath, os.path.splitext(os.path.basename(os.path.join(config.workspace, config.inDEM)))[0] + '_mean.tif'))  # save output
     else:
-        outMeanDEM = Raster(os.path.join(evpath, os.path.splitext(os.path.basename(config.inDEM))[0] + '_mean.tif'))
+        outMeanDEM = Raster(os.path.join(evpath, os.path.splitext(os.path.basename(os.path.join(config.workspace, config.inDEM)))[0] + '_mean.tif'))
 
     #  --in channel mean dem--
-    if not os.path.exists(os.path.join(evpath, 'inCh_' + os.path.basename(config.inDEM))):
+    if not os.path.exists(os.path.join(evpath, 'inCh_' + os.path.basename(os.path.join(config.workspace, config.inDEM)))):
         inChDEM = inCh * outMeanDEM
-        inChDEM.save(os.path.join(evpath, 'inCh_' + os.path.basename(config.inDEM)))  # save output
+        inChDEM.save(os.path.join(evpath, 'inCh_' + os.path.basename(os.path.join(config.workspace, config.inDEM))))  # save output
     else:
-        inChDEM = Raster(os.path.join(evpath, 'inCh_' + os.path.basename(config.inDEM)))
+        inChDEM = Raster(os.path.join(evpath, 'inCh_' + os.path.basename(os.path.join(config.workspace, config.inDEM))))
 
     #  --in channel mean dem slope--
-    if not os.path.exists(os.path.join(evpath, 'slope_inCh_' + os.path.basename(config.inDEM))):
+    if not os.path.exists(os.path.join(evpath, 'slope_inCh_' + os.path.basename(os.path.join(config.workspace, config.inDEM)))):
         inChDEMSlope = Slope(inChDEM, 'DEGREE')
-        inChDEMSlope.save(os.path.join(evpath, 'slope_inCh_' + os.path.basename(config.inDEM)))  # save output
+        inChDEMSlope.save(os.path.join(evpath, 'slope_inCh_' + os.path.basename(os.path.join(config.workspace, config.inDEM))))  # save output
     else:
-        inChDEMSlope = Raster(os.path.join(evpath, 'slope_inCh_' + os.path.basename(config.inDEM)))
+        inChDEMSlope = Raster(os.path.join(evpath, 'slope_inCh_' + os.path.basename(os.path.join(config.workspace, config.inDEM))))
 
     #  --residual topography--
     if not os.path.exists(os.path.join(evpath, 'resTopo.tif')):
@@ -206,14 +210,14 @@ def main():
     #  --channel margin--
     if not os.path.exists(os.path.join(evpath, 'chMargin.tif')):
         #  a. remove any wePoly parts < 5% of total area
-        wPolyElim = arcpy.EliminatePolygonPart_management(config.wPolyShp, 'in_memory/wPolyElim', 'PERCENT', '', 5, 'ANY')
+        wPolyElim = arcpy.EliminatePolygonPart_management(os.path.join(config.workspace, config.wPolyShp), 'in_memory/wPolyElim', 'PERCENT', '', 5, 'ANY')
         #  b. erase wPolyElim from bankfull polygon
-        polyErase = arcpy.Erase_analysis(config.bfPolyShp, wPolyElim, 'in_memory/polyErase', '')
+        polyErase = arcpy.Erase_analysis(os.path.join(config.workspace, config.bfPolyShp), wPolyElim, 'in_memory/polyErase', '')
         #  c. buffer the output by 10% of the integrated wetted width
         bufferDist = 0.1 * ww
         polyBuffer = arcpy.Buffer_analysis(polyErase, 'in_memory/polyBuffer', bufferDist, 'FULL')
         #  d. clip the output to the bankull polygon
-        arcpy.Clip_analysis(polyBuffer, config.bfPolyShp, 'in_memory/chMarginPoly')
+        arcpy.Clip_analysis(polyBuffer, os.path.join(config.workspace, config.bfPolyShp), 'in_memory/chMarginPoly')
         #  e. convert the output to a raster
         cm_raw = arcpy.PolygonToRaster_conversion('in_memory/chMarginPoly', 'FID', 'in_memory/chMargin_raw.tif', 'CELL_CENTER', 'NONE', '0.1')
         #  f. set all cells inside/outside the bankfull ratser to 1/0
@@ -232,7 +236,7 @@ def main():
             contours = Contour(outMeanDEM, 'in_memory/contours', 0.2)
         #  b. clean up contours (i.e., fill contour gaps)
         #  clip contour shp to bankfull polygon
-        contour_clip = arcpy.Clip_analysis(contours, config.bfPolyShp, 'in_memory/contours_clip')
+        contour_clip = arcpy.Clip_analysis(contours, os.path.join(config.workspace, config.bfPolyShp), 'in_memory/contours_clip')
         #  convert contour shp from multipart to singlepart feature
         contour_sp = arcpy.MultipartToSinglepart_management(contour_clip, 'in_memory/contours_sp')
         #  create feature layer from singlepart contours
@@ -243,7 +247,7 @@ def main():
                 if row[0] <= 0.2:
                     cursor.deleteRow()
         #  convert bankfull polygon to line and merge with contours
-        bankfull_line = arcpy.FeatureToLine_management([config.bfPolyShp], 'in_memory/bankfull_line')
+        bankfull_line = arcpy.FeatureToLine_management([os.path.join(config.workspace, config.bfPolyShp)], 'in_memory/bankfull_line')
         contours_bankfull_merge = arcpy.Merge_management([line_lyr, bankfull_line], 'in_memory/contours_bankfull_merge')
         #  create points at contour endpoints and assign unique 'endID' field using OID field
         end_points = arcpy.FeatureVerticesToPoints_management(contours_bankfull_merge, 'in_memory/contours_bankfull_merge_ends', 'BOTH_ENDS')
@@ -327,10 +331,10 @@ def main():
                 cursor.updateRow(row)
         #  f. convert contour lines to polygon and clip to bankfull polygon
         contour_poly_raw = arcpy.FeatureToPolygon_management(contours_bankfull_merge2, 'in_memory/raw_contour_poly')
-        contour_poly_clip = arcpy.Clip_analysis(contour_poly_raw, config.bfPolyShp, 'in_memory/contour_polygons_clip')
+        contour_poly_clip = arcpy.Clip_analysis(contour_poly_raw, os.path.join(config.workspace, config.bfPolyShp), 'in_memory/contour_polygons_clip')
 
         #  g. create nodes at contour [line] - thalweg intersection
-        arcpy.CopyFeatures_management(config.thalwegShp, 'in_memory/thalweg')
+        arcpy.CopyFeatures_management(os.path.join(config.workspace, config.thalwegShp), 'in_memory/thalweg')
         contour_nodes_mpart = arcpy.Intersect_analysis(['in_memory/thalweg', contours_bankfull_merge2], 'in_memory/contour_nodes_mpart', 'NO_FID', '', 'POINT')
         contour_nodes = arcpy.MultipartToSinglepart_management(contour_nodes_mpart, 'in_memory/contour_nodes')
 
@@ -455,8 +459,8 @@ def main():
     arr = arr[~numpy.isnan(arr)]  # remove no data from array
 
     #  calculate residual topography quantiles to use in thresholding
-    q25pos = numpy.percentile(arr[arr > 0], 25)
-    q25neg = numpy.percentile(numpy.negative(arr[arr <= 0]), 25)
+    q25pos = numpy.percentile(arr[arr > 0], config.planePercentile)
+    q25neg = numpy.percentile(numpy.negative(arr[arr <= 0]), config.planePercentile)
     q50neg = numpy.percentile(numpy.negative(arr[arr <= 0]), config.bowlPercentile)
 
     print '...classifying Tier 2 shapes and forms...'
@@ -482,7 +486,7 @@ def main():
             cursor.updateRow(row)
 
     #  c. clip thalweg to riffle contour
-    thalweg_clip = arcpy.Intersect_analysis([config.thalwegShp, riff_contour_raw], 'in_memory/thalweg_clip', 'ALL', '', 'LINE')
+    thalweg_clip = arcpy.Intersect_analysis([os.path.join(config.workspace, config.thalwegShp), riff_contour_raw], 'in_memory/thalweg_clip', 'ALL', '', 'LINE')
     thalweg_clip_sp = arcpy.MultipartToSinglepart_management(thalweg_clip, 'in_memory/thalweg_clip_sp')
     arcpy.MakeFeatureLayer_management(thalweg_clip_sp, 'thalewg_lyr')
     arcpy.SelectLayerByLocation_management('thalewg_lyr', 'INTERSECT', 'downstream_lyr', '', 'NEW_SELECTION')
@@ -549,7 +553,7 @@ def main():
     print '...classifying Tier 2 flow type...'
 
     #  add flow type and unique id to bankfull and wetted extent polygons
-    bfPoly = arcpy.CopyFeatures_management(config.bfPolyShp, 'in_memory/bfPoly')
+    bfPoly = arcpy.CopyFeatures_management(os.path.join(config.workspace, config.bfPolyShp), 'in_memory/bfPoly')
     arcpy.AddField_management(bfPoly, 'FlowUnit', 'TEXT', '', '', 12)
     arcpy.AddField_management(bfPoly, 'FlowID', 'SHORT')
     with arcpy.da.UpdateCursor(bfPoly, ['FlowUnit', 'FlowID']) as cursor:
@@ -557,7 +561,7 @@ def main():
             row[0] = 'Emergent'
             row[1] = 2
             cursor.updateRow(row)
-    wPoly = arcpy.CopyFeatures_management(config.wPolyShp, 'in_memory/wPoly')
+    wPoly = arcpy.CopyFeatures_management(os.path.join(config.workspace, config.wPolyShp), 'in_memory/wPoly')
     arcpy.AddField_management(wPoly, 'FlowUnit', 'TEXT', '', '', 12)
     arcpy.AddField_management(wPoly, 'FlowID', 'SHORT')
     with arcpy.da.UpdateCursor(wPoly, ['FlowUnit', 'FlowID']) as cursor:
@@ -598,6 +602,7 @@ def main():
     #         os.remove(os.path.join(root, f))
     #arcpy.Delete_management(os.path.join(evpath, 'tbl_Routes.dbf'))
     arcpy.Delete_management("in_memory")
+    arcpy.Delete_management(tmp_dir)
     #
 
     #  Save config file settings to output folder
