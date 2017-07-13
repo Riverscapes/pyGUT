@@ -103,11 +103,11 @@ def main():
     #  covert units from multipart to singlepart polygons
     units_sp = arcpy.MultipartToSinglepart_management(units, 'in_memory/t1_units_sp')
 
-    #  create and attribute 'UnitID' and 'ValleyUnit' fields
-    arcpy.AddField_management(units_sp, 'UnitID', 'SHORT')
+    #  create and attribute 'ValleyID' and 'ValleyUnit' fields
+    arcpy.AddField_management(units_sp, 'ValleyID', 'SHORT')
     arcpy.AddField_management(units_sp, 'ValleyUnit', 'TEXT', '', '', 20)
 
-    with arcpy.da.UpdateCursor(units_sp, ['ID', 'UnitID', 'GRIDCODE', 'ValleyUnit']) as cursor:
+    with arcpy.da.UpdateCursor(units_sp, ['ID', 'ValleyID', 'GRIDCODE', 'ValleyUnit']) as cursor:
         for row in cursor:
             row[1] = row[0]
             if row[2] == 0:
@@ -121,23 +121,19 @@ def main():
     #  add flow type and unique id to tier 1 units
     flowtype_raw = arcpy.CopyFeatures_management(units_sp, 'in_memory/flowtype_raw')
     arcpy.AddField_management(flowtype_raw, 'FlowUnit', 'TEXT', '', '', 12)
-    arcpy.AddField_management(flowtype_raw, 'FlowID', 'SHORT')
-    with arcpy.da.UpdateCursor(flowtype_raw, ['ValleyUnit', 'FlowUnit', 'FlowID']) as cursor:
+
+    with arcpy.da.UpdateCursor(flowtype_raw, ['ValleyUnit', 'FlowUnit']) as cursor:
         for row in cursor:
             if row[0] == 'Out-of-Channel':
                 row[1] = 'High'
-                row[2] = 3
             else:
                 row[1] = 'Emergent'
-                row[2] = 2
             cursor.updateRow(row)
     wPoly = arcpy.CopyFeatures_management(os.path.join(config.workspace, config.wPolyShp), 'in_memory/wPoly')
     arcpy.AddField_management(wPoly, 'FlowUnit', 'TEXT', '', '', 12)
-    arcpy.AddField_management(wPoly, 'FlowID', 'SHORT')
-    with arcpy.da.UpdateCursor(wPoly, ['FlowUnit', 'FlowID']) as cursor:
+    with arcpy.da.UpdateCursor(wPoly, ['FlowUnit']) as cursor:
         for row in cursor:
             row[0] = 'Submerged'
-            row[1] = 1
             cursor.updateRow(row)
 
     #  create flow type polygon
@@ -159,17 +155,18 @@ def main():
     arcpy.SelectLayerByAttribute_management(flowtype_units_lyr, 'NEW_SELECTION', '"Area" < ' + str(0.05 * bfw))
     flowtype_units = arcpy.Eliminate_management(flowtype_units_lyr, 'in_memory/flowtype_units_elim', "LENGTH")
 
-    #  add subunit id field
-    arcpy.AddField_management(flowtype_units, 'SubUnitID', 'TEXT', '', '', 6)
-
-    with arcpy.da.UpdateCursor(flowtype_units, ['UnitID', 'FlowID', 'SubUnitID']) as cursor:
+    # add flow id field
+    arcpy.AddField_management(flowtype_units, 'FlowID', 'SHORT')
+    ct = 1
+    with arcpy.da.UpdateCursor(flowtype_units, ['FlowID']) as cursor:
         for row in cursor:
-            row[2] = str(row[0]) + '.' + str(row[1])
+            row[0] = ct
+            ct += 1
             cursor.updateRow(row)
 
     # remove unnecessary fields
     fields = arcpy.ListFields(flowtype_units)
-    keep = ['OBJECTID', 'Shape', 'UnitID', 'ValleyUnit', 'FlowUnit', 'FlowID', 'SubUnitID']
+    keep = ['OBJECTID', 'Shape', 'ValleyID', 'ValleyUnit', 'FlowUnit', 'FlowID']
     drop = [x.name for x in fields if x.name not in keep]
     arcpy.DeleteField_management(flowtype_units, drop)
 

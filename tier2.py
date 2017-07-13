@@ -80,9 +80,9 @@ def main():
                     shpList.append(tmp_fn)
                     arcpy.RasterToPolygon_conversion(value, tmp_fn, 'NO_SIMPLIFY', 'VALUE')
                     arcpy.AddField_management(tmp_fn, 'ValleyUnit', 'TEXT', '', '', 20)
-                    arcpy.AddField_management(tmp_fn, 'Shape2', 'TEXT', '', '', 15)
-                    arcpy.AddField_management(tmp_fn, 'Form', 'TEXT', '', '', 10)
-                    with arcpy.da.UpdateCursor(tmp_fn, ['ValleyUnit', 'Shape2', 'Form']) as cursor:
+                    arcpy.AddField_management(tmp_fn, 'UnitShape', 'TEXT', '', '', 15)
+                    arcpy.AddField_management(tmp_fn, 'UnitForm', 'TEXT', '', '', 10)
+                    with arcpy.da.UpdateCursor(tmp_fn, ['ValleyUnit', 'UnitShape', 'UnitForm']) as cursor:
                         for row in cursor:
                             row[0] = 'In-Channel'
                             row[2] = str(key)
@@ -121,15 +121,17 @@ def main():
         arcpy.SelectLayerByAttribute_management(units_elim_lyr, 'NEW_SELECTION', '"Area" < ' + str(0.05 * bfw))
         tmp_units = arcpy.Eliminate_management(units_elim_lyr, 'in_memory/tmp_units', "LENGTH")
         # create unit id field and update area field
-        arcpy.AddField_management(tmp_units, 'UnitID', 'SHORT')
-        with arcpy.da.UpdateCursor(tmp_units, ['OID@', 'UnitID', 'SHAPE@AREA', 'Area']) as cursor:
+        arcpy.AddField_management(tmp_units, 'FormID', 'SHORT')
+        ct = 1
+        with arcpy.da.UpdateCursor(tmp_units, ['FormID', 'SHAPE@AREA', 'Area']) as cursor:
             for row in cursor:
-                row[1] = row[0]
-                row[3] = row[2]
+                row[0] = ct
+                row[2] = row[1]
+                ct += 1
                 cursor.updateRow(row)
         # remove unnecessary fields
         fields = arcpy.ListFields(tmp_units)
-        keep = ['OID', 'Shape','ValleyUnit', 'Shape2', 'Form', 'Area', 'UnitID']
+        keep = ['OID', 'Shape','ValleyUnit', 'UnitShape', 'UnitForm', 'Area', 'FormID']
         drop = [x.name for x in fields if x.name not in keep]
         arcpy.DeleteField_management(tmp_units, drop)
 
@@ -331,7 +333,7 @@ def main():
                 row[1] = row[0]
                 cursor.updateRow(row)
         #  f. convert contour lines to polygon and clip to bankfull polygon
-        arcpy.CopyFeatures_management(contours_bankfull_merge2, os.path.join(evpath, 'tmp_contours_bankfull_merge2.shp'))
+        # arcpy.CopyFeatures_management(contours_bankfull_merge2, os.path.join(evpath, 'tmp_contours_bankfull_merge2.shp'))  # ToDo: Create tmp output files for all riffle repair steps up to this point
         contour_poly_raw = arcpy.FeatureToPolygon_management(contours_bankfull_merge2, 'in_memory/raw_contour_poly')
         contour_poly_clip = arcpy.Clip_analysis(contour_poly_raw, os.path.join(config.workspace, config.bfPolyShp), 'in_memory/contour_polygons_clip')
 
@@ -365,10 +367,11 @@ def main():
         arcpy.CreateRoutes_lr('in_memory/thalweg', 'ThID', 'in_memory/thalweg_route', 'TWO_FIELDS', 'From_', 'To_')
         route_tbl = arcpy.LocateFeaturesAlongRoutes_lr(contour_nodes, 'in_memory/thalweg_route', 'ThID', float(desc.meanCellWidth), os.path.join(evpath, 'tbl_Routes.dbf'), 'RID POINT MEAS')
         arcpy.JoinField_management(contour_nodes, 'NodeID', route_tbl, 'NodeID', ['MEAS'])
+        arcpy.JoinField_management(contour_nodes, 'NodeID', route_tbl, 'NodeID', ['RID'])
         contour_nodes_join = arcpy.SpatialJoin_analysis(contour_nodes, contours, 'in_memory/contour_nodes_join', 'JOIN_ONE_TO_MANY', 'KEEP_ALL', '', 'INTERSECT')
 
         #  k. sort contour nodes by flowline distance (in downstream direction)
-        contour_nodes_sort = arcpy.Sort_management(contour_nodes_join, 'in_memory/contour_nodes_sort', [['MEAS', 'DESCENDING']])
+        contour_nodes_sort = arcpy.Sort_management(contour_nodes_join, 'in_memory/contour_nodes_sort', [['RID', 'DESCENDING'],['MEAS', 'DESCENDING']])
         #  l. re-calculate node id so they are in ascending order starting at upstream boundary
         with arcpy.da.UpdateCursor(contour_nodes_sort, ['OID@', 'NodeID']) as cursor:
             for row in cursor:
@@ -381,65 +384,72 @@ def main():
         arcpy.AddField_management(contour_nodes_sort, 'riff_pair', 'SHORT')
         arcpy.AddField_management(contour_nodes_sort, 'riff_dir', 'TEXT', '', '', 5)
 
-        fields = ['elev', 'adj_elev', 'diff_elev', 'riff_pair', 'riff_dir', 'ContourID']
-        elevList = []
-        contourList = []
-        index = 0
-        with arcpy.da.SearchCursor(contour_nodes_sort, fields) as cursor:
-            for row in cursor:
-                elevList.append(row[0])
-                contourList.append(row[5])
-        with arcpy.da.UpdateCursor(contour_nodes_sort, fields) as cursor:
-            for row in cursor:
-                if index + 1 < len(elevList):
-                    row[1] = elevList[index + 1]
-                    row[2] = float(row[1] - row[0])
-                if index + 1 == len(elevList):
-                    row[1] = -9999
-                    row[2] = -9999
-                index += 1
-                cursor.updateRow(row)
+        #idList = [row[0] for row in arcpy.da.SearchCursor(contour_nodes_sort, ['RID'])]
+        ridList = set(row[0] for row in arcpy.da.SearchCursor(contour_nodes_sort, ['RID']))
 
-        with arcpy.da.UpdateCursor(contour_nodes_sort, fields) as cursor:
-            for row in cursor:
-                if row[1] == -9999:
-                    cursor.deleteRow()
+        for rid in ridList:
+            contour_nodes_lyr = arcpy.MakeFeatureLayer_management(contour_nodes_sort, 'contour_nodes_sort_lyr')
+            arcpy.SelectLayerByAttribute_management(contour_nodes_lyr, "NEW_SELECTION", "RID = %s" % str(rid))
+            fields = ['elev', 'adj_elev', 'diff_elev', 'riff_pair', 'riff_dir', 'ContourID']
+            elevList = []
+            contourList = []
+            index = 0
+            with arcpy.da.SearchCursor(contour_nodes_lyr, fields) as cursor:
+                for row in cursor:
+                    elevList.append(row[0])
+                    contourList.append(row[5])
+            with arcpy.da.UpdateCursor(contour_nodes_lyr, fields) as cursor:
+                for row in cursor:
+                    if index + 1 < len(elevList):
+                        row[1] = elevList[index + 1]
+                        row[2] = float(row[1] - row[0])
+                    if index + 1 == len(elevList):
+                        row[1] = -9999
+                        row[2] = -9999
+                    index += 1
+                    cursor.updateRow(row)
 
-        #  n. define riffle us/ds riffle pairs
-        #  criteria:
-        #   - can't be on same contour
-        #   - us node:
-        #        - elev diff btwn DS point ~ 0 [btwn 0.05 and -0.05]
-        #        - DS point elev diff < 0 [DS decline in elev]
-        #   - ds node:
-        #        - point elev diff < 0 [DS decline in elev]
-        #        - US point elev ~ 0 [btwn 0.05 and -0.05]
-        elevDiffList = []
-        nodeDirList = []
-        index = 0
-        with arcpy.da.SearchCursor(contour_nodes_sort, fields) as cursor:
-            for row in cursor:
-                elevDiffList.append(row[2])
-        with arcpy.da.UpdateCursor(contour_nodes_sort, fields) as cursor:
-            for row in cursor:
-                if index + 1 < len(elevDiffList) and index > 1:
-                    if row[5] != contourList[index + 1]:
-                        if row[2] < 0.05 and row[2] > -0.05 and elevDiffList[index + 1] < 0 and elevDiffList[index - 1] > 0 and elevDiffList[index - 2] > 0:
-                            row[4] = 'US'
-                            row[3] = index
-                    if row[5] != contourList[index - 1]:
-                        if row[2] < 0 and elevDiffList[index - 1] > -0.05 and elevDiffList[index - 1] < 0.05 and elevDiffList[index - 2] > 0 and elevDiffList[index - 3] > 0:
-                            row[4] = 'DS'
-                            row[3] = index - 1
-                nodeDirList.append(row[4])
-                if index + 1 == len(elevDiffList) and str(nodeDirList[index - 1]) == 'US':
-                    row[4] = 'DS'
-                    row[3] = index - 1
-                index += 1
-                cursor.updateRow(row)
+            with arcpy.da.UpdateCursor(contour_nodes_lyr, fields) as cursor:
+                for row in cursor:
+                    if row[1] == -9999:
+                        cursor.deleteRow()
 
+            #  n. define riffle us/ds riffle pairs
+            #  criteria:
+            #   - can't be on same contour
+            #   - us node:
+            #        - elev diff btwn DS point ~ 0 [btwn 0.05 and -0.05]
+            #        - DS point elev diff < 0 [DS decline in elev]
+            #   - ds node:
+            #        - point elev diff < 0 [DS decline in elev]
+            #        - US point elev ~ 0 [btwn 0.05 and -0.05]
+            elevDiffList = []
+            nodeDirList = []
+            index = 0
+            with arcpy.da.SearchCursor(contour_nodes_lyr, fields) as cursor:
+                for row in cursor:
+                    elevDiffList.append(row[2])
+            with arcpy.da.UpdateCursor(contour_nodes_lyr, fields) as cursor:
+                for row in cursor:
+                    if index + 1 < len(elevDiffList) and index > 1:
+                        if row[5] != contourList[index + 1]:
+                            if row[2] < 0.05 and row[2] > -0.05 and elevDiffList[index + 1] < 0 and elevDiffList[index - 1] > 0 and elevDiffList[index - 2] > 0:
+                                row[4] = 'US'
+                                row[3] = index
+                        if row[5] != contourList[index - 1]:
+                            if row[2] < 0 and elevDiffList[index - 1] > -0.05 and elevDiffList[index - 1] < 0.05 and elevDiffList[index - 2] > 0 and elevDiffList[index - 3] > 0:
+                                row[4] = 'DS'
+                                row[3] = index - 1
+                    nodeDirList.append(row[4])
+                    if index + 1 == len(elevDiffList) and str(nodeDirList[index - 1]) == 'US':
+                        row[4] = 'DS'
+                        row[3] = index - 1
+                    index += 1
+                    cursor.updateRow(row)
+
+        arcpy.SelectLayerByAttribute_management(contour_nodes_lyr, "CLEAR_SELECTION")
         #  o. snap contour nodes to contour polygon edge in case there was a slight shift in position during line to polygon conversion
-        arcpy.Snap_edit(contour_nodes_sort, [[contour_poly_clip, "EDGE", "0.05 Meters"]])
+        arcpy.Snap_edit(contour_nodes_sort, [[contour_poly_clip, "EDGE", "0.1 Meters"]])
 
         #  p. save contour polygons and contour nodes to evidence layer folder
         arcpy.CopyFeatures_management(contour_nodes_sort, os.path.join(evpath, 'contourNodes.shp'))
@@ -511,7 +521,20 @@ def main():
     thalweg_centroid_buffer = arcpy.Buffer_analysis(thalweg_centroid, 'in_memory/thalweg_centroid_buffer', 'BuffDist')
 
     #  g. clip riffle contour poly by thalweg centroid buffer
-    riff_contour_clip = arcpy.Clip_analysis(riff_contour_raw, thalweg_centroid_buffer, 'in_memory/riff_contour_clip')
+    buffer_lyr = arcpy.MakeFeatureLayer_management(thalweg_centroid_buffer, 'thalweg_centroid_buffer_lyr')
+    riff_lyr = arcpy.MakeFeatureLayer_management(riff_contour_raw, 'riff_lyr')
+
+    shpList = []
+    with arcpy.da.SearchCursor(thalweg_centroid, ['RiffleID', 'SHAPE@']) as cursor:
+        for row in cursor:
+            tmp_fn = 'in_memory/tmp_' + str(row[0])
+            arcpy.SelectLayerByLocation_management(riff_lyr, 'INTERSECT', row[1], '', 'NEW_SELECTION')
+            arcpy.SelectLayerByAttribute_management(buffer_lyr, "NEW_SELECTION", "RiffleID = %s" % row[0])
+            arcpy.Clip_analysis(riff_lyr, buffer_lyr, tmp_fn)
+            shpList.append(tmp_fn)
+
+    riff_contour_clip = arcpy.Merge_management(shpList, 'in_memory/riff_contour_clip')
+
     #  h. convert clipped riffle contour to single part and select features that contain the thalweg centroid
     riff_contour_clip_sp = arcpy.MultipartToSinglepart_management(riff_contour_clip, 'in_memory/riff_contour_clip_sp')
     arcpy.MakeFeatureLayer_management(riff_contour_clip_sp, 'riff_contour_clip_sp_lyr')
@@ -526,13 +549,10 @@ def main():
         riff_contour_posbuffer = arcpy.Buffer_analysis(riff_contour_negbuffer, 'in_memory/riff_contour_posbuffer', '0.6 Meters', 'FULL', 'FLAT')
     riff_poly = arcpy.MultipartToSinglepart_management(riff_contour_posbuffer, 'in_memory/riff_poly')
 
-    #  j. snap contour nodes to positive buffer and re-select features that contain the thalweg centroid
-    arcpy.Snap_edit(contour_nodes_sort, [[riff_poly, "EDGE", "0.4 Meters"]])
+    #  j. select features that contain the thalweg centroid
     arcpy.MakeFeatureLayer_management(riff_poly, 'riff_poly_lyr')
-    arcpy.SelectLayerByLocation_management('riff_poly_lyr', 'INTERSECT', 'downstream_lyr', '', 'NEW_SELECTION')
-    arcpy.SelectLayerByLocation_management('riff_poly_lyr', 'INTERSECT', 'upstream_lyr', '', 'SUBSET_SELECTION')
+    arcpy.SelectLayerByLocation_management('riff_poly_lyr', 'INTERSECT', thalweg_centroid, '', 'NEW_SELECTION')
     saddles = arcpy.PolygonToRaster_conversion('riff_poly_lyr', 'RiffleID', 'in_memory/saddles_raw', 'CELL_CENTER', '', 0.1)
-    #arcpy.CopyRaster_management(saddles, os.path.join(evpath, 'tmp_saddles_raw.tif'))
 
     #  walls/banks
     #  a. calculate bank slope threshold
@@ -557,38 +577,35 @@ def main():
     #  add flow type and unique id to bankfull and wetted extent polygons
     bfPoly = arcpy.CopyFeatures_management(os.path.join(config.workspace, config.bfPolyShp), 'in_memory/bfPoly')
     arcpy.AddField_management(bfPoly, 'FlowUnit', 'TEXT', '', '', 12)
-    arcpy.AddField_management(bfPoly, 'FlowID', 'SHORT')
-    with arcpy.da.UpdateCursor(bfPoly, ['FlowUnit', 'FlowID']) as cursor:
+    with arcpy.da.UpdateCursor(bfPoly, ['FlowUnit']) as cursor:
         for row in cursor:
             row[0] = 'Emergent'
-            row[1] = 2
             cursor.updateRow(row)
     wPoly = arcpy.CopyFeatures_management(os.path.join(config.workspace, config.wPolyShp), 'in_memory/wPoly')
     arcpy.AddField_management(wPoly, 'FlowUnit', 'TEXT', '', '', 12)
-    arcpy.AddField_management(wPoly, 'FlowID', 'SHORT')
-    with arcpy.da.UpdateCursor(wPoly, ['FlowUnit', 'FlowID']) as cursor:
+    with arcpy.da.UpdateCursor(wPoly, ['FlowUnit']) as cursor:
         for row in cursor:
             row[0] = 'Submerged'
-            row[1] = 1
             cursor.updateRow(row)
 
     #  create flow type polygon
     flowtype = arcpy.Update_analysis(bfPoly, wPoly, 'in_memory/flowtype')
     #  intersect flow type polygon with tier 2 units
     flowtype_tier2 = arcpy.Intersect_analysis([os.path.join(outpath, 'Tier2_InChannel.shp'), flowtype], 'in_memory/flowtype_tier2', 'ALL')
-    #  add subunit id field
+    #  add flow id and flow area fields
     arcpy.AddField_management(flowtype_tier2, 'FlowArea', 'DOUBLE')
-    arcpy.AddField_management(flowtype_tier2, 'SubUnitID', 'TEXT', '', '', 6)
-
-    with arcpy.da.UpdateCursor(flowtype_tier2, ['UnitID', 'FlowID', 'SubUnitID', 'SHAPE@AREA', 'FlowArea']) as cursor:
+    arcpy.AddField_management(flowtype_tier2, 'FlowID', 'SHORT')
+    ct = 1
+    with arcpy.da.UpdateCursor(flowtype_tier2, ['SHAPE@AREA', 'FlowArea', 'FlowID']) as cursor:
         for row in cursor:
-            row[2] = str(row[0]) + '.' + str(row[1])
-            row[4] = row[3]
+            row[1] = row[0]
+            row[2] = ct
+            ct += 1
             cursor.updateRow(row)
 
     # remove unnecessary fields
     fields = arcpy.ListFields(flowtype_tier2)
-    keep = ['FID', 'Shape','ValleyUnit', 'Shape2', 'Form', 'Area', 'UnitID', 'FlowUnit', 'FlowID', 'SubUnitID', 'FlowArea']
+    keep = ['FID', 'Shape','ValleyUnit', 'UnitShape', 'UnitForm', 'Area', 'FormID', 'FlowUnit', 'FlowID', 'FlowArea']
     drop = [x.name for x in fields if x.name not in keep]
     arcpy.DeleteField_management(flowtype_tier2, drop)
 
@@ -605,7 +622,7 @@ def main():
     #arcpy.Delete_management(os.path.join(evpath, 'tbl_Routes.dbf'))
     arcpy.Delete_management("in_memory")
     arcpy.Delete_management(tmp_dir)
-    #
+    arcpy.Delete_management(os.path.join(evpath, 'tbl_Routes.dbf'))
 
     #  Save config file settings to output folder
     f = open("./config.py", "r")
