@@ -4,6 +4,7 @@ import config
 import numpy
 import os
 import fnmatch
+import tempfile
 from arcpy.sa import *
 arcpy.CheckOutExtension('Spatial')
 
@@ -28,33 +29,36 @@ def main():
 
     print 'Starting Tier 3 classification...'
 
+    #  create temporary workspace
+    tmp_dir = tempfile.mkdtemp()
+
     #  environment settings
-    arcpy.env.workspace = config.workspace  # set workspace to pf
+    arcpy.env.workspace = tmp_dir # set workspace to pf
     arcpy.env.overwriteOutput = True  # set to overwrite output
 
     #  set output paths
-    evpath = os.path.join(arcpy.env.workspace, 'EvidenceLayers')
+    evpath = os.path.join(config.workspace, 'EvidenceLayers')
     if config.runFolderName != 'Default' and config.runFolderName != '':
-        outpath = os.path.join(arcpy.env.workspace, 'Output', config.runFolderName)
+        outpath = os.path.join(config.workspace, 'Output', config.runFolderName)
     else:
-        runFolders = fnmatch.filter(next(os.walk(os.path.join(arcpy.env.workspace, 'Output')))[1], 'Run_*')
+        runFolders = fnmatch.filter(next(os.walk(os.path.join(config.workspace, 'Output')))[1], 'Run_*')
         runNum = int(max([i.split('_', 1)[1] for i in runFolders]))
-        outpath = os.path.join(arcpy.env.workspace, 'Output', 'Run_%03d' % runNum)
+        outpath = os.path.join(config.workspace, 'Output', 'Run_%03d' % runNum)
 
     #  clean up!
     #  search for existing tier 2 shapefiles or rasters
     #  if exist, delete from workspace otherwise will lead
     #  to errors in subsequent steps
-    for root, dirs, files in os.walk(arcpy.env.workspace):
-        for f in fnmatch.filter(files, os.path.join(outpath, 'Tier3*')):
-            os.remove(os.path.join(root, f))
+    for root, dirs, files in os.walk(outpath):
+        for file in files:
+            if 'Tier3' in file:
+                os.remove(os.path.join(outpath, file))
 
     arcpy.Delete_management('in_memory')
 
     #  import required rasters
-    bf = Raster('EvidenceLayers/bfCh.tif')  # created in 'tier1' module
-    cm = Raster('EvidenceLayers/chMargin.tif')
-    dem = Raster(config.inDEM)
+    bf = Raster(os.path.join(config.workspace, 'EvidenceLayers/bfCh.tif'))  # created in 'tier1' module
+    dem = Raster(os.path.join(config.workspace, config.inDEM))
 
     #  set raster environment settings
     desc = arcpy.Describe(dem)
@@ -79,8 +83,8 @@ def main():
         intWidth = round(arrPolyArea / arrCLLength, 1)
         return intWidth
 
-    bfw = intWidth_fn(config.bfPolyShp, config.bfCL)
-    ww = intWidth_fn(config.wPolyShp, config.wCL)
+    bfw = intWidth_fn(os.path.join(config.workspace, config.bfPolyShp), os.path.join(config.workspace, config.bfCL))
+    ww = intWidth_fn(os.path.join(config.workspace, config.wPolyShp), os.path.join(config.workspace, config.wCL))
 
     #  ---------------------------------
     #  tier 3 evidence rasters + polygons
@@ -98,7 +102,7 @@ def main():
             distance = desc.meanCellWidth
         else:
             distance = round(0.25 * bfw, 1)
-        bfLine = arcpy.FeatureToLine_management(config.bfPolyShp, 'in_memory/tmp_bfLine')
+        bfLine = arcpy.FeatureToLine_management(os.path.join(config.workspace, config.bfPolyShp), 'in_memory/tmp_bfLine')
         bfPts = arcpy.CreateFeatureclass_management('in_memory', 'tmp_bfPts', 'POINT', '', 'DISABLED', 'DISABLED', dem)
         arcpy.AddField_management(bfPts, 'UID', 'LONG')
         arcpy.AddField_management(bfPts, 'lineDist', 'FLOAT')
@@ -143,13 +147,13 @@ def main():
                     cursor.deleteRow()
 
         arcpy.MakeFeatureLayer_management(bfPtsZ, 'tmp_bfPtsZ_lyr')
-        arcpy.SelectLayerByLocation_management('tmp_bfPtsZ_lyr', 'WITHIN_A_DISTANCE', config.wPolyShp, str(desc.meanCellWidth) + ' Meters')
+        arcpy.SelectLayerByLocation_management('tmp_bfPtsZ_lyr', 'WITHIN_A_DISTANCE', os.path.join(config.workspace, config.wPolyShp), str(desc.meanCellWidth) + ' Meters')
         if int(arcpy.GetCount_management('tmp_bfPtsZ_lyr').getOutput(0)) > 0:
             arcpy.DeleteFeatures_management('tmp_bfPtsZ_lyr')
 
         #  d. create bankfull elevation raster
         tmp_raw_bfe = NaturalNeighbor(bfPtsZ, 'demZ', 0.1)
-        tmp_bfe = ExtractByMask(tmp_raw_bfe, config.bfPolyShp)
+        tmp_bfe = ExtractByMask(tmp_raw_bfe, os.path.join(config.workspace, config.bfPolyShp))
 
         #  e. create bfe slope raster
         bfSlope = Slope(tmp_bfe, 'DEGREE')
@@ -160,7 +164,7 @@ def main():
         slope_focal = FocalStatistics(bfSlope, neighborhood, 'MEAN')
 
         #  g. clip to bankfull polygon
-        meanBFSlope = ExtractByMask(slope_focal, config.bfPolyShp)
+        meanBFSlope = ExtractByMask(slope_focal, os.path.join(config.workspace, config.bfPolyShp))
 
         #  h. save output
         meanBFSlope.save(os.path.join(evpath, 'bfeSlope_meanBFW.tif'))
@@ -173,56 +177,14 @@ def main():
         bfSlope = Raster(os.path.join(evpath, 'bfeSlope.tif'))
         meanBFSlope = Raster(os.path.join(evpath, 'bfeSlope_meanBFW.tif'))
 
-    #  --low flow relative roughness--
-
-    if config.lowFlowRoughness == 'True':
-
-        if not os.path.exists(os.path.join(evpath, 'lowFlowRoughess.tif')):
-            print '...low flow relative roughness...'
-
-            #  a. attribute D84 to CHaMP channel unit polygons
-            #     convert grain size csv to dbf table
-            arcpy.TableToTable_conversion(config.champGrainSize, arcpy.env.workspace, 'tbl_d84.dbf')
-
-            #  b. create copy of champ channel units
-            cus = arcpy.CopyFeatures_management(config.champUnits, 'in_memory/tmp_cus')
-
-            #  c. join aux D84 value to CHaMP channel unit shapefile
-            arcpy.JoinField_management(cus, 'Unit_Numbe', 'tbl_d84.dbf', 'ChannelUni', 'D84')
-
-            #  d. make sure D84 field is float
-            #    (Arc Issue that converts field to type integer if first element is integer)
-            arcpy.AddField_management(cus, 'D84_float', 'FLOAT')
-            fields = ['D84', 'D84_float']
-            with arcpy.da.UpdateCursor(cus, fields) as cursor:
-                for row in cursor:
-                    row[1] = float(row[0])
-                    cursor.updateRow(row)
-
-            #  e. convert to D84 raster
-            arcpy.FeatureToRaster_conversion(cus, 'D84_float', 'd84.tif', 0.1)
-
-            #  f. calculate low flow relative roughness raster
-            #     in low flow relative roughness calculation, convert d84 (in mm) to m
-            wd = Raster(config.inWaterD)
-            lfr = (Raster('d84.tif') / 1000) / wd
-
-            #  g. save the output
-            lfr.save(os.path.join(evpath, 'lowFlowRoughess.tif'))
-
-            #  h. delete intermediate fcs
-            arcpy.Delete_management(cus)
-        else:
-            lfr = Raster(os.path.join(evpath, 'lowFlowRoughess.tif'))
-
     #  --channel edge polygon--
 
     if not os.path.exists(os.path.join(evpath, 'channelEdge.shp')):
         print '...channel edge...'
 
         #  a. create copy of bfPoly and wPoly
-        bfpoly = arcpy.CopyFeatures_management(config.bfPolyShp, 'in_memory/tmp_bfpoly')
-        wpoly = arcpy.CopyFeatures_management(config.wPolyShp, 'in_memory/tmp_wpoly')
+        bfpoly = arcpy.CopyFeatures_management(os.path.join(config.workspace, config.bfPolyShp), 'in_memory/tmp_bfpoly')
+        wpoly = arcpy.CopyFeatures_management(os.path.join(config.workspace, config.wPolyShp), 'in_memory/tmp_wpoly')
 
         #  b. remove small polygon parts from bfPoly wPoly
         #     threshold: < 5% of total area
@@ -239,11 +201,11 @@ def main():
         edge = arcpy.EliminatePolygonPart_management(erasebuffer, 'in_memory/tmp_edge', 'AREA', 3*bfw, '', 'ANY')
 
         #  e. merge multipart edge polgyons into single part polygon
-        arcpy.MultipartToSinglepart_management(edge, 'EvidenceLayers/channelEdge.shp')
+        edge_sp = arcpy.MultipartToSinglepart_management(edge, 'in_memory/edge_sp')
 
         #  f. attribute edge as being mid-channel or not
-        arcpy.AddField_management('EvidenceLayers/channelEdge.shp', 'midEdge', 'TEXT')
-        arcpy.MakeFeatureLayer_management('EvidenceLayers/channelEdge.shp', 'edge_lyr')
+        arcpy.AddField_management(edge_sp, 'midEdge', 'TEXT')
+        arcpy.MakeFeatureLayer_management(edge_sp, 'edge_lyr')
 
         bfLine2 = arcpy.PolygonToLine_management(bfelim, 'in_memory/tmp_bfLine')
 
@@ -266,8 +228,10 @@ def main():
         fcs = [bfpoly, wpoly, bfelim, erase, erasebuffer, edge, bfLine2]
         for fc in fcs:
             arcpy.Delete_management(fc)
+
+        arcpy.CopyFeatures_management(edge_sp, os.path.join(evpath, 'channelEdge.shp'))
     else:
-        arcpy.MakeFeatureLayer_management('EvidenceLayers/channelEdge.shp', 'edge_lyr')
+        arcpy.MakeFeatureLayer_management(os.path.join(evpath, 'channelEdge.shp'), 'edge_lyr')
 
     #  --thalweg high points--
 
@@ -283,7 +247,7 @@ def main():
         search_fields = ['SHAPE@', 'OID@']
         insert_fields = ['SHAPE@', 'UID', 'thalDist']
 
-        with arcpy.da.SearchCursor(config.thalwegShp, search_fields) as search:
+        with arcpy.da.SearchCursor(os.path.join(config.workspace, config.thalwegShp), search_fields) as search:
             with arcpy.da.InsertCursor(thalPts, insert_fields) as insert:
                 for row in search:
                     try:
@@ -343,14 +307,14 @@ def main():
         arr = arcpy.da.FeatureClassToNumPyArray(thalPts, ['trResid'])
         trResid_sd = arr['trResid'].std()
         arcpy.CalculateField_management(thalPts, 'trStResid', '[trResid] /' + str(trResid_sd), 'VB')
-        arcpy.CopyFeatures_management(thalPts, 'EvidenceLayers/potentialRiffCrests.shp')
 
         #  d2d. remove any thalweg points where standardized residual < 1.0 sd
-        with arcpy.da.UpdateCursor('EvidenceLayers/potentialRiffCrests.shp', 'trStResid') as cursor:
+        with arcpy.da.UpdateCursor(thalPts, 'trStResid') as cursor:
             for row in cursor:
                 if row[0] < 1.0:
                     cursor.deleteRow()
 
+        arcpy.CopyFeatures_management(thalPts, os.path.join(evpath, 'potentialRiffCrests.shp'))
         #  e. delete intermediate fcs
         arcpy.Delete_management(thalPts)
 
@@ -421,8 +385,8 @@ def main():
     #  b. assign minimum and maximum width ratio to each channel unit polygon
 
     #  step 1: copy inputs to temporary *.shps
-    bfxs = arcpy.CopyFeatures_management(config.bfXS, 'in_memory/tmp_bfxs')
-    bfcl = arcpy.CopyFeatures_management(config.bfCL, 'in_memory/tmp_bfcl')
+    bfxs = arcpy.CopyFeatures_management(os.path.join(config.workspace, config.bfXS), 'in_memory/tmp_bfxs')
+    bfcl = arcpy.CopyFeatures_management(os.path.join(config.workspace, config.bfCL), 'in_memory/tmp_bfcl')
 
     #  step 2: add unique line identifier to centerlines [based on CL id and channel type]
     arcpy.AddField_management(bfcl, 'ChCLID', 'TEXT', '', '', 15)
@@ -488,18 +452,18 @@ def main():
     if not os.path.exists(os.path.join(evpath, 'channelNodes.shp')):
         print '...channel nodes...'
 
-        chNodes_mpart = arcpy.Intersect_analysis(config.bfCL, 'in_memory/tmp_chNodes_multiPart', 'NO_FID', '', 'POINT')
+        chNodes_mp = arcpy.Intersect_analysis(os.path.join(config.workspace, config.bfCL), 'in_memory/tmp_chNodes_multiPart', 'NO_FID', '', 'POINT')
 
-        if arcpy.management.GetCount(chNodes_mpart)[0] != '0':
+        if arcpy.management.GetCount(chNodes_mp)[0] != '0':
 
-            arcpy.MultipartToSinglepart_management(chNodes_mpart, os.path.join(evpath, 'channelNodes.shp'))
+            chNodes_sp = arcpy.MultipartToSinglepart_management(chNodes_mp, 'in_memory/chNodes_sp')
 
-            arcpy.AddField_management('EvidenceLayers/channelNodes.shp', 'ChNodeID', 'SHORT')
-            arcpy.AddField_management('EvidenceLayers/channelNodes.shp', 'SideChID', 'TEXT', 10)
-            arcpy.AddField_management('EvidenceLayers/channelNodes.shp', 'ChNodeType', 'TEXT', 10)
+            arcpy.AddField_management(chNodes_sp, 'ChNodeID', 'SHORT')
+            arcpy.AddField_management(chNodes_sp, 'Channel', 'TEXT', 10)
+            arcpy.AddField_management(chNodes_sp, 'ChNodeType', 'TEXT', 10)
 
-            fields = ['OID@', 'Channel', 'CLID', 'ChNodeID', 'SideChID']
-            with arcpy.da.UpdateCursor('EvidenceLayers/channelNodes.shp', fields) as cursor:
+            fields = ['OID@', 'Channel', 'CLID', 'ChNodeID', 'Channel']
+            with arcpy.da.UpdateCursor(chNodes_sp, fields) as cursor:
                 for row in cursor:
                     if row[1] == 'Main':
                         cursor.deleteRow()
@@ -508,7 +472,7 @@ def main():
                         row[4] = row[1] + str(row[2])
                         cursor.updateRow(row)
 
-            arcpy.MakeFeatureLayer_management(config.bfCL, 'mainCL_lyr', """ "Channel" = 'Main' """)
+            arcpy.MakeFeatureLayer_management(os.path.join(config.workspace, config.bfCL), 'mainCL_lyr', """ "Channel" = 'Main' """)
             mainCL = arcpy.CopyFeatures_management('mainCL_lyr', 'in_memory/tmp_mainCL')
 
             arcpy.AddField_management(mainCL, 'From_', 'DOUBLE')
@@ -523,16 +487,16 @@ def main():
 
             mainCL_Route = arcpy.CreateRoutes_lr(mainCL, 'CLID', 'in_memory/mainCL_Route', 'TWO_FIELDS', 'From_', 'To_')
 
-            arcpy.LocateFeaturesAlongRoutes_lr('EvidenceLayers/channelNodes.shp', mainCL_Route, 'CLID', float(desc.meanCellWidth), 'tbl_Routes.dbf', 'RID POINT MEAS')
+            arcpy.LocateFeaturesAlongRoutes_lr(chNodes_sp, mainCL_Route, 'CLID', float(desc.meanCellWidth), 'tbl_Routes.dbf', 'RID POINT MEAS')
 
-            arcpy.JoinField_management('EvidenceLayers/channelNodes.shp', 'ChNodeID', 'tbl_Routes.dbf', 'ChNodeID', ['MEAS'])
+            arcpy.JoinField_management(chNodes_sp, 'ChNodeID', 'tbl_Routes.dbf', 'ChNodeID', ['MEAS'])
 
-            arcpy.Statistics_analysis('EvidenceLayers/channelNodes.shp', 'tbl_chNodeMax.dbf', [['MEAS', 'MAX']], 'SideChID')
+            arcpy.Statistics_analysis(chNodes_sp, 'tbl_chNodeMax.dbf', [['MEAS', 'MAX']], 'SideChID')
 
-            arcpy.JoinField_management('EvidenceLayers/channelNodes.shp', 'SideChID', 'tbl_chNodeMax.dbf', 'SideChID', ['MAX_MEAS'])
+            arcpy.JoinField_management(chNodes_sp, 'SideChID', 'tbl_chNodeMax.dbf', 'SideChID', ['MAX_MEAS'])
 
             fields = ['MEAS', 'MAX_MEAS', 'ChNodeType']
-            with arcpy.da.UpdateCursor('EvidenceLayers/channelNodes.shp', fields) as cursor:
+            with arcpy.da.UpdateCursor(chNodes_sp, fields) as cursor:
                 for row in cursor:
                     if row[0] < row[1]:
                         row[2] = 'Diffluence'
@@ -540,21 +504,22 @@ def main():
                         row[2] = 'Confluence'
                     cursor.updateRow(row)
 
-            arcpy.Delete_management(chNodes_mpart)
+            arcpy.Delete_management(chNodes_mp)
+            arcpy.CopyFeatures_management(chNodes_sp, os.path.join(evpath, 'channelNodes.shp'))
 
     #  ---------------------------------
     #  tier 3 classification
     #  ---------------------------------
 
-    print '...attributing each unit...'
+    print '...classifying Tier 3 morphology...'
 
     #  create copy of tier 2 shapefile
     units = arcpy.CopyFeatures_management(os.path.join(outpath, 'Tier2_InChannel.shp'), 'in_memory/tmp_tier3_inChannel')
     arcpy.MakeFeatureLayer_management(units, 'units_lyr')
 
     #  add attribute fields to tier 2 polygon shapefile
-    nfields = [('Tier3', 'TEXT', '25'), ('unitID', 'SHORT', ''), ('Area', 'FLOAT', ''), ('Width', 'FLOAT', ''),('Length', 'FLOAT', ''), ('Position', 'TEXT', '20'),
-               ('Thalweg', 'TEXT', '5'), ('SideCh', 'TEXT', '5'), ('Confluence', 'TEXT', '5'), ('Diffluence', 'TEXT', '5'), ('RiffCrest', 'TEXT', '5'), ('wRatioMin', 'FLOAT', ''),
+    nfields = [('Morphology', 'TEXT', '25'), ('UnitID', 'SHORT', ''), ('Forcing', 'TEXT', '25'),('Width', 'FLOAT', ''), ('Length', 'FLOAT', ''), ('Position', 'TEXT', '20'),
+               ('OnThalweg', 'TEXT', '5'), ('Channel', 'TEXT', '5'), ('Confluence', 'TEXT', '5'), ('Diffluence', 'TEXT', '5'), ('RiffCrest', 'TEXT', '5'), ('wRatioMin', 'FLOAT', ''),
                ('wRatioMax', 'FLOAT', ''), ('mIndexMean', 'FLOAT', ''), ('mBend', 'TEXT', '15'), ('BFESlope', 'FLOAT', ''), ('meanSlope', 'FLOAT', '')]
 
 
@@ -562,10 +527,11 @@ def main():
         arcpy.AddField_management(units, nfield[0], nfield[1], '', '', nfield[2])
 
     #  create unit id field to make sure joins correctly execute
-    fields = ['OID@', 'unitID']
+    fields = ['OID@', 'UnitID', 'Forcing']
     with arcpy.da.UpdateCursor(units, fields) as cursor:
         for row in cursor:
             row[1] = row[0]
+            row[2] = 'NA'
             cursor.updateRow(row)
 
     #  --calculate unit area--
@@ -580,10 +546,10 @@ def main():
             cursor.updateRow(row)
 
     # # assign orientation
-    # fields = ['Tier1', 'Tier2', 'Width', 'Length', 'Orient']
+    # fields = ['Tier1', 'UnitForm', 'Width', 'Length', 'Orient']
     # with arcpy.da.UpdateCursor(units, fields) as cursor:
     #     for row in cursor:
-    #         if row[0] == 'InChannel':
+    #         if row[0] == 'In-Channel':
     #             if row[2] > 0.0:
     #                 if row[2] / row[3] > 1.0:
     #                     row[4] = 'Transverse'
@@ -613,22 +579,27 @@ def main():
                 row[3] = 'Transverse'
             cursor.updateRow(row)
 
-    arcpy.JoinField_management(units, 'unitID', units_minBound, 'unitID', ['Orient'])
+    arcpy.JoinField_management(units, 'UnitID', units_minBound, 'UnitID', ['Orient'])
 
     #  --calculate unit position--
 
     print '...unit position...'
 
     edge_units = arcpy.SpatialJoin_analysis('edge_lyr', units, 'in_memory/tmp_edge_units', 'JOIN_ONE_TO_MANY', '', '', 'WITHIN_A_DISTANCE', 0.1 * ww)
-    arcpy.Frequency_analysis(edge_units, 'tbl_edge_units.dbf', ['unitID'])
-    arcpy.AddField_management('tbl_edge_units.dbf', 'edgeCount', 'SHORT')
-    arcpy.CalculateField_management('tbl_edge_units.dbf', 'edgeCount', '[FREQUENCY]')
-    arcpy.JoinField_management(units, 'unitID', 'tbl_edge_units.dbf', 'unitID', ['edgeCount'])
+    edge_tbl = arcpy.Frequency_analysis(edge_units, 'tbl_edge_units.dbf', ['UnitID'])
+    arcpy.AddField_management(edge_tbl, 'edgeCount', 'SHORT')
+    arcpy.CalculateField_management(edge_tbl, 'edgeCount', '[FREQUENCY]')
+    arcpy.JoinField_management(units, 'UnitID', edge_tbl, 'UnitID', ['edgeCount'])
 
     arcpy.SelectLayerByAttribute_management('edge_lyr', 'NEW_SELECTION', """ "midEdge" = 'Y' """)
-    arcpy.SelectLayerByLocation_management('units_lyr', 'HAVE_THEIR_CENTER_IN', 'edge_lyr', '', 'NEW_SELECTION')
-    arcpy.SelectLayerByAttribute_management('units_lyr', 'SUBSET_SELECTION', """ "Tier2" = 'Convexity' """)
-    arcpy.SelectLayerByLocation_management('units_lyr', 'INTERSECT', 'edge_lyr', '', 'SUBSET_SELECTION')
+    #arcpy.SelectLayerByLocation_management('units_lyr', 'HAVE_THEIR_CENTER_IN', 'edge_lyr', '', 'NEW_SELECTION')
+    #arcpy.SelectLayerByAttribute_management('units_lyr', 'SUBSET_SELECTION', """ "Morphology" = 'Mound' """)
+    arcpy.SelectLayerByAttribute_management('units_lyr', 'NEW_SELECTION', """ "UnitForm" = 'Mound' """)
+    mound_centroid = arcpy.FeatureToPoint_management('units_lyr', os.path.join(evpath, 'tmp_mound_centroid.shp'), "INSIDE")
+    arcpy.MakeFeatureLayer_management(mound_centroid, 'centroid_lyr')
+    arcpy.SelectLayerByLocation_management('centroid_lyr', 'INTERSECT', 'edge_lyr', '', 'NEW_SELECTION')
+    arcpy.SelectLayerByLocation_management('units_lyr', 'INTERSECT', 'centroid_lyr', '', 'SUBSET_SELECTION')
+    arcpy.CopyFeatures_management('units_lyr', os.path.join(evpath, 'tmp_units_join.shp'))
 
     with arcpy.da.UpdateCursor('units_lyr', 'edgeCount') as cursor:
         for row in cursor:
@@ -652,15 +623,15 @@ def main():
     print '...thalweg intersection...'
 
     # if unit intersects thalweg assign 'Y'
-    arcpy.SelectLayerByLocation_management('units_lyr', 'INTERSECT', config.thalwegShp, '', 'NEW_SELECTION')
-    with arcpy.da.UpdateCursor('units_lyr', 'Thalweg') as cursor:
+    arcpy.SelectLayerByLocation_management('units_lyr', 'INTERSECT', os.path.join(config.workspace, config.thalwegShp), '', 'NEW_SELECTION')
+    with arcpy.da.UpdateCursor('units_lyr', 'OnThalweg') as cursor:
         for row in cursor:
             row[0] = 'Y'
             cursor.updateRow(row)
 
     # if unit does not intersect thalweg assign 'N'
     arcpy.SelectLayerByAttribute_management('units_lyr', 'SWITCH_SELECTION')
-    with arcpy.da.UpdateCursor('units_lyr', 'Thalweg') as cursor:
+    with arcpy.da.UpdateCursor('units_lyr', 'OnThalweg') as cursor:
         for row in cursor:
             row[0] = 'N'
             cursor.updateRow(row)
@@ -670,31 +641,31 @@ def main():
     print '...side channel intersection...'
 
     #  create separate layer for main and side channel cross sections
-    arcpy.MakeFeatureLayer_management(config.bfXS, 'bfxs_side_lyr', """ "Channel" = 'Side' """)
-    arcpy.MakeFeatureLayer_management(config.bfXS, 'bfxs_main_lyr', """ "Channel" = 'Main' """)
+    arcpy.MakeFeatureLayer_management(os.path.join(config.workspace, config.bfXS), 'bfxs_side_lyr', """ "Channel" = 'Side' """)
+    arcpy.MakeFeatureLayer_management(os.path.join(config.workspace, config.bfXS), 'bfxs_main_lyr', """ "Channel" = 'Main' """)
 
     #  attribute side channel cross section count/frequency to each unit
     bfxs_side_units = arcpy.SpatialJoin_analysis('bfxs_side_lyr', units, 'in_memory/tmp_bfxs_side_units', 'JOIN_ONE_TO_MANY', '', '', 'INTERSECTS')
-    arcpy.Frequency_analysis(bfxs_side_units, 'tbl_bfxs_side_units.dbf', ['unitID'])
+    arcpy.Frequency_analysis(bfxs_side_units, 'tbl_bfxs_side_units.dbf', ['UnitID'])
     arcpy.AddField_management('tbl_bfxs_side_units.dbf', 'sideXSCt', 'SHORT')
     arcpy.CalculateField_management('tbl_bfxs_side_units.dbf', 'sideXSCt', '[FREQUENCY]')
-    arcpy.JoinField_management(units, 'unitID', 'tbl_bfxs_side_units.dbf', 'unitID', ['sideXSCt'])
+    arcpy.JoinField_management(units, 'UnitID', 'tbl_bfxs_side_units.dbf', 'UnitID', ['sideXSCt'])
 
     #  attribute main channel cross section count/frequency to each unit
     bfxs_main_units = arcpy.SpatialJoin_analysis('bfxs_main_lyr', units, 'in_memory/tmp_bfxs_main_units', 'JOIN_ONE_TO_MANY', '', '', 'INTERSECTS')
-    arcpy.Frequency_analysis(bfxs_main_units, 'tbl_bfxs_main_units.dbf', ['unitID'])
+    arcpy.Frequency_analysis(bfxs_main_units, 'tbl_bfxs_main_units.dbf', ['UnitID'])
     arcpy.AddField_management('tbl_bfxs_main_units.dbf', 'mainXSCt', 'SHORT')
     arcpy.CalculateField_management('tbl_bfxs_main_units.dbf', 'mainXSCt', '[FREQUENCY]')
-    arcpy.JoinField_management(units, 'unitID', 'tbl_bfxs_main_units.dbf', 'unitID', ['mainXSCt'])
+    arcpy.JoinField_management(units, 'UnitID', 'tbl_bfxs_main_units.dbf', 'UnitID', ['mainXSCt'])
 
     #  attribute each unit as being in side channel or main channel
-    #  if side channel cross section count > main channel cross section count, attribute 'SideCh' as 'Y' else as 'N'
-    with arcpy.da.UpdateCursor(units, ['sideXSCt', 'mainXSCt', 'SideCh']) as cursor:
+    #  if side channel cross section count > main channel cross section count, attribute 'Side' else as 'Main'
+    with arcpy.da.UpdateCursor(units, ['sideXSCt', 'mainXSCt', 'Channel']) as cursor:
         for row in cursor:
             if row[0] > row[1]:
-                row[2] = 'Y'
+                row[2] = 'Side'
             else:
-                row[2] = 'N'
+                row[2] = 'Main'
             cursor.updateRow(row)
 
     #  delete unnecessary fields
@@ -705,8 +676,8 @@ def main():
     print '...unit length and width...'
 
     #  create separate layer for main and side channel units
-    arcpy.MakeFeatureLayer_management(units, 'units_side_lyr', """ "SideCh" = 'Y' """)
-    arcpy.MakeFeatureLayer_management(units, 'units_main_lyr', """ "SideCh" = 'N' """)
+    arcpy.MakeFeatureLayer_management(units, 'units_side_lyr', """ "Channel" = 'Side' """)
+    arcpy.MakeFeatureLayer_management(units, 'units_main_lyr', """ "Channel" = 'Main' """)
 
     #  clip side/main xsecs to side/main units using intersect
     bfxs_side_clip = arcpy.Intersect_analysis(['bfxs_side_lyr', 'units_side_lyr'], 'in_memory/tmp_bfxs_side_clip', 'ONLY_FID')
@@ -729,19 +700,19 @@ def main():
 
     #  spatial join bfxs with side/main unit polys and calculate max width
     unit_bfxs_side = arcpy.SpatialJoin_analysis('units_side_lyr', bfxs_side_clip, 'in_memory/tmp_unit_bfxs_side', 'JOIN_ONE_TO_MANY', '', '', 'CONTAINS')
-    arcpy.Statistics_analysis(unit_bfxs_side, 'in_memory/tbl_unit_bfxs_side', [['xsWid', 'MEAN']], 'unitID')
+    arcpy.Statistics_analysis(unit_bfxs_side, 'in_memory/tbl_unit_bfxs_side', [['xsWid', 'MEAN']], 'UnitID')
 
     unit_bfxs_main = arcpy.SpatialJoin_analysis('units_main_lyr', bfxs_main_clip, 'in_memory/tmp_unit_bfxs_main', 'JOIN_ONE_TO_MANY', '', '', 'CONTAINS')
-    arcpy.Statistics_analysis(unit_bfxs_main, 'in_memory/tbl_unit_bfxs_main', [['xsWid', 'MEAN']], 'unitID')
+    arcpy.Statistics_analysis(unit_bfxs_main, 'in_memory/tbl_unit_bfxs_main', [['xsWid', 'MEAN']], 'UnitID')
 
     arcpy.Merge_management(['in_memory/tbl_unit_bfxs_side','in_memory/tbl_unit_bfxs_main'], 'in_memory/tbl_unit_bfxs_merge')
-    arcpy.JoinField_management(units, 'unitID', 'in_memory/tbl_unit_bfxs_merge', 'unitID', ['MEAN_xsWid'])
+    arcpy.JoinField_management(units, 'UnitID', 'in_memory/tbl_unit_bfxs_merge', 'UnitID', ['MEAN_xsWid'])
 
     #  calculate unit length and width
-    fields = ['Tier1', 'Tier2', 'MEAN_xsWid', 'Width', 'Area', 'Length']
+    fields = ['ValleyUnit', 'UnitForm', 'MEAN_xsWid', 'Width', 'Area', 'Length']
     with arcpy.da.UpdateCursor(units, fields) as cursor:
         for row in cursor:
-            if row[0] == 'InChannel':
+            if row[0] == 'In-Channel':
                 row[3] = row[2]
                 if row[3] > 0.0:
                     row[5] = row[4] / row[3]
@@ -758,9 +729,9 @@ def main():
 
     print '...channel confluence/diffluence intersection...'
 
-    if os.path.exists('EvidenceLayers/channelNodes.shp'):
-        arcpy.MakeFeatureLayer_management('EvidenceLayers/channelNodes.shp', 'confluence_lyr', """ "ChNodeType" = 'Confluence' """)
-        arcpy.MakeFeatureLayer_management('EvidenceLayers/channelNodes.shp', 'diffluence_lyr', """ "ChNodeType" = 'Diffluence' """)
+    if os.path.exists(os.path.join(evpath, 'channelNodes.shp')):
+        arcpy.MakeFeatureLayer_management(os.path.join(evpath, 'channelNodes.shp'), 'confluence_lyr', """ "ChNodeType" = 'Confluence' """)
+        arcpy.MakeFeatureLayer_management(os.path.join(evpath, 'channelNodes.shp'), 'diffluence_lyr', """ "ChNodeType" = 'Diffluence' """)
 
         #  identify units that are in close proximity to channel confluence [assigning Y/N]
         arcpy.SelectLayerByLocation_management('units_lyr', 'WITHIN_A_DISTANCE', 'confluence_lyr', str(0.1 * bfw) + ' Meters', 'NEW_SELECTION')
@@ -799,7 +770,7 @@ def main():
     print '...thalweg high point intersection...'
 
     #  if unit intersects channel node assign 'Y'
-    arcpy.SelectLayerByLocation_management('units_lyr', 'INTERSECT', 'EvidenceLayers/potentialRiffCrests.shp', '', 'NEW_SELECTION')
+    arcpy.SelectLayerByLocation_management('units_lyr', 'INTERSECT', os.path.join(evpath, 'potentialRiffCrests.shp'), '', 'NEW_SELECTION')
     with arcpy.da.UpdateCursor('units_lyr', 'RiffCrest') as cursor:
         for row in cursor:
             row[0] = 'Y'
@@ -817,8 +788,8 @@ def main():
     print '...minimum and maximum width ratio...'
 
     units_bfxs2 = arcpy.SpatialJoin_analysis('units_lyr', bfxs_join, 'in_memory/tmp_units_bfxs2', 'JOIN_ONE_TO_MANY', '', '', 'INTERSECT')
-    arcpy.Statistics_analysis(units_bfxs2, 'tbl_units_bfxs_stats2', [['widthRatio', 'MIN'],['widthRatio', 'MAX']], 'unitID')
-    arcpy.JoinField_management('units_lyr', 'unitID', 'tbl_units_bfxs_stats2', 'unitID', ['MIN_widthRatio','MAX_widthRatio'])
+    arcpy.Statistics_analysis(units_bfxs2, 'tbl_units_bfxs_stats2', [['widthRatio', 'MIN'],['widthRatio', 'MAX']], 'UnitID')
+    arcpy.JoinField_management('units_lyr', 'UnitID', 'tbl_units_bfxs_stats2', 'UnitID', ['MIN_widthRatio','MAX_widthRatio'])
 
     fields = ['MIN_widthRatio','MAX_widthRatio', 'wRatioMin', 'wRatioMax']
     with arcpy.da.UpdateCursor('units_lyr', fields) as cursor:
@@ -834,9 +805,9 @@ def main():
     print '...meander index...'
 
     #  get mean value for each unit
-    ZonalStatisticsAsTable(units, 'unitID', mIndex, 'tbl_mIndex.dbf', 'DATA', 'MEAN')
+    ZonalStatisticsAsTable(units, 'UnitID', mIndex, 'tbl_mIndex.dbf', 'DATA', 'MEAN')
     #  join mean value back to units shp
-    arcpy.JoinField_management(units, 'unitID', 'tbl_mIndex.dbf', 'unitID', 'MEAN')
+    arcpy.JoinField_management(units, 'UnitID', 'tbl_mIndex.dbf', 'UnitID', 'MEAN')
 
     fields = ['MEAN', 'mIndexMean', 'mBend']
     with arcpy.da.UpdateCursor(units, fields) as cursor:
@@ -852,36 +823,15 @@ def main():
 
     arcpy.DeleteField_management(units, ['MEAN'])
 
-    #  --calculate low flow relative roughness--
-
-    if config.lowFlowRoughness == 'True':
-
-        print '...low flow relative roughness...'
-
-        arcpy.AddField_management(units, 'LFRR', 'FLOAT')
-
-        #  get mean value for each unit
-        ZonalStatisticsAsTable(units, 'unitID', lfr, 'tbl_lfr', 'DATA', 'MEAN')
-        #  join mean value back to units shp
-        arcpy.JoinField_management(units, 'unitID', 'tbl_lfr.dbf', 'unitID', 'MEAN')
-
-        fields = ['MEAN', 'LFRR']
-        with arcpy.da.UpdateCursor(units, fields) as cursor:
-            for row in cursor:
-                row[1] = row[0]
-                cursor.updateRow(row)
-
-        arcpy.DeleteField_management(units, ['MEAN'])
-
     # ----------------------------------------------------------
     # Attribute bankfull surface slope
     # TODO: May want to use meanBFSlope (bankfull slope averaged over bfw) rather than bfSlope
     print '...bankfull surface slope...'
 
     #  get mean value for each unit
-    ZonalStatisticsAsTable(units, 'unitID', bfSlope, 'tbl_bfeSlope.dbf', 'DATA', 'MEAN')
+    ZonalStatisticsAsTable(units, 'UnitID', bfSlope, 'tbl_bfeSlope.dbf', 'DATA', 'MEAN')
     #  join mean value back to units shp
-    arcpy.JoinField_management(units, 'unitID', 'tbl_bfeSlope.dbf', 'unitID', 'MEAN')
+    arcpy.JoinField_management(units, 'UnitID', 'tbl_bfeSlope.dbf', 'UnitID', 'MEAN')
 
     fields = ['MEAN', 'BFESlope']
     with arcpy.da.UpdateCursor(units, fields) as cursor:
@@ -897,9 +847,9 @@ def main():
     print '...mean bed slope...'
 
     #  get mean value for each unit
-    ZonalStatisticsAsTable(units, 'unitID', 'EvidenceLayers/smDEMSlope.tif', 'tbl_slope.dbf', 'DATA', 'MEAN')
+    ZonalStatisticsAsTable(units, 'UnitID', os.path.join(evpath, 'slope_inCh_' + os.path.basename(os.path.join(config.workspace, config.inDEM))), 'tbl_slope.dbf', 'DATA', 'MEAN')
     #  join mean value back to units shp
-    arcpy.JoinField_management(units, 'unitID', 'tbl_slope.dbf', 'unitID', 'MEAN')
+    arcpy.JoinField_management(units, 'UnitID', 'tbl_slope.dbf', 'UnitID', 'MEAN')
 
     fields = ['MEAN', 'meanSlope']
     with arcpy.da.UpdateCursor(units, fields) as cursor:
@@ -914,11 +864,11 @@ def main():
 
     print '...classifying tier 3 concavities...'
 
-    fields = ['Tier2', 'Forcing', 'Position', 'Orient', 'Thalweg', 'Confluence', 'mBend', 'Tier3', 'Area']
+    fields = ['UnitForm', 'Forcing', 'Position', 'Orient', 'OnThalweg', 'Confluence', 'mBend', 'Morphology', 'Area']
 
     with arcpy.da.UpdateCursor(units, fields) as cursor:
         for row in cursor:
-            if row[0] == 'Concavity':
+            if row[0] == 'Bowl':
                 if row[8] > 0.25 * bfw:
                     if row[1] == 'NA': # if not forced
                         if row[3] == 'Transverse':
@@ -941,33 +891,108 @@ def main():
                                     else:
                                         row[7] = 'Bar Forced Pool'
                 else:
-                    row[0] = 'TransitionZone'
+                    row[7] = 'Transition'
 
             cursor.updateRow(row)
 
     # ----------------------------------------------------------
-    # Attribute tier 3 convexities
+    # Attribute tier 3 planar features
 
-    print '...classifying tier 3 convexities...'
+    print '...classifying tier 3 planar features...'
 
-    arcpy.SelectLayerByLocation_management('units_lyr', 'INTERSECT', 'EvidenceLayers/chMargin.shp', '', 'NEW_SELECTION')
-    with arcpy.da.UpdateCursor('units_lyr', ['Tier2', 'meanSlope', 'Tier3', 'Area']) as cursor:
-        for row in cursor:
-            if row[0] == 'Convexity':
-                if row[3] > 0.25 * bfw:
-                    if row[1] >= 12.0:
-                        row[2] = 'Bank'
-                else:
-                    row[0] = 'TransitionZone'
-            cursor.updateRow(row)
-
-    arcpy.MakeFeatureLayer_management(units, 'chute_lyr', """ "Tier3" = 'Chute' """)
-
-    fields = ['Tier2', 'Forcing', 'Position', 'Orient', 'mBend', 'Tier3', 'Area']
+    fields = ['UnitForm', 'Forcing', 'Orient', 'RiffCrest', 'BFESlope', 'Morphology', 'Area', 'Length']
 
     with arcpy.da.UpdateCursor(units, fields) as cursor:
         for row in cursor:
-            if row[0] == 'Convexity' and row[5] != 'Bank':
+            if row[0] == 'Plane':
+                if row[6] > bfw:
+                    if row[1] == 'NA':  # if not forced
+                        if row[2] == 'Transverse':
+                            if row[3] == 'Y':
+                                # row[0] = 'Convexity'
+                                row[5] = 'Riffle'
+                            else:
+                                row[5] = 'Transition'
+                        elif row[7] < bfw:
+                            row[5] = 'Transition'
+                        else:  # if streamwise
+                            row[5] = 'Run'
+                else:
+                    row[5] = 'Transition'
+            cursor.updateRow(row)
+
+        # ----------------------------------------------------------
+        # Attribute tier 3 trough features
+
+        print '...classifying tier 3 trough features...'
+
+        fields = ['UnitForm', 'Forcing', 'Orient', 'RiffCrest', 'BFESlope', 'Morphology', 'Area', 'Length']
+
+        with arcpy.da.UpdateCursor(units, fields) as cursor:
+            for row in cursor:
+                if row[0] == 'Trough':
+                    if row[6] > bfw:
+                        if row[1] == 'NA':  # if not forced
+                            if row[2] == 'Transverse':
+                                if row[3] == 'Y':
+                                    # row[0] = 'Convexity'
+                                    row[5] = 'Riffle'
+                                else:
+                                    row[5] = 'Transition'
+                            elif row[7] < bfw:
+                                row[0] = 'Transition'
+                            else:  # if streamwise
+                                if row[4] < 0.5:
+                                    row[5] = 'Chute'
+                                elif row[4] < 2.0:
+                                    row[5] = 'Glide'
+                                elif row[4] < 4.0:
+                                    row[5] = 'Rapid'
+                                else:
+                                    row[5] = 'Cascade'
+                    else:
+                        row[5] = 'Transition'
+                cursor.updateRow(row)
+
+        # ----------------------------------------------------------
+        # Attribute tier 3 saddle features
+
+        print '...classifying tier 3 saddle features...'
+
+        fields = ['UnitForm', 'Forcing', 'Morphology']
+
+        with arcpy.da.UpdateCursor(units, fields) as cursor:
+            for row in cursor:
+                if row[0] == 'Saddle':
+                    if row[1] == 'NA':  # if not forced
+                        row[2] = 'Riffle'
+                    else:
+                        row[2] = 'Forced Riffle'
+                cursor.updateRow(row)
+
+    # ----------------------------------------------------------
+    # Attribute tier 3 convexities
+
+    print '...classifying Tier 3 mounds...'
+
+    with arcpy.da.UpdateCursor(units, ['UnitForm', 'meanSlope', 'Morphology', 'Area']) as cursor:
+        for row in cursor:
+            if row[0] == 'Wall':
+                # if row[3] > 0.25 * bfw:
+                #     row[2] = 'Bank'
+                row[2] = 'Bank'
+                # else:
+                #     row[2] = 'Transition'
+            cursor.updateRow(row)
+
+    arcpy.CopyFeatures_management(units, os.path.join(evpath, 'tmp_units_preChuteSelection.shp'))
+    arcpy.MakeFeatureLayer_management(units, 'chute_lyr', """ "Morphology" = 'Chute' """)
+
+    fields = ['UnitForm', 'Forcing', 'Position', 'Orient', 'mBend', 'Morphology', 'Area']
+
+    with arcpy.da.UpdateCursor(units, fields) as cursor:
+        for row in cursor:
+            if row[0] == 'Mound' and row[5] != 'Bank':
                 if row[6] > bfw:
                     if row[1] == 'NA':
                         if row[3] == 'Transverse':
@@ -991,40 +1016,7 @@ def main():
                             else:
                                 row[5] = 'Unit Bar'
                 else:
-                    row[0] = 'TransitionZone'
-            cursor.updateRow(row)
-
-    # ----------------------------------------------------------
-    # Attribute tier 3 planar features
-
-    print '...classifying tier 3 planar features...'
-
-    fields = ['Tier2', 'Forcing', 'Orient', 'RiffCrest', 'BFESlope', 'Tier3', 'Area', 'Length']
-
-    with arcpy.da.UpdateCursor(units, fields) as cursor:
-        for row in cursor:
-            if row[0] == 'Planar':
-                if row[6] > bfw:
-                    if row[1] == 'NA':  # if not forced
-                        if row[2] == 'Transverse':
-                            if row[3] == 'Y':
-                                row[0] = 'Convexity'
-                                row[5] = 'Riffle'
-                            else:
-                                row[0] = 'TransitionZone'
-                        elif row[7] < bfw:
-                            row[0] = 'TransitionZone'
-                        else:  # if streamwise
-                            if row[4] < 0.5:
-                                row[5] = 'Glide'
-                            elif row[4] < 2.0:
-                                row[5] = 'Run'
-                            elif row[4] < 4.0:
-                                row[5] = 'Rapid'
-                            else:
-                                row[5] = 'Cascade'
-                else:
-                    row[0] = 'TransitionZone'
+                    row[5] = 'Transition'
             cursor.updateRow(row)
 
     # ----------------------------------------------------------
@@ -1032,34 +1024,31 @@ def main():
 
     print '...cleaning up transition zones...'
 
-    arcpy.SelectLayerByAttribute_management('units_lyr', 'NEW_SELECTION', """ "Tier2" = 'TransitionZone' """)
-    #arcpy.CopyFeatures_management('units_lyr', 'in_memory/tmp_TransitionZone')
-    transitionzone = arcpy.Dissolve_management('units_lyr', 'in_memory/tmp_TransitionZoneMerge', ['Tier2'])
-    #transitionzone = arcpy.Dissolve_management('in_memory/tmp_TransitionZone', 'in_memory/tmp_TransitionZoneMerge', ['Tier2'])
+    #arcpy.SelectLayerByAttribute_management('units_lyr', 'NEW_SELECTION', """ "Morphology" = 'Transition' """)
+    #arcpy.CopyFeatures_management('units_lyr', 'in_memory/tmp_Transition')
+    #Transition = arcpy.Dissolve_management('units_lyr', 'in_memory/tmp_TransitionMerge', ['UnitForm'])
+    #transitionzone = arcpy.Dissolve_management('in_memory/tmp_TransitionZone', 'in_memory/tmp_TransitionMerge', ['UnitForm'])
 
-    print 'Got to line 1038'
+    # with arcpy.da.UpdateCursor(units, 'UnitForm') as cursor:
+    #     for row in cursor:
+    #         if row[0] == 'Transition':
+    #             cursor.deleteRow()
 
-    with arcpy.da.UpdateCursor(units, 'Tier2') as cursor:
-        for row in cursor:
-            if row[0] == 'TransitionZone':
-                cursor.deleteRow()
+    #arcpy.Merge_management([units, transitionzone], os.path.join(outpath, 'Tier3_InChannel.shp'))
 
-    arcpy.Merge_management([units, transitionzone], os.path.join(outpath, 'Tier3_InChannel.shp'))
+    arcpy.CopyFeatures_management(units, os.path.join(outpath, 'Tier3_InChannel.shp'))
 
-    print 'Got to line 1047'
-
-    fields = ['Tier1', 'Tier2', 'Tier3', 'SHAPE@Area', 'Area', 'OID@', 'unitID']
+    fields = ['ValleyUnit', 'UnitForm', 'Morphology', 'SHAPE@Area', 'Area', 'OID@', 'UnitID']
 
     with arcpy.da.UpdateCursor(os.path.join(outpath, 'Tier3_InChannel.shp'), fields) as cursor:
         for row in cursor:
-            if row[1] == 'TransitionZone':
-                row[0] = 'InChannel'
-                row[2] = 'TransitionZone'
+            if row[1] == 'Transition':
+                row[0] = 'In-Channel'
+                row[2] = 'Transition'
                 row[4] = row[3]
                 row[6] = row[5]
             cursor.updateRow(row)
 
-    print 'Got to line 1060'
     # ----------------------------------------------------------
     # Remove temporary files
     print '...removing intermediary surfaces...'
