@@ -489,70 +489,73 @@ def main():
     arcpy.SelectLayerByLocation_management('contour_poly_lyr', 'INTERSECT', 'downstream_lyr', '', 'NEW_SELECTION')
     arcpy.SelectLayerByLocation_management('contour_poly_lyr', 'INTERSECT', 'upstream_lyr', '', 'SUBSET_SELECTION')
     riff_contour_raw = arcpy.CopyFeatures_management('contour_poly_lyr', 'in_memory/riffle_contour_raw')
+    if arcpy.management.GetCount(riff_contour_raw)[0] > "0":
 
-    #  b. add unique riffle id field
-    arcpy.AddField_management(riff_contour_raw, 'RiffleID', 'SHORT')
-    with arcpy.da.UpdateCursor(riff_contour_raw, ['OID@', 'RiffleID']) as cursor:
-        for row in cursor:
-            row[1] = row[0]
-            cursor.updateRow(row)
+        #  b. add unique riffle id field
+        arcpy.AddField_management(riff_contour_raw, 'RiffleID', 'SHORT')
+        with arcpy.da.UpdateCursor(riff_contour_raw, ['OID@', 'RiffleID']) as cursor:
+            for row in cursor:
+                row[1] = row[0]
+                cursor.updateRow(row)
 
-    #  c. clip thalweg to riffle contour
-    thalweg_clip = arcpy.Intersect_analysis([os.path.join(config.workspace, config.thalwegShp), riff_contour_raw], 'in_memory/thalweg_clip', 'ALL', '', 'LINE')
-    thalweg_clip_sp = arcpy.MultipartToSinglepart_management(thalweg_clip, 'in_memory/thalweg_clip_sp')
-    arcpy.MakeFeatureLayer_management(thalweg_clip_sp, 'thalewg_lyr')
-    arcpy.SelectLayerByLocation_management('thalewg_lyr', 'INTERSECT', 'downstream_lyr', '', 'NEW_SELECTION')
-    arcpy.SelectLayerByLocation_management('thalewg_lyr', 'INTERSECT', 'upstream_lyr', '', 'SUBSET_SELECTION')
-    thalweg_int = arcpy.CopyFeatures_management('thalewg_lyr', 'in_memory/thalweg_int')
+        #  c. clip thalweg to riffle contour
+        thalweg_clip = arcpy.Intersect_analysis([os.path.join(config.workspace, config.thalwegShp), riff_contour_raw], 'in_memory/thalweg_clip', 'ALL', '', 'LINE')
+        thalweg_clip_sp = arcpy.MultipartToSinglepart_management(thalweg_clip, 'in_memory/thalweg_clip_sp')
+        arcpy.MakeFeatureLayer_management(thalweg_clip_sp, 'thalewg_lyr')
+        arcpy.SelectLayerByLocation_management('thalewg_lyr', 'INTERSECT', 'downstream_lyr', '', 'NEW_SELECTION')
+        arcpy.SelectLayerByLocation_management('thalewg_lyr', 'INTERSECT', 'upstream_lyr', '', 'SUBSET_SELECTION')
+        thalweg_int = arcpy.CopyFeatures_management('thalewg_lyr', 'in_memory/thalweg_int')
 
-    #  d. add clipped thalweg length field
-    arcpy.AddField_management(thalweg_int, 'ThalLength', 'DOUBLE')
-    arcpy.AddField_management(thalweg_int, 'BuffDist', 'DOUBLE')
-    with arcpy.da.UpdateCursor(thalweg_int, ['SHAPE@Length', 'ThalLength', 'BuffDist']) as cursor:
-        for row in cursor:
-            row[1] = row[0]
-            row[2] = 1.5 * row[1]
-            cursor.updateRow(row)
+        #  d. add clipped thalweg length field
+        arcpy.AddField_management(thalweg_int, 'ThalLength', 'DOUBLE')
+        arcpy.AddField_management(thalweg_int, 'BuffDist', 'DOUBLE')
+        with arcpy.da.UpdateCursor(thalweg_int, ['SHAPE@Length', 'ThalLength', 'BuffDist']) as cursor:
+            for row in cursor:
+                row[1] = row[0]
+                row[2] = 1.5 * row[1]
+                cursor.updateRow(row)
 
-    #  e. calculate clipped thalweg centroid
-    thalweg_centroid = arcpy.FeatureVerticesToPoints_management(thalweg_int, 'in_memory/thalweg_centroid', 'MID')
+        #  e. calculate clipped thalweg centroid
+        thalweg_centroid = arcpy.FeatureVerticesToPoints_management(thalweg_int, 'in_memory/thalweg_centroid', 'MID')
 
-    #  f. buffer thalweg centroid by 1.5 * length (where length equals distance between the riffle contour nodes
-    thalweg_centroid_buffer = arcpy.Buffer_analysis(thalweg_centroid, 'in_memory/thalweg_centroid_buffer', 'BuffDist')
+        #  f. buffer thalweg centroid by 1.5 * length (where length equals distance between the riffle contour nodes
+        thalweg_centroid_buffer = arcpy.Buffer_analysis(thalweg_centroid, 'in_memory/thalweg_centroid_buffer', 'BuffDist')
 
-    #  g. clip riffle contour poly by thalweg centroid buffer
-    buffer_lyr = arcpy.MakeFeatureLayer_management(thalweg_centroid_buffer, 'thalweg_centroid_buffer_lyr')
-    riff_lyr = arcpy.MakeFeatureLayer_management(riff_contour_raw, 'riff_lyr')
+        #  g. clip riffle contour poly by thalweg centroid buffer
+        buffer_lyr = arcpy.MakeFeatureLayer_management(thalweg_centroid_buffer, 'thalweg_centroid_buffer_lyr')
+        riff_lyr = arcpy.MakeFeatureLayer_management(riff_contour_raw, 'riff_lyr')
 
-    shpList = []
-    with arcpy.da.SearchCursor(thalweg_centroid, ['RiffleID', 'SHAPE@']) as cursor:
-        for row in cursor:
-            tmp_fn = 'in_memory/tmp_' + str(row[0])
-            arcpy.SelectLayerByLocation_management(riff_lyr, 'INTERSECT', row[1], '', 'NEW_SELECTION')
-            arcpy.SelectLayerByAttribute_management(buffer_lyr, "NEW_SELECTION", "RiffleID = %s" % row[0])
-            arcpy.Clip_analysis(riff_lyr, buffer_lyr, tmp_fn)
-            shpList.append(tmp_fn)
+        shpList = []
+        with arcpy.da.SearchCursor(thalweg_centroid, ['RiffleID', 'SHAPE@']) as cursor:
+            for row in cursor:
+                tmp_fn = 'in_memory/tmp_' + str(row[0])
+                arcpy.SelectLayerByLocation_management(riff_lyr, 'INTERSECT', row[1], '', 'NEW_SELECTION')
+                arcpy.SelectLayerByAttribute_management(buffer_lyr, "NEW_SELECTION", "RiffleID = %s" % row[0])
+                arcpy.Clip_analysis(riff_lyr, buffer_lyr, tmp_fn)
+                shpList.append(tmp_fn)
 
-    riff_contour_clip = arcpy.Merge_management(shpList, 'in_memory/riff_contour_clip')
+        riff_contour_clip = arcpy.Merge_management(shpList, 'in_memory/riff_contour_clip')
 
-    #  h. convert clipped riffle contour to single part and select features that contain the thalweg centroid
-    riff_contour_clip_sp = arcpy.MultipartToSinglepart_management(riff_contour_clip, 'in_memory/riff_contour_clip_sp')
-    arcpy.MakeFeatureLayer_management(riff_contour_clip_sp, 'riff_contour_clip_sp_lyr')
-    arcpy.SelectLayerByLocation_management('riff_contour_clip_sp_lyr', 'INTERSECT', thalweg_centroid, '', 'NEW_SELECTION')
+        #  h. convert clipped riffle contour to single part and select features that contain the thalweg centroid
+        riff_contour_clip_sp = arcpy.MultipartToSinglepart_management(riff_contour_clip, 'in_memory/riff_contour_clip_sp')
+        arcpy.MakeFeatureLayer_management(riff_contour_clip_sp, 'riff_contour_clip_sp_lyr')
+        arcpy.SelectLayerByLocation_management('riff_contour_clip_sp_lyr', 'INTERSECT', thalweg_centroid, '', 'NEW_SELECTION')
 
-    #  i. run negative and positive buffer (3*contour size) to remove 'thin' contour segments
-    if bfw < 12.0:
-        riff_contour_negbuffer = arcpy.Buffer_analysis('riff_contour_clip_sp_lyr', 'in_memory/riff_contour_negbuffer', '-0.3 Meters', 'FULL', 'FLAT')
-        riff_contour_posbuffer = arcpy.Buffer_analysis(riff_contour_negbuffer, 'in_memory/riff_contour_posbuffer', '0.3 Meters', 'FULL', 'FLAT')
+        #  i. run negative and positive buffer (3*contour size) to remove 'thin' contour segments
+        if bfw < 12.0:
+            riff_contour_negbuffer = arcpy.Buffer_analysis('riff_contour_clip_sp_lyr', 'in_memory/riff_contour_negbuffer', '-0.3 Meters', 'FULL', 'FLAT')
+            riff_contour_posbuffer = arcpy.Buffer_analysis(riff_contour_negbuffer, 'in_memory/riff_contour_posbuffer', '0.3 Meters', 'FULL', 'FLAT')
+        else:
+            riff_contour_negbuffer = arcpy.Buffer_analysis('riff_contour_clip_sp_lyr', 'in_memory/riff_contour_negbuffer', '-0.6 Meters', 'FULL', 'FLAT')
+            riff_contour_posbuffer = arcpy.Buffer_analysis(riff_contour_negbuffer, 'in_memory/riff_contour_posbuffer', '0.6 Meters', 'FULL', 'FLAT')
+        riff_poly = arcpy.MultipartToSinglepart_management(riff_contour_posbuffer, 'in_memory/riff_poly')
+
+        #  j. select features that contain the thalweg centroid
+        arcpy.MakeFeatureLayer_management(riff_poly, 'riff_poly_lyr')
+        arcpy.SelectLayerByLocation_management('riff_poly_lyr', 'INTERSECT', thalweg_centroid, '', 'NEW_SELECTION')
+        saddles = arcpy.PolygonToRaster_conversion('riff_poly_lyr', 'RiffleID', 'in_memory/saddles_raw', 'CELL_CENTER', '', 0.1)
     else:
-        riff_contour_negbuffer = arcpy.Buffer_analysis('riff_contour_clip_sp_lyr', 'in_memory/riff_contour_negbuffer', '-0.6 Meters', 'FULL', 'FLAT')
-        riff_contour_posbuffer = arcpy.Buffer_analysis(riff_contour_negbuffer, 'in_memory/riff_contour_posbuffer', '0.6 Meters', 'FULL', 'FLAT')
-    riff_poly = arcpy.MultipartToSinglepart_management(riff_contour_posbuffer, 'in_memory/riff_poly')
-
-    #  j. select features that contain the thalweg centroid
-    arcpy.MakeFeatureLayer_management(riff_poly, 'riff_poly_lyr')
-    arcpy.SelectLayerByLocation_management('riff_poly_lyr', 'INTERSECT', thalweg_centroid, '', 'NEW_SELECTION')
-    saddles = arcpy.PolygonToRaster_conversion('riff_poly_lyr', 'RiffleID', 'in_memory/saddles_raw', 'CELL_CENTER', '', 0.1)
+        saddles = arcpy.PolygonToRaster_conversion(riff_contour_raw, 'Id', 'in_memory/saddles_raw', 'CELL_CENTER', '', 0.1)
 
     #  walls/banks
     #  a. calculate bank slope threshold
@@ -626,7 +629,8 @@ def main():
 
     #  Save config file settings to output folder
     f = open("./config.py", "r")
-    copy = open(os.path.join(config.workspace, 'Output', config.runFolderName, "configSettings.txt"), "w")
+    #copy = open(os.path.join(config.workspace, 'Output', config.runFolderName, "configSettings.txt"), "w")
+    copy = open(os.path.join(outpath, "configSettings.txt"), "w")
     for line in f:
         copy.write(line)
     f.close()
