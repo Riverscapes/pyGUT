@@ -204,7 +204,7 @@ def main():
         edge_sp = arcpy.MultipartToSinglepart_management(edge, 'in_memory/edge_sp')
 
         #  f. attribute edge as being mid-channel or not
-        arcpy.AddField_management(edge_sp, 'midEdge', 'TEXT')
+        arcpy.AddField_management(edge_sp, 'midEdge', 'TEXT', '', '', 5)
         arcpy.MakeFeatureLayer_management(edge_sp, 'edge_lyr')
 
         bfLine2 = arcpy.PolygonToLine_management(bfelim, 'in_memory/tmp_bfLine')
@@ -459,10 +459,10 @@ def main():
             chNodes_sp = arcpy.MultipartToSinglepart_management(chNodes_mp, 'in_memory/chNodes_sp')
 
             arcpy.AddField_management(chNodes_sp, 'ChNodeID', 'SHORT')
-            arcpy.AddField_management(chNodes_sp, 'Channel', 'TEXT', 10)
+            arcpy.AddField_management(chNodes_sp, 'ChannelID', 'TEXT', 10)
             arcpy.AddField_management(chNodes_sp, 'ChNodeType', 'TEXT', 10)
 
-            fields = ['OID@', 'Channel', 'CLID', 'ChNodeID', 'Channel']
+            fields = ['OID@', 'Channel', 'CLID', 'ChNodeID', 'ChannelID']
             with arcpy.da.UpdateCursor(chNodes_sp, fields) as cursor:
                 for row in cursor:
                     if row[1] == 'Main':
@@ -491,9 +491,9 @@ def main():
 
             arcpy.JoinField_management(chNodes_sp, 'ChNodeID', 'tbl_Routes.dbf', 'ChNodeID', ['MEAS'])
 
-            arcpy.Statistics_analysis(chNodes_sp, 'tbl_chNodeMax.dbf', [['MEAS', 'MAX']], 'SideChID')
+            arcpy.Statistics_analysis(chNodes_sp, 'tbl_chNodeMax.dbf', [['MEAS', 'MAX']], 'ChannelID')
 
-            arcpy.JoinField_management(chNodes_sp, 'SideChID', 'tbl_chNodeMax.dbf', 'SideChID', ['MAX_MEAS'])
+            arcpy.JoinField_management(chNodes_sp, 'ChannelID', 'tbl_chNodeMax.dbf', 'ChannelID', ['MAX_MEAS'])
 
             fields = ['MEAS', 'MAX_MEAS', 'ChNodeType']
             with arcpy.da.UpdateCursor(chNodes_sp, fields) as cursor:
@@ -599,7 +599,6 @@ def main():
     arcpy.MakeFeatureLayer_management(mound_centroid, 'centroid_lyr')
     arcpy.SelectLayerByLocation_management('centroid_lyr', 'INTERSECT', 'edge_lyr', '', 'NEW_SELECTION')
     arcpy.SelectLayerByLocation_management('units_lyr', 'INTERSECT', 'centroid_lyr', '', 'SUBSET_SELECTION')
-    arcpy.CopyFeatures_management('units_lyr', os.path.join(evpath, 'tmp_units_join.shp'))
 
     with arcpy.da.UpdateCursor('units_lyr', 'edgeCount') as cursor:
         for row in cursor:
@@ -926,7 +925,7 @@ def main():
 
         print '...classifying tier 3 trough features...'
 
-        fields = ['UnitForm', 'Forcing', 'Orient', 'RiffCrest', 'BFESlope', 'Morphology', 'Area', 'Length']
+        fields = ['UnitForm', 'Forcing', 'Orient', 'RiffCrest', 'BFESlope', 'Morphology', 'Area', 'Length', 'UnitShape']
 
         with arcpy.da.UpdateCursor(units, fields) as cursor:
             for row in cursor:
@@ -935,12 +934,13 @@ def main():
                         if row[1] == 'NA':  # if not forced
                             if row[2] == 'Transverse':
                                 if row[3] == 'Y':
-                                    # row[0] = 'Convexity'
+                                    row[0] = 'Saddle'
+                                    row[8] = 'Convexity'
                                     row[5] = 'Riffle'
                                 else:
                                     row[5] = 'Transition'
                             elif row[7] < bfw:
-                                row[0] = 'Transition'
+                                row[5] = 'Transition'
                             else:  # if streamwise
                                 if row[4] < 0.5:
                                     row[5] = 'Chute'
@@ -985,7 +985,6 @@ def main():
                 #     row[2] = 'Transition'
             cursor.updateRow(row)
 
-    arcpy.CopyFeatures_management(units, os.path.join(evpath, 'tmp_units_preChuteSelection.shp'))
     arcpy.MakeFeatureLayer_management(units, 'chute_lyr', """ "Morphology" = 'Chute' """)
 
     fields = ['UnitForm', 'Forcing', 'Position', 'Orient', 'mBend', 'Morphology', 'Area']
