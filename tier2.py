@@ -203,8 +203,10 @@ def main():
         rMaxResult3 = arcpy.GetRasterProperties_management(rDiff, 'MAXIMUM')
         rMax3 = float(rMaxResult3.getOutput(0))
         #  e.  normalize fill values
-        normFill = (rDiff - rMin3) / (rMax3 - rMin3)
-        #  f. save output
+        normFill_raw = (rDiff - rMin3) / (rMax3 - rMin3)
+        #  f. clip to in channel dem
+        normFill = ExtractByMask(normFill_raw, inChDEM)
+        #  g. save output
         normFill.save(os.path.join(evpath, 'normFill.tif'))
     else:
         normFill = Raster(os.path.join(evpath, 'normFill.tif'))
