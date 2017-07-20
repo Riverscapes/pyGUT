@@ -107,7 +107,7 @@ def main():
     arcpy.AddField_management(units_sp, 'ValleyID', 'SHORT')
     arcpy.AddField_management(units_sp, 'ValleyUnit', 'TEXT', '', '', 20)
 
-    with arcpy.da.UpdateCursor(units_sp, ['ID', 'ValleyID', 'GRIDCODE', 'ValleyUnit']) as cursor:
+    with arcpy.da.UpdateCursor(units_sp, ['OID@', 'ValleyID', 'GRIDCODE', 'ValleyUnit']) as cursor:
         for row in cursor:
             row[1] = row[0]
             if row[2] == 0:
