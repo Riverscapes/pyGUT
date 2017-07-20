@@ -131,8 +131,11 @@ def main():
                 cursor.updateRow(row)
         # remove unnecessary fields
         fields = arcpy.ListFields(tmp_units)
-        keep = ['OID', 'Shape','ValleyUnit', 'UnitShape', 'UnitForm', 'Area', 'FormID']
-        drop = [x.name for x in fields if x.name not in keep]
+        keep = ['ValleyUnit', 'UnitShape', 'UnitForm', 'Area', 'FormID']
+        drop = []
+        for field in fields:
+            if not field.required and field.name not in keep and field.type <> 'Geometry':
+                drop.append(field.name)
         arcpy.DeleteField_management(tmp_units, drop)
 
         arcpy.CopyFeatures_management(tmp_units, os.path.join(outpath, 'Tier2_InChannel_Raw.shp'))
@@ -253,13 +256,15 @@ def main():
         #  convert bankfull polygon to line and merge with contours
         bankfull_line = arcpy.FeatureToLine_management([os.path.join(config.workspace, config.bfPolyShp)], 'in_memory/bankfull_line')
         contours_bankfull_merge = arcpy.Merge_management([line_lyr, bankfull_line], 'in_memory/contours_bankfull_merge')
-        #  create points at contour endpoints and assign unique 'endID' field using OID field
+        #  create points at contour endpoints and assign unique 'endID' field
         end_points = arcpy.FeatureVerticesToPoints_management(contours_bankfull_merge, 'in_memory/contours_bankfull_merge_ends', 'BOTH_ENDS')
         arcpy.AddField_management(end_points, 'endID', 'SHORT')
-        fields = ['OID@', 'endID']
+        fields = ['endID']
+        ct = 1
         with arcpy.da.UpdateCursor(end_points, fields) as cursor:
             for row in cursor:
-                row[1] = row[0]
+                row[0] = ct
+                ct += 1
                 cursor.updateRow(row)
         #  delete end points that intersect > 1 contour line - only want points that fall on end of a line
         end_points_join = arcpy.SpatialJoin_analysis(end_points, contours_bankfull_merge, 'in_memory/end_points_join', 'JOIN_ONE_TO_ONE', 'KEEP_ALL', '', 'INTERSECT')
@@ -284,9 +289,13 @@ def main():
                 cursor.updateRow(row)
         # remove unnecessary fields from previous join operations
         fields = arcpy.ListFields(end_points_join2)
-        keep = ['OID', 'Shape','endID', 'Contour', 'nearEndID', 'nearDist', 'strContour']
-        drop = [x.name for x in fields if x.name not in keep]
+        keep = ['endID', 'Contour', 'nearEndID', 'nearDist', 'strContour']
+        drop = []
+        for field in fields:
+            if not field.required and field.name not in keep and field.type <> 'Geometry':
+                drop.append(field.name)
         arcpy.DeleteField_management(end_points_join2, drop)
+
         #  make end point feature layer for selection operations
         end_points_lyr = arcpy.MakeFeatureLayer_management(end_points_join2, 'end_points_lyr')
         #  group end point pairs that fall of contour gaps
@@ -329,10 +338,11 @@ def main():
         arcpy.ExtendLine_edit(contours_bankfull_merge2, "1.0 Meters", "EXTENSION")
         #  e. add unique contour line id field 'ContourID'
         arcpy.AddField_management(contours_bankfull_merge2, 'ContourID', 'SHORT')
-        fields = ['OID@', 'ContourID']
-        with arcpy.da.UpdateCursor(contours_bankfull_merge2, fields) as cursor:
+        ct = 1
+        with arcpy.da.UpdateCursor(contours_bankfull_merge2, ['ContourID']) as cursor:
             for row in cursor:
-                row[1] = row[0]
+                row[0] = ct
+                ct += 1
                 cursor.updateRow(row)
         #  f. convert contour lines to polygon and clip to bankfull polygon
         # arcpy.CopyFeatures_management(contours_bankfull_merge2, os.path.join(evpath, 'tmp_contours_bankfull_merge2.shp'))  # ToDo: Create tmp output files for all riffle repair steps up to this point
@@ -346,10 +356,11 @@ def main():
 
         #  h. add unique node id field
         arcpy.AddField_management(contour_nodes, 'NodeID', 'SHORT')
-        fields = ['OID@', 'NodeID']
-        with arcpy.da.UpdateCursor(contour_nodes, fields) as cursor:
+        ct = 1
+        with arcpy.da.UpdateCursor(contour_nodes, 'NodeID') as cursor:
             for row in cursor:
-                row[1] = row[0]
+                row[0] = ct
+                ct += 1
                 cursor.updateRow(row)
 
         #  i. extract dem z values to contour nodes
@@ -359,12 +370,14 @@ def main():
         arcpy.AddField_management('in_memory/thalweg', 'ThID', 'SHORT')
         arcpy.AddField_management('in_memory/thalweg', 'From_', 'DOUBLE')
         arcpy.AddField_management('in_memory/thalweg', 'To_', 'DOUBLE')
-        fields = ['SHAPE@LENGTH', 'From_', 'To_', 'OID@', 'ThID']
+        fields = ['SHAPE@LENGTH', 'From_', 'To_', 'ThID']
+        ct = 1
         with arcpy.da.UpdateCursor('in_memory/thalweg', fields) as cursor:
             for row in cursor:
                 row[1] = 0.0
                 row[2] = row[0]
-                row[4] = row[3]
+                row[3] = ct
+                ct += 1
                 cursor.updateRow(row)
         arcpy.CreateRoutes_lr('in_memory/thalweg', 'ThID', 'in_memory/thalweg_route', 'TWO_FIELDS', 'From_', 'To_')
         route_tbl = arcpy.LocateFeaturesAlongRoutes_lr(contour_nodes, 'in_memory/thalweg_route', 'ThID', float(desc.meanCellWidth), os.path.join(evpath, 'tbl_Routes.dbf'), 'RID POINT MEAS')
@@ -375,9 +388,11 @@ def main():
         #  k. sort contour nodes by flowline distance (in downstream direction)
         contour_nodes_sort = arcpy.Sort_management(contour_nodes_join, 'in_memory/contour_nodes_sort', [['RID', 'DESCENDING'],['MEAS', 'DESCENDING']])
         #  l. re-calculate node id so they are in ascending order starting at upstream boundary
-        with arcpy.da.UpdateCursor(contour_nodes_sort, ['OID@', 'NodeID']) as cursor:
+        ct = 1
+        with arcpy.da.UpdateCursor(contour_nodes_sort, ['NodeID']) as cursor:
             for row in cursor:
-                row[1] = row[0]
+                row[0] = ct
+                ct += 1
                 cursor.updateRow(row)
 
         #  m. calculate elevation difference btwn contour nodes in DS direction
@@ -495,9 +510,11 @@ def main():
 
         #  b. add unique riffle id field
         arcpy.AddField_management(riff_contour_raw, 'RiffleID', 'SHORT')
-        with arcpy.da.UpdateCursor(riff_contour_raw, ['OID@', 'RiffleID']) as cursor:
+        ct = 1
+        with arcpy.da.UpdateCursor(riff_contour_raw, ['RiffleID']) as cursor:
             for row in cursor:
-                row[1] = row[0]
+                row[0] = ct
+                ct += 1
                 cursor.updateRow(row)
 
         #  c. clip thalweg to riffle contour
@@ -610,8 +627,11 @@ def main():
 
     # remove unnecessary fields
     fields = arcpy.ListFields(flowtype_tier2)
-    keep = ['FID', 'Shape','ValleyUnit', 'UnitShape', 'UnitForm', 'Area', 'FormID', 'FlowUnit', 'FlowID', 'FlowArea']
-    drop = [x.name for x in fields if x.name not in keep]
+    keep = ['ValleyUnit', 'UnitShape', 'UnitForm', 'Area', 'FormID', 'FlowUnit', 'FlowID', 'FlowArea']
+    drop = []
+    for field in fields:
+        if not field.required and field.name not in keep and field.type <> 'Geometry':
+            drop.append(field.name)
     arcpy.DeleteField_management(flowtype_tier2, drop)
 
     arcpy.CopyFeatures_management(flowtype_tier2, os.path.join(outpath, 'Tier2_InChannel_Flowtype.shp'))

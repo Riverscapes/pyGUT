@@ -107,13 +107,15 @@ def main():
     arcpy.AddField_management(units_sp, 'ValleyID', 'SHORT')
     arcpy.AddField_management(units_sp, 'ValleyUnit', 'TEXT', '', '', 20)
 
-    with arcpy.da.UpdateCursor(units_sp, ['OID@', 'ValleyID', 'GRIDCODE', 'ValleyUnit']) as cursor:
+    ct = 1
+    with arcpy.da.UpdateCursor(units_sp, ['ValleyID', 'GRIDCODE', 'ValleyUnit']) as cursor:
         for row in cursor:
-            row[1] = row[0]
-            if row[2] == 0:
-                row[3] = 'Out-of-Channel'
+            row[0] = ct
+            if row[1] == 0:
+                row[2] = 'Out-of-Channel'
             else:
-                row[3] = 'In-Channel'
+                row[2] = 'In-Channel'
+            ct += 1
             cursor.updateRow(row)
 
     print '...classifying flow units...'
