@@ -16,7 +16,7 @@ workspace=sys.argv[1]
 
 
 #if sys.argv[2]==""
-Lyrdir=r"E:/GUT/GUTSymbology/LYR"
+Lyrdir=r"E:/GUT/pyGUT/GUTSymbology/LYR"
 #r"C:\Users\A02252705\Desktop\Box Sync\CRB_GU\wrk_Data\GUT\GUTSymbology"
 #Lyrdir=sys.argv[2]
 #Lyrdir=GetParameterAsText(1)
