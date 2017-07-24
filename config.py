@@ -18,7 +18,8 @@
 
 # Tier 2 Additional Parameters
     # bowlPercentile:   Residual topography percentile above which a cell will be classfied as a bowl
-    # planePercentile:  Residual topography percentil below which a cell will be classified as a plane
+    # planePercentile:  Residual topography percentile below which a cell will be classified as a plane
+    # wallSlopeTh:        Slope theshold above which a cell will be classified as a wall (barring other criteria)
     # thalwegShp:       Thalweg polyline shapefile
     # wCL               Wetted centerline shapefile
 
@@ -28,8 +29,8 @@
 # ---------------------------------------------------------------------
 
 #  Project Level Parameters
-workspace      = r'C:\et_al\Shared\Projects\USA\CHaMP\ResearchProjects\TopographicGUs\wrk_Data\01_TestSites\Lemhi\CBW05583-028079\2012\VISIT_1029\ModelRuns'
-runFolderName  = 'GUT_2.0\\Run_008'
+workspace      = r'C:\et_al\Shared\Projects\USA\CHaMP\ResearchProjects\TopographicGUs\wrk_Data\Demo\check\CBW05583-028079\2012\VISIT_1029'
+runFolderName  = 'GUT_2.0//Run_001'
 
 #  Tier 1 Parameters
 bfPolyShp      = 'Inputs/Bankfull.shp'
@@ -40,6 +41,7 @@ inDEM          = 'Inputs/DEM.tif'
 #  Tier 2 Additional Parameters
 bowlPercentile = 50  # Default: 50
 planePercentile = 25 # Default: 25
+wallSlopeTh    = 20 # Default: '' [if left blank slope distribution is used to set threshold]
 thalwegShp     = 'Inputs/Thalweg.shp'
 wCL            = 'Inputs/CenterLine.shp'
 

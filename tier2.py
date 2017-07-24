@@ -578,12 +578,15 @@ def main():
 
     #  walls/banks
     #  a. calculate bank slope threshold
-    slopeMeanResult = arcpy.GetRasterProperties_management(inChDEMSlope, 'MEAN')
-    slopeMean = float(slopeMeanResult.getOutput(0))
-    slopeSTDResult = arcpy.GetRasterProperties_management(inChDEMSlope, 'STD')
-    slopeSTD = float(slopeSTDResult.getOutput(0))
-    slopeTh = slopeMean + slopeSTD
-    print '...wall slope threshold: ' + str(slopeTh) + ' degrees...'
+    if config.runFolderName == '':
+        slopeMeanResult = arcpy.GetRasterProperties_management(inChDEMSlope, 'MEAN')
+        slopeMean = float(slopeMeanResult.getOutput(0))
+        slopeSTDResult = arcpy.GetRasterProperties_management(inChDEMSlope, 'STD')
+        slopeSTD = float(slopeSTDResult.getOutput(0))
+        slopeTh = slopeMean + slopeSTD
+        print '...wall slope threshold: ' + str(slopeTh) + ' degrees...'
+    else:
+        slopeTh = config.wallSlopeTh
 
     #  b. segregate walls
     cmSlope = cm *inChDEMSlope * SetNull(resTopo, 1, '"VALUE" < 0')  # isolate slope values for channel margin convexities
