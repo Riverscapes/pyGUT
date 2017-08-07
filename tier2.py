@@ -578,7 +578,7 @@ def main():
 
     #  walls/banks
     #  a. calculate bank slope threshold
-    if config.runFolderName == '':
+    if config.wallSlopeTh == '':
         slopeMeanResult = arcpy.GetRasterProperties_management(inChDEMSlope, 'MEAN')
         slopeMean = float(slopeMeanResult.getOutput(0))
         slopeSTDResult = arcpy.GetRasterProperties_management(inChDEMSlope, 'STD')
