@@ -574,8 +574,9 @@ def main():
         arcpy.SelectLayerByLocation_management('riff_poly_lyr', 'INTERSECT', thalweg_centroid, '', 'NEW_SELECTION')
         saddles = arcpy.PolygonToRaster_conversion('riff_poly_lyr', 'RiffleID', 'in_memory/saddles_raw', 'CELL_CENTER', '', 0.1)
     else:
-        saddles = arcpy.PolygonToRaster_conversion(riff_contour_raw, 'Id', 'in_memory/saddles_raw', 'CELL_CENTER', '', 0.1)
-
+        oid_fieldname = arcpy.Describe(riff_contour_raw).OIDFieldName
+        #saddles = arcpy.PolygonToRaster_conversion(riff_contour_raw, 'Id', 'in_memory/saddles_raw', 'CELL_CENTER', '', 0.1)
+        saddles = arcpy.PolygonToRaster_conversion(riff_contour_raw, oid_fieldname, 'in_memory/saddles_raw', 'CELL_CENTER', '', 0.1)
     #  walls/banks
     #  a. calculate bank slope threshold
     if config.wallSlopeTh == '':
