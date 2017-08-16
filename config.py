@@ -1,6 +1,5 @@
 # Geomorphic Unit Tool Configuration File
 
-# Last updated: 8/9/2017
 # Created by: Sara Bangen (sara.bangen@gmail.com)
 
 # ---------------------------------------------------------------------
@@ -30,8 +29,8 @@
 # ---------------------------------------------------------------------
 
 #  Project Level Parameters
-workspace      = r'C:\et_al\Shared\Projects\USA\CHaMP\ResearchProjects\TopographicGUs\wrk_Data\01_TestSites\Wenatchee\check'
-runFolderName  = 'GUT_2.0//Run_CT'
+workspace      = r'C:\et_al\Shared\Projects\USA\CHaMP\ResearchProjects\TopographicGUs\wrk_Data\01_TestSites\Lemhi\CBW05583-028079\2012\VISIT_1029\ModelRuns'
+runFolderName  = 'GUT_2.0//Run_B50P25CT'
 
 #  Tier 1 Parameters
 bfPolyShp      = 'Inputs/Bankfull.shp'
