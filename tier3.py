@@ -1131,7 +1131,7 @@ def main():
     #         cursor.updateRow(row)
 
 
-    arcpy.CopyFeatures_management(units, os.path.join(evpath, 'tmp_units.shp'))  # ToDo: delete after testing code
+    arcpy.CopyFeatures_management(units, os.path.join(outpath, 'Tier3_InChannel.shp'))  # ToDo: delete after testing code
     # ----------------------------------------------------------
     # Remove temporary files
     print '...removing intermediary surfaces...'
