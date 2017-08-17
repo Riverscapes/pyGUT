@@ -605,51 +605,6 @@ def main():
 
     ras2poly_cn(mounds, planes, bowls, troughs, saddles, walls)
 
-    # ---------------------------------
-    #  tier 2 flow type
-    #  ---------------------------------
-    print '...classifying Tier 2 flow type...'
-
-    #  add flow type and unique id to bankfull and wetted extent polygons
-    bfPoly = arcpy.CopyFeatures_management(os.path.join(config.workspace, config.bfPolyShp), 'in_memory/bfPoly')
-    arcpy.AddField_management(bfPoly, 'FlowUnit', 'TEXT', '', '', 12)
-    with arcpy.da.UpdateCursor(bfPoly, ['FlowUnit']) as cursor:
-        for row in cursor:
-            row[0] = 'Emergent'
-            cursor.updateRow(row)
-    wPoly = arcpy.CopyFeatures_management(os.path.join(config.workspace, config.wPolyShp), 'in_memory/wPoly')
-    arcpy.AddField_management(wPoly, 'FlowUnit', 'TEXT', '', '', 12)
-    with arcpy.da.UpdateCursor(wPoly, ['FlowUnit']) as cursor:
-        for row in cursor:
-            row[0] = 'Submerged'
-            cursor.updateRow(row)
-
-    #  create flow type polygon
-    flowtype = arcpy.Update_analysis(bfPoly, wPoly, 'in_memory/flowtype')
-    #  intersect flow type polygon with tier 2 units
-    flowtype_tier2 = arcpy.Intersect_analysis([os.path.join(outpath, 'Tier2_InChannel.shp'), flowtype], 'in_memory/flowtype_tier2', 'ALL')
-    #  add flow id and flow area fields
-    arcpy.AddField_management(flowtype_tier2, 'FlowArea', 'DOUBLE')
-    arcpy.AddField_management(flowtype_tier2, 'FlowID', 'SHORT')
-    ct = 1
-    with arcpy.da.UpdateCursor(flowtype_tier2, ['SHAPE@AREA', 'FlowArea', 'FlowID']) as cursor:
-        for row in cursor:
-            row[1] = row[0]
-            row[2] = ct
-            ct += 1
-            cursor.updateRow(row)
-
-    # remove unnecessary fields
-    fields = arcpy.ListFields(flowtype_tier2)
-    keep = ['ValleyUnit', 'UnitShape', 'UnitForm', 'Area', 'FormID', 'FlowUnit', 'FlowID', 'FlowArea']
-    drop = []
-    for field in fields:
-        if not field.required and field.name not in keep and field.type <> 'Geometry':
-            drop.append(field.name)
-    arcpy.DeleteField_management(flowtype_tier2, drop)
-
-    arcpy.CopyFeatures_management(flowtype_tier2, os.path.join(outpath, 'Tier2_InChannel_Flowtype.shp'))
-    #
     # # ----------------------------------------------------------
     # # Remove temporary files
     #
