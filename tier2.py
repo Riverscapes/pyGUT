@@ -82,20 +82,29 @@ def main():
                     arcpy.AddField_management(tmp_fn, 'ValleyUnit', 'TEXT', '', '', 20)
                     arcpy.AddField_management(tmp_fn, 'UnitShape', 'TEXT', '', '', 15)
                     arcpy.AddField_management(tmp_fn, 'UnitForm', 'TEXT', '', '', 10)
-                    with arcpy.da.UpdateCursor(tmp_fn, ['ValleyUnit', 'UnitShape', 'UnitForm']) as cursor:
+                    arcpy.AddField_management(tmp_fn, 'FormKey', 'SHORT')
+                    with arcpy.da.UpdateCursor(tmp_fn, ['ValleyUnit', 'UnitShape', 'UnitForm', 'FormKey']) as cursor:
                         for row in cursor:
                             row[0] = 'In-Channel'
                             row[2] = str(key)
                             if row[2] == 'Plane':
                                 row[1] = 'Planar'
+                                row[3] = 3
                             elif row[2] == 'Mound':
                                 row[1] = 'Convexity'
+                                row[3] = 4
                             elif row[2] == 'Saddle':
                                 row[1] = 'Convexity'
+                                row[3] = 5
                             elif row[2] == 'Wall':
                                 row[1] = 'Planar'
-                            else:
+                                row[3] = 6
+                            elif row[2] == 'Bowl':
                                 row[1] = 'Concavity'
+                                row[3] = 1
+                            else:
+                                row[1] == 'Concavity'
+                                row[3] = 2
                             cursor.updateRow(row)
 
         mergeList = [i for i in shpList if i not in ('in_memory/Saddle', 'in_memory/Wall')]
@@ -131,18 +140,76 @@ def main():
                 cursor.updateRow(row)
         # remove unnecessary fields
         fields = arcpy.ListFields(tmp_units)
-        keep = ['ValleyUnit', 'UnitShape', 'UnitForm', 'Area', 'FormID']
+        keep = ['ValleyUnit', 'UnitShape', 'UnitForm', 'Area', 'FormID', 'FormKey']
         drop = []
         for field in fields:
             if not field.required and field.name not in keep and field.type <> 'Geometry':
                 drop.append(field.name)
         arcpy.DeleteField_management(tmp_units, drop)
 
+        # start : testing transition code
+
+        tmp_units_lyr = arcpy.MakeFeatureLayer_management(tmp_units, 'tmp_units_lyr')
+        arcpy.SelectLayerByAttribute_management(tmp_units_lyr, 'NEW_SELECTION', """ "UnitForm" IN ('Bowl', 'Trough', 'Plane', 'Mound', 'Saddle') """)
+
+        tmp_forms = arcpy.CopyFeatures_management(tmp_units_lyr, 'in_memory/tmp_forms')
+        arcpy.SelectLayerByAttribute_management(tmp_units_lyr, 'CLEAR_SELECTION')
+        formKeyList = set(row[0] for row in arcpy.da.SearchCursor(tmp_forms, "FormKey"))
+        tmp_forms_lyr = arcpy.MakeFeatureLayer_management(tmp_forms, 'tmp_forms_lyr')
+
+        transList = []
+
+        if round(((bfw * 0.05)/desc.meanCellWidth) / 2) > 1:
+            cellShrink = round(((bfw * 0.05)/desc.meanCellWidth) / 2)
+        else:
+            cellShrink = 1
+
+        for i in formKeyList:
+            print i
+
+            tmp_trans_fn = 'in_memory/formKey_' + str(i) + '_trans'
+            transList.append(tmp_trans_fn)
+
+            arcpy.SelectLayerByAttribute_management(tmp_forms_lyr, "NEW_SELECTION", "FormKey = %s" % str(i))
+            trans_ras_fn = 'in_memory/formKey_' + str(i) + '_trans_ras'
+            trans_ras_raw = arcpy.PolygonToRaster_conversion(tmp_forms_lyr, 'FormKey', trans_ras_fn, 'CELL_CENTER', '', desc.meanCellWidth)
+            trans_ras = Con(trans_ras_raw, 1, "VALUE" > 0)
+            shrink = Shrink(trans_ras, int(cellShrink), 1)
+            shrink_inverse = Con(IsNull(shrink), 1)
+            shrink_ras_out = ExtractByMask(shrink_inverse, trans_ras)
+            arcpy.RasterToPolygon_conversion(shrink_ras_out, tmp_trans_fn, 'NO_SIMPLIFY', 'VALUE')
+
+        trans_merge = arcpy.Merge_management(transList, 'in_memory/trans_merge')
+        trans_dissolve = arcpy.Dissolve_management(trans_merge, 'in_memory/trans_dissolve')
+        trans_elim = arcpy.EliminatePolygonPart_management(trans_dissolve, 'in_memory/trans_elim', 'AREA', 0.3, '', 'ANY')
+
+        arcpy.AddField_management(trans_elim, 'ValleyUnit', 'TEXT', '', '', 20)
+        arcpy.AddField_management(trans_elim, 'UnitShape', 'TEXT', '', '', 15)
+        arcpy.AddField_management(trans_elim, 'UnitForm', 'TEXT', '', '', 10)
+        arcpy.AddField_management(trans_elim, 'Area', 'DOUBLE')
+
+        with arcpy.da.UpdateCursor(trans_elim, ['SHAPE@AREA', 'Area', 'ValleyUnit', 'UnitShape', 'UnitForm']) as cursor:
+            for row in cursor:
+                row[1] = row[0]
+                row[2] = 'In-Channel'
+                row[3] = 'Transition'
+                row[4] = 'Transition'
+                cursor.updateRow(row)
+
         arcpy.CopyFeatures_management(tmp_units, os.path.join(outpath, 'Tier2_InChannel_Raw.shp'))
         arcpy.CopyFeatures_management(tmp_units, os.path.join(outpath, 'Tier2_InChannel.shp'))
 
-        # shps.extend([tmp_units])
+        tmp_units_update = arcpy.Update_analysis(tmp_units, trans_elim, 'in_memory/tmp_units_update')
+
+        arcpy.CopyFeatures_management(tmp_units_update, os.path.join(outpath, 'Tier2_InChannel_Transitions.shp'))
+
+        # end : testing transition code
+
+        shpList.extend([tmp_units])
         for shp in shpList:
+            arcpy.Delete_management(shp)
+
+        for shp in transList:
             arcpy.Delete_management(shp)
 
     #  ---------------------------------
