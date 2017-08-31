@@ -103,7 +103,7 @@ def main():
                                 row[1] = 'Concavity'
                                 row[3] = 1
                             else:
-                                row[1] == 'Concavity'
+                                row[1] = 'Concavity'
                                 row[3] = 2
                             cursor.updateRow(row)
 
@@ -165,7 +165,6 @@ def main():
             cellShrink = 1
 
         for i in formKeyList:
-            print i
 
             tmp_trans_fn = 'in_memory/formKey_' + str(i) + '_trans'
             transList.append(tmp_trans_fn)
@@ -435,8 +434,12 @@ def main():
                     ct += 1
                     cursor.updateRow(row)
 
-            #  i. extract dem z values to contour nodes
+            #  i. extract dem z values to contour nodes and delete nodes with no elev
             ExtractMultiValuesToPoints(contour_nodes, [[outMeanDEM, 'elev']], 'NONE')
+            with arcpy.da.UpdateCursor(contour_nodes, 'elev') as cursor:
+                for row in cursor:
+                    if row[0] <= 0:
+                        cursor.deleteRow()
 
             #  j. calculate flowline distance for each contour node
             arcpy.AddField_management('in_memory/thalweg', 'ThID', 'SHORT')
@@ -473,6 +476,7 @@ def main():
             arcpy.AddField_management(contour_nodes_sort, 'riff_pair', 'SHORT')
             arcpy.AddField_management(contour_nodes_sort, 'riff_dir', 'TEXT', '', '', 5)
 
+            arcpy.CopyFeatures_management(contour_nodes_sort, os.path.join(evpath, 'tmp_contour_nodes_sort.shp'))
             #idList = [row[0] for row in arcpy.da.SearchCursor(contour_nodes_sort, ['RID'])]
             ridList = set(row[0] for row in arcpy.da.SearchCursor(contour_nodes_sort, ['RID']))
 
