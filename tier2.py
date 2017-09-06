@@ -623,15 +623,18 @@ def main():
             riff_lyr = arcpy.MakeFeatureLayer_management(riff_contour_raw, 'riff_lyr')
 
             shpList = []
+            ct = 1
             with arcpy.da.SearchCursor(thalweg_centroid, ['RiffleID', 'SHAPE@']) as cursor:
                 for row in cursor:
-                    tmp_fn = 'in_memory/tmp_' + str(row[0])
+                    tmp_fn = 'in_memory/tmp_' + str(ct)
                     arcpy.SelectLayerByLocation_management(riff_lyr, 'INTERSECT', row[1], '', 'NEW_SELECTION')
                     arcpy.SelectLayerByAttribute_management(buffer_lyr, "NEW_SELECTION", "RiffleID = %s" % row[0])
                     arcpy.Clip_analysis(riff_lyr, buffer_lyr, tmp_fn)
                     shpList.append(tmp_fn)
+                    ct += 1
 
-            riff_contour_clip = arcpy.Merge_management(shpList, 'in_memory/riff_contour_clip')
+            riff_contour_merge = arcpy.Merge_management(shpList, 'in_memory/riff_contour_merge')
+            riff_contour_clip = arcpy.Dissolve_management(riff_contour_merge, 'in_memory/riff_contour_clip', ["RiffleID"], '', 'SINGLE_PART')
 
             #  h. convert clipped riffle contour to single part and select features that contain the thalweg centroid
             riff_contour_clip_sp = arcpy.MultipartToSinglepart_management(riff_contour_clip, 'in_memory/riff_contour_clip_sp')
