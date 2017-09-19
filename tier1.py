@@ -10,6 +10,7 @@ arcpy.CheckOutExtension('Spatial')
 
 def main():
 
+    print config.workspace
     print 'Starting Tier 1 classification...'
 
     #  create temporary workspace

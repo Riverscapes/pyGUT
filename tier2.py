@@ -69,42 +69,42 @@ def main():
         return intWidth
 
     #  --tier 2 raster to polygon function--
-
-    def ras2poly_cn(Mound, Plane, Bowl, Trough, Saddle, Wall):
+    # def ras2poly_cn(Mound, Plane, Bowl, Trough, Saddle, Wall, MoundPlane, TroughBowl):
+    def ras2poly_cn(Mound, Plane, Bowl, Trough, Saddle, Wall, **kwargs):
         shpList = []
         formDict = locals()
+        formDict.update(kwargs)
         for key, value in formDict.iteritems():
-            if key in ['Mound', 'Plane', 'Bowl', 'Trough', 'Saddle', 'Wall']:
+            if key in ['Mound', 'Plane', 'Bowl', 'Trough', 'Saddle', 'Wall', 'MoundPlane', 'TroughBowl']:
                 if int(arcpy.GetRasterProperties_management(value, "ALLNODATA").getOutput(0)) < 1:
                     tmp_fn = 'in_memory/' + str(key)
                     shpList.append(tmp_fn)
                     arcpy.RasterToPolygon_conversion(value, tmp_fn, 'NO_SIMPLIFY', 'VALUE')
                     arcpy.AddField_management(tmp_fn, 'ValleyUnit', 'TEXT', '', '', 20)
                     arcpy.AddField_management(tmp_fn, 'UnitShape', 'TEXT', '', '', 15)
-                    arcpy.AddField_management(tmp_fn, 'UnitForm', 'TEXT', '', '', 10)
-                    arcpy.AddField_management(tmp_fn, 'FormKey', 'SHORT')
-                    with arcpy.da.UpdateCursor(tmp_fn, ['ValleyUnit', 'UnitShape', 'UnitForm', 'FormKey']) as cursor:
+                    arcpy.AddField_management(tmp_fn, 'UnitForm', 'TEXT', '', '', 20)
+                    with arcpy.da.UpdateCursor(tmp_fn, ['ValleyUnit', 'UnitShape', 'UnitForm']) as cursor:
                         for row in cursor:
                             row[0] = 'In-Channel'
                             row[2] = str(key)
                             if row[2] == 'Plane':
                                 row[1] = 'Planar'
-                                row[3] = 3
                             elif row[2] == 'Mound':
                                 row[1] = 'Convexity'
-                                row[3] = 4
                             elif row[2] == 'Saddle':
                                 row[1] = 'Convexity'
-                                row[3] = 5
                             elif row[2] == 'Wall':
                                 row[1] = 'Planar'
-                                row[3] = 6
                             elif row[2] == 'Bowl':
                                 row[1] = 'Concavity'
-                                row[3] = 1
+                            elif row[2] == 'MoundPlane':
+                                row[1] = 'Convexity'
+                                row[2] = 'Mound Transition'
+                            elif row[2] == 'TroughBowl':
+                                row[1] = 'Concavity'
+                                row[2] = 'Bowl Transition'
                             else:
                                 row[1] = 'Concavity'
-                                row[3] = 2
                             cursor.updateRow(row)
 
         mergeList = [i for i in shpList if i not in ('in_memory/Saddle', 'in_memory/Wall')]
@@ -115,7 +115,11 @@ def main():
             units_update2 = arcpy.Update_analysis('in_memory/units_update', 'in_memory/Wall', 'in_memory/units_update2')
         else:
             units_update2 = arcpy.Update_analysis('in_memory/units_merge', 'in_memory/Wall', 'in_memory/units_update2')
-        units_sp = arcpy.MultipartToSinglepart_management(units_update2, 'in_memory/units_sp')
+
+        units_sp2 = arcpy.MultipartToSinglepart_management(units_update2, 'in_memory/units_sp2')
+
+        units_sp = arcpy.Dissolve_management(units_sp2, 'in_memory/tmp_units_sp', ['ValleyUnit', 'UnitShape', 'UnitForm'], '', 'SINGLE_PART')
+
         arcpy.AddField_management(units_sp, 'Area', 'DOUBLE')
         with arcpy.da.UpdateCursor(units_sp, ['SHAPE@AREA', 'Area']) as cursor:
             for row in cursor:
@@ -123,14 +127,18 @@ def main():
                 cursor.updateRow(row)
         # find tiny units (area < 0.05 * bfw) and merge with unit that shares longest border
         # run 2x
+
         units_sp_lyr = arcpy.MakeFeatureLayer_management(units_sp, 'units_sp_lyr')
-        arcpy.SelectLayerByAttribute_management(units_sp_lyr, 'NEW_SELECTION', '"Area" < ' + str(0.05 * bfw))
+        arcpy.SelectLayerByAttribute_management(units_sp_lyr, 'NEW_SELECTION', """ ("UnitForm" IN ('Bowl', 'Trough', 'Plane', 'Mound', 'Saddle', 'Wall') AND  "Area" < """ + str(0.1 * bfw) + """) OR ("UnitForm" IN ('Bowl Transition', 'Mound Transition') AND "Area" <= 0.1) """)
         units_elim = arcpy.Eliminate_management(units_sp_lyr, 'in_memory/units_elim', "LENGTH")
         units_elim_lyr = arcpy.MakeFeatureLayer_management(units_elim, 'units_elim_lyr')
-        arcpy.SelectLayerByAttribute_management(units_elim_lyr, 'NEW_SELECTION', '"Area" < ' + str(0.05 * bfw))
-        tmp_units = arcpy.Eliminate_management(units_elim_lyr, 'in_memory/tmp_units', "LENGTH")
+        arcpy.SelectLayerByAttribute_management(units_elim_lyr, 'NEW_SELECTION', """ ("UnitForm" IN ('Bowl', 'Trough', 'Plane', 'Mound', 'Saddle', 'Wall') AND  "Area" < """ + str(0.1 * bfw) + """) OR ("UnitForm" IN ('Bowl Transition', 'Mound Transition') AND "Area" <= 0.1) """)
+        units_elim2 = arcpy.Eliminate_management(units_elim_lyr, 'in_memory/units_elim2', "LENGTH")
+        tmp_units = arcpy.Dissolve_management(units_elim2, 'in_memory/tmp_units', ['ValleyUnit', 'UnitShape', 'UnitForm'], '', 'SINGLE_PART')
+
         # create unit id field and update area field
         arcpy.AddField_management(tmp_units, 'FormID', 'SHORT')
+        arcpy.AddField_management(tmp_units, 'Area', 'DOUBLE')
         ct = 1
         with arcpy.da.UpdateCursor(tmp_units, ['FormID', 'SHAPE@AREA', 'Area']) as cursor:
             for row in cursor:
@@ -140,75 +148,23 @@ def main():
                 cursor.updateRow(row)
         # remove unnecessary fields
         fields = arcpy.ListFields(tmp_units)
-        keep = ['ValleyUnit', 'UnitShape', 'UnitForm', 'Area', 'FormID', 'FormKey']
+        keep = ['ValleyUnit', 'UnitShape', 'UnitForm', 'Area', 'FormID']
         drop = []
         for field in fields:
             if not field.required and field.name not in keep and field.type <> 'Geometry':
                 drop.append(field.name)
-        arcpy.DeleteField_management(tmp_units, drop)
+        if len(drop) > 0:
+            arcpy.DeleteField_management(tmp_units, drop)
 
-        # start : testing transition code
-
-        tmp_units_lyr = arcpy.MakeFeatureLayer_management(tmp_units, 'tmp_units_lyr')
-        arcpy.SelectLayerByAttribute_management(tmp_units_lyr, 'NEW_SELECTION', """ "UnitForm" IN ('Bowl', 'Trough', 'Plane', 'Mound', 'Saddle') """)
-
-        tmp_forms = arcpy.CopyFeatures_management(tmp_units_lyr, 'in_memory/tmp_forms')
-        arcpy.SelectLayerByAttribute_management(tmp_units_lyr, 'CLEAR_SELECTION')
-        formKeyList = set(row[0] for row in arcpy.da.SearchCursor(tmp_forms, "FormKey"))
-        tmp_forms_lyr = arcpy.MakeFeatureLayer_management(tmp_forms, 'tmp_forms_lyr')
-
-        transList = []
-
-        if round(((bfw * 0.05)/desc.meanCellWidth) / 2) > 1:
-            cellShrink = round(((bfw * 0.05)/desc.meanCellWidth) / 2)
+        if 'in_memory/MoundPlane' in shpList:
+            arcpy.CopyFeatures_management(tmp_units, os.path.join(outpath, 'Tier2_InChannel_Transition_Raw.shp'))
+            arcpy.CopyFeatures_management(tmp_units, os.path.join(outpath, 'Tier2_InChannel_Transition.shp'))
         else:
-            cellShrink = 1
-
-        for i in formKeyList:
-
-            tmp_trans_fn = 'in_memory/formKey_' + str(i) + '_trans'
-            transList.append(tmp_trans_fn)
-
-            arcpy.SelectLayerByAttribute_management(tmp_forms_lyr, "NEW_SELECTION", "FormKey = %s" % str(i))
-            trans_ras_fn = 'in_memory/formKey_' + str(i) + '_trans_ras'
-            trans_ras_raw = arcpy.PolygonToRaster_conversion(tmp_forms_lyr, 'FormKey', trans_ras_fn, 'CELL_CENTER', '', desc.meanCellWidth)
-            trans_ras = Con(trans_ras_raw, 1, "VALUE" > 0)
-            shrink = Shrink(trans_ras, int(cellShrink), 1)
-            shrink_inverse = Con(IsNull(shrink), 1)
-            shrink_ras_out = ExtractByMask(shrink_inverse, trans_ras)
-            arcpy.RasterToPolygon_conversion(shrink_ras_out, tmp_trans_fn, 'NO_SIMPLIFY', 'VALUE')
-
-        trans_merge = arcpy.Merge_management(transList, 'in_memory/trans_merge')
-        trans_dissolve = arcpy.Dissolve_management(trans_merge, 'in_memory/trans_dissolve')
-        trans_elim = arcpy.EliminatePolygonPart_management(trans_dissolve, 'in_memory/trans_elim', 'AREA', 0.3, '', 'ANY')
-
-        arcpy.AddField_management(trans_elim, 'ValleyUnit', 'TEXT', '', '', 20)
-        arcpy.AddField_management(trans_elim, 'UnitShape', 'TEXT', '', '', 15)
-        arcpy.AddField_management(trans_elim, 'UnitForm', 'TEXT', '', '', 10)
-        arcpy.AddField_management(trans_elim, 'Area', 'DOUBLE')
-
-        with arcpy.da.UpdateCursor(trans_elim, ['SHAPE@AREA', 'Area', 'ValleyUnit', 'UnitShape', 'UnitForm']) as cursor:
-            for row in cursor:
-                row[1] = row[0]
-                row[2] = 'In-Channel'
-                row[3] = 'Transition'
-                row[4] = 'Transition'
-                cursor.updateRow(row)
-
-        arcpy.CopyFeatures_management(tmp_units, os.path.join(outpath, 'Tier2_InChannel_Raw.shp'))
-        arcpy.CopyFeatures_management(tmp_units, os.path.join(outpath, 'Tier2_InChannel.shp'))
-
-        tmp_units_update = arcpy.Update_analysis(tmp_units, trans_elim, 'in_memory/tmp_units_update')
-
-        arcpy.CopyFeatures_management(tmp_units_update, os.path.join(outpath, 'Tier2_InChannel_Transitions.shp'))
-
-        # end : testing transition code
+            arcpy.CopyFeatures_management(tmp_units, os.path.join(outpath, 'Tier2_InChannel_Raw.shp'))
+            arcpy.CopyFeatures_management(tmp_units, os.path.join(outpath, 'Tier2_InChannel.shp'))
 
         shpList.extend([tmp_units])
         for shp in shpList:
-            arcpy.Delete_management(shp)
-
-        for shp in transList:
             arcpy.Delete_management(shp)
 
     #  ---------------------------------
@@ -218,7 +174,7 @@ def main():
     bfw = intWidth_fn(os.path.join(config.workspace, config.bfPolyShp), os.path.join(config.workspace, config.bfCL))
     ww = intWidth_fn(os.path.join(config.workspace, config.wPolyShp), os.path.join(config.workspace, config.wCL))
     print '...integrated bankfull width: ' + str(bfw) + ' m...'
-    print '...integrated wetted width: ' + str(ww) + ' m...'
+    #print '...integrated wetted width: ' + str(ww) + ' m...'
 
     #  ---------------------------------
     #  tier 2 evidence layers
@@ -434,12 +390,8 @@ def main():
                     ct += 1
                     cursor.updateRow(row)
 
-            #  i. extract dem z values to contour nodes and delete nodes with no elev
+            #  i. extract dem z values to contour nodes
             ExtractMultiValuesToPoints(contour_nodes, [[outMeanDEM, 'elev']], 'NONE')
-            with arcpy.da.UpdateCursor(contour_nodes, 'elev') as cursor:
-                for row in cursor:
-                    if row[0] <= 0:
-                        cursor.deleteRow()
 
             #  j. calculate flowline distance for each contour node
             arcpy.AddField_management('in_memory/thalweg', 'ThID', 'SHORT')
@@ -476,7 +428,6 @@ def main():
             arcpy.AddField_management(contour_nodes_sort, 'riff_pair', 'SHORT')
             arcpy.AddField_management(contour_nodes_sort, 'riff_dir', 'TEXT', '', '', 5)
 
-            arcpy.CopyFeatures_management(contour_nodes_sort, os.path.join(evpath, 'tmp_contour_nodes_sort.shp'))
             #idList = [row[0] for row in arcpy.da.SearchCursor(contour_nodes_sort, ['RID'])]
             ridList = set(row[0] for row in arcpy.da.SearchCursor(contour_nodes_sort, ['RID']))
 
@@ -557,6 +508,8 @@ def main():
     #  tier 2 classification
     #  ---------------------------------
 
+    print '...classifying Tier 2 shapes and forms...'
+
     #  covert residual topo raster to numpy array
     arr = arcpy.RasterToNumPyArray(resTopo)
     desc2 = arcpy.Describe(resTopo)
@@ -565,15 +518,34 @@ def main():
     arr = arr[~numpy.isnan(arr)]  # remove no data from array
 
     #  calculate residual topography quantiles to use in thresholding
-    q25pos = numpy.percentile(arr[arr > 0], config.planePercentile)
-    q25neg = numpy.percentile(numpy.negative(arr[arr <= 0]), config.planePercentile)
-    q50neg = numpy.percentile(numpy.negative(arr[arr <= 0]), config.bowlPercentile)
+    #  crisp form percentiles
+    mound_lower = numpy.percentile(arr[arr > 0], config.moundPercentile[0])
+    plane_upper = numpy.percentile(arr[arr > 0], config.planePercentile[1])
+    plane_lower = numpy.percentile(numpy.negative(arr[arr <= 0]), config.planePercentile[0])
+    trough_lower = numpy.percentile(numpy.negative(arr[arr <= 0]), config.troughPercentile[0])
+    bowl_lower = numpy.percentile(numpy.negative(arr[arr <= 0]), config.bowlPercentile[0])
 
-    print '...classifying Tier 2 shapes and forms...'
-    mounds = SetNull(resTopo, 1, '"VALUE" < ' + str(q25pos))
-    planes = SetNull(resTopo, 1, '"VALUE" >= ' + str(q25pos)) * SetNull(resTopo, 1, '"VALUE" <= -' + str(q25neg))
-    bowls = SetNull(resTopo, 1, '"VALUE" > -' + str(q50neg)) * SetNull(normFill, 1, '"VALUE" <= 0')
-    troughs = Con(IsNull(bowls), 1) * SetNull(resTopo, 1, '"VALUE" > -' + str(q25neg))
+    mound = SetNull(resTopo, 1, '"VALUE" < ' + str(mound_lower))
+    plane = SetNull(resTopo, 1, '"VALUE" >= ' + str(plane_upper)) * SetNull(resTopo, 1, '"VALUE" <= -' + str(plane_lower))
+    bowl = SetNull(resTopo, 1, '"VALUE" > -' + str(bowl_lower)) * SetNull(normFill, 1, '"VALUE" <= 0')
+    trough = Con(IsNull(bowl), 1) * SetNull(resTopo, 1, '"VALUE" > -' + str(trough_lower))
+
+    #  transition form percentils
+    bowl_lower2 = numpy.percentile(numpy.negative(arr[arr <= 0]), config.bowlPercentile2[0])
+    trough_lower2 = numpy.percentile(numpy.negative(arr[arr <= 0]), config.troughPercentile2[0])
+    trough_upper2 = numpy.percentile(numpy.negative(arr[arr <= 0]), config.troughPercentile2[1])
+    plane_lower2 = numpy.percentile(numpy.negative(arr[arr <= 0]), config.planePercentile2[0])
+    plane_upper2 = numpy.percentile(arr[arr > 0], config.planePercentile2[1])
+    moundplane_lower2 = numpy.percentile(arr[arr > 0], config.moundTransitionPercentile[0])
+    moundplane_upper2 = numpy.percentile(arr[arr > 0], config.moundTransitionPercentile[1])
+    mound_lower2 = numpy.percentile(arr[arr > 0], config.moundPercentile2[0])
+
+    mound2 = SetNull(resTopo, 1, '"VALUE" < ' + str(mound_lower2))
+    moundplane2 = SetNull(resTopo, 1, '"VALUE" >= ' + str(moundplane_upper2)) * SetNull(resTopo, 1, '"VALUE" < ' + str(moundplane_lower2))
+    plane2 = SetNull(resTopo, 1, '"VALUE" >= ' + str(plane_upper2)) * SetNull(resTopo, 1, '"VALUE" <= -' + str(plane_lower2))
+    bowl2 = SetNull(resTopo, 1, '"VALUE" >= -' + str(bowl_lower2)) * SetNull(normFill, 1, '"VALUE" <= 0')
+    trough2 = SetNull(resTopo, 1, '"VALUE" > -' + str(trough_lower2)) * SetNull(resTopo, 1, '"VALUE" < -' + str(trough_upper2))
+    troughbowl2 = SetNull(resTopo, 1, '"VALUE" >= -' + str(bowl_lower2)) * SetNull(normFill, 1, '"VALUE" > 0')
 
     #  saddles
     #  a. select contour polgons that intersect riffle contour nodes
@@ -653,13 +625,17 @@ def main():
             #  j. select features that contain the thalweg centroid
             arcpy.MakeFeatureLayer_management(riff_poly, 'riff_poly_lyr')
             arcpy.SelectLayerByLocation_management('riff_poly_lyr', 'INTERSECT', thalweg_centroid, '', 'NEW_SELECTION')
-            saddles = arcpy.PolygonToRaster_conversion('riff_poly_lyr', 'RiffleID', 'in_memory/saddles_raw', 'CELL_CENTER', '', 0.1)
+            saddle_raw = arcpy.PolygonToRaster_conversion('riff_poly_lyr', 'RiffleID', 'in_memory/saddles_raw', 'CELL_CENTER', '', 0.1)
+            #saddle = SetNull(normFill, 1, '"VALUE" > 0') * Con(saddle_raw, 1, "VALUE" >= 0)
+            saddle = Con(saddle_raw, 1, "VALUE" >= 0)
         else:
             oid_fieldname = arcpy.Describe(riff_contour_raw).OIDFieldName
             #saddles = arcpy.PolygonToRaster_conversion(riff_contour_raw, 'Id', 'in_memory/saddles_raw', 'CELL_CENTER', '', 0.1)
-            saddles = arcpy.PolygonToRaster_conversion(riff_contour_raw, oid_fieldname, 'in_memory/saddles_raw', 'CELL_CENTER', '', 0.1)
+            saddle_raw = arcpy.PolygonToRaster_conversion(riff_contour_raw, oid_fieldname, 'in_memory/saddles_raw', 'CELL_CENTER', '', 0.1)
+            #saddle = SetNull(normFill, 1, '"VALUE" > 0') * Con(saddle_raw, 1, "VALUE" >= 0)
+            saddle = Con(saddle_raw, 1, "VALUE" >= 0)
     else:
-        saddles = SetNull(mounds, 1, '"VALUE" >= 0')
+        saddle = SetNull(mound, 1, '"VALUE" >= 0')
 
     #  walls/banks
     #  a. calculate bank slope threshold
@@ -674,10 +650,12 @@ def main():
         slopeTh = config.wallSlopeTh
 
     #  b. segregate walls
-    cmSlope = cm *inChDEMSlope * SetNull(resTopo, 1, '"VALUE" < 0')  # isolate slope values for channel margin convexities
-    walls = SetNull(cmSlope, 1, '"VALUE" <= ' + str(slopeTh))  # apply slope threshold
+    #cmSlope = cm *inChDEMSlope * SetNull(resTopo, 1, '"VALUE" < 0')  # isolate slope values for channel margin convexities
+    cmSlope = cm * inChDEMSlope * mound  # isolate slope values for channel margin convexities
+    wall = SetNull(cmSlope, 1, '"VALUE" <= ' + str(slopeTh))  # apply slope threshold
 
-    ras2poly_cn(mounds, planes, bowls, troughs, saddles, walls)
+    ras2poly_cn(mound, plane, bowl, trough, saddle, wall)
+    ras2poly_cn(mound2, plane2, bowl2, trough2, saddle, wall, MoundPlane = moundplane2, TroughBowl = troughbowl2)
 
     # # ----------------------------------------------------------
     # # Remove temporary files

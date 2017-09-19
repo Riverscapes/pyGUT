@@ -29,27 +29,43 @@
 # ---------------------------------------------------------------------
 
 #  Project Level Parameters
-workspace      = r'C:\et_al\Shared\Projects\USA\CHaMP\ResearchProjects\TopographicGUs\wrk_Data\01_TestSites\Lemhi\CBW05583-028079\2012\VISIT_1029\ModelRuns'
-runFolderName  = 'GUT_2.0//Run_B50P25CT'
+workspace      = r'C:\et_al\Shared\Projects\USA\CHaMP\ResearchProjects\GUT\wrk_Data\Wenatchee\LWIN0001-000041\2015\VISIT_3275\ModelRuns'
+runFolderName  = 'GUT_2.1\Run_01'
 
 #  Tier 1 Parameters
+#  -----------------------------
+#  Input Shapefiles and Rasters:
 bfPolyShp      = 'Inputs/Bankfull.shp'
 bfCL           = 'Inputs/BankfullCL.shp'
 wPolyShp       = 'Inputs/WaterExtent.shp'
 inDEM          = 'Inputs/DEM.tif'
 
 #  Tier 2 Additional Parameters
-createSaddles = 'True' # Default: 'True'
-bowlPercentile = 50  # Default: 50
-planePercentile = 25 # Default: 25
-wallSlopeTh    = '' # Default: '' [if left blank slope distribution [mean + sd] is used to set threshold]
-thalwegShp     = 'Inputs/Thalweg.shp'
+#  -----------------------------
+#  Input Shapefiles:
+thalwegShp     = 'Inputs/Thalwegs.shp'
 wCL            = 'Inputs/CenterLine.shp'
+#  Unit Form Arguments:
+createSaddles = 'True' # Default: 'True'
+wallSlopeTh    = '' # Default: '' [if left blank slope distribution [mean + sd] is used to set threshold]
+#  - Percentiles for Discrete Forms -
+bowlPercentile = (75, )  # Default: (50, )
+troughPercentile = (25, ) # Default: (25, )
+planePercentile = (25, 25) # Default: (25, 25)
+moundPercentile = (25, ) # Default: (25, )
+#  - Percentiles for Forms with Transitions -
+bowlPercentile2 = (75, )  # Default: (50, )
+troughPercentile2 = (25, 75) # Default: (25, 50)
+planePercentile2 = (25, 15) # Default: (25, 15)
+moundTransitionPercentile = (15, 35)  # Default: (15, 35)
+moundPercentile2 = (35, ) # Default: (35, )
 
 #  Tier 3 Additional Parameters
+#  -----------------------------
+#  Input Shapefiles and Rasters:
 bfXS           = 'Inputs/BankfullXS.shp'
 
-execfile('tier1.py')
-execfile('tier2.py')
-#execfile('tier3.py')
+#execfile('tier1.py')
+#execfile('tier2.py')
+execfile('tier3.py')
 
