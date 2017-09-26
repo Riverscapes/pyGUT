@@ -177,6 +177,23 @@ def main():
     #print '...integrated wetted width: ' + str(ww) + ' m...'
 
     #  ---------------------------------
+    #  check thalweg fields
+    #  ---------------------------------
+    if not 'Channel' in [f.name for f in arcpy.ListFields(os.path.join(config.workspace, config.thalwegShp))]:
+        arcpy.AddField_management(os.path.join(config.workspace, config.thalwegShp), 'Channel', 'TEXT', '', '', 15)
+        with arcpy.da.UpdateCursor(os.path.join(config.workspace, config.thalwegShp), 'Channel') as cursor:
+            for row in cursor:
+                row[0] = 'Main'
+                cursor.updateRow(row)
+
+    if not 'ThalwegTyp' in [f.name for f in arcpy.ListFields(os.path.join(config.workspace, config.thalwegShp))]:
+        arcpy.AddField_management(os.path.join(config.workspace, config.thalwegShp), 'ThalwegTyp', 'TEXT', '', '', 15)
+        with arcpy.da.UpdateCursor(os.path.join(config.workspace, config.thalwegShp), 'ThalwegTyp') as cursor:
+            for row in cursor:
+                row[0] = 'Main'
+                cursor.updateRow(row)
+
+    #  ---------------------------------
     #  tier 2 evidence layers
     #  ---------------------------------
     inCh = SetNull(bf, 1, '"VALUE" = 0')
@@ -425,6 +442,7 @@ def main():
             #  m. calculate elevation difference btwn contour nodes in DS direction
             arcpy.AddField_management(contour_nodes_sort, 'adj_elev', 'DOUBLE')
             arcpy.AddField_management(contour_nodes_sort, 'diff_elev', 'DOUBLE')
+            arcpy.AddField_management(contour_nodes_sort, 'dist', 'DOUBLE')
             arcpy.AddField_management(contour_nodes_sort, 'riff_pair', 'SHORT')
             arcpy.AddField_management(contour_nodes_sort, 'riff_dir', 'TEXT', '', '', 5)
 
@@ -434,12 +452,14 @@ def main():
             for rid in ridList:
                 contour_nodes_lyr = arcpy.MakeFeatureLayer_management(contour_nodes_sort, 'contour_nodes_sort_lyr')
                 arcpy.SelectLayerByAttribute_management(contour_nodes_lyr, "NEW_SELECTION", "RID = %s" % str(rid))
-                fields = ['elev', 'adj_elev', 'diff_elev', 'riff_pair', 'riff_dir', 'ContourID']
+                fields = ['elev', 'adj_elev', 'diff_elev', 'riff_pair', 'riff_dir', 'ContourID', 'MEAS', 'dist']
+                distList = []
                 elevList = []
                 contourList = []
                 index = 0
                 with arcpy.da.SearchCursor(contour_nodes_lyr, fields) as cursor:
                     for row in cursor:
+                        distList.append(row[6])
                         elevList.append(row[0])
                         contourList.append(row[5])
                 with arcpy.da.UpdateCursor(contour_nodes_lyr, fields) as cursor:
@@ -447,9 +467,11 @@ def main():
                         if index + 1 < len(elevList):
                             row[1] = elevList[index + 1]
                             row[2] = float(row[1] - row[0])
+                            row[7] = row[6] - distList[index + 1]
                         if index + 1 == len(elevList):
                             row[1] = -9999
                             row[2] = -9999
+                            row[7] = -9999
                         index += 1
                         cursor.updateRow(row)
 
@@ -477,15 +499,15 @@ def main():
                     for row in cursor:
                         if index + 1 < len(elevDiffList) and index > 1:
                             if row[5] != contourList[index + 1]:
-                                if row[2] < 0.05 and row[2] > -0.05 and elevDiffList[index + 1] < 0 and elevDiffList[index - 1] > 0 and elevDiffList[index - 2] > 0:
+                                if row[2] < 0.05 and row[2] > -0.05 and elevDiffList[index + 1] < 0 and elevDiffList[index - 1] > 0 and elevDiffList[index - 2] > 0 and row[7] < (2 * bfw):
                                     row[4] = 'US'
                                     row[3] = index
                             if row[5] != contourList[index - 1]:
-                                if row[2] < 0 and elevDiffList[index - 1] > -0.05 and elevDiffList[index - 1] < 0.05 and elevDiffList[index - 2] > 0 and elevDiffList[index - 3] > 0:
+                                if row[2] < 0 and elevDiffList[index - 1] > -0.05 and elevDiffList[index - 1] < 0.05 and elevDiffList[index - 2] > 0 and elevDiffList[index - 3] > 0 and row[7] < (2 * bfw):
                                     row[4] = 'DS'
                                     row[3] = index - 1
                         nodeDirList.append(row[4])
-                        if index + 1 == len(elevDiffList) and str(nodeDirList[index - 1]) == 'US':
+                        if index + 1 == len(elevDiffList) and str(nodeDirList[index - 1]) == 'US' and row[7] < (2 * bfw):
                             row[4] = 'DS'
                             row[3] = index - 1
                         index += 1
@@ -494,6 +516,16 @@ def main():
             arcpy.SelectLayerByAttribute_management(contour_nodes_lyr, "CLEAR_SELECTION")
             #  o. snap contour nodes to contour polygon edge in case there was a slight shift in position during line to polygon conversion
             arcpy.Snap_edit(contour_nodes_sort, [[contour_poly_clip, "EDGE", "0.1 Meters"]])
+
+            # remove unnecessary fields
+            fields = arcpy.ListFields(contour_nodes_sort)
+            keep = ['RID', 'Channel', 'ThalwegTyp', 'NodeID', 'elev', 'adj_elev', 'diff_elev', 'riff_pair', 'riff_dir']
+            drop = []
+            for field in fields:
+                if not field.required and field.name not in keep and field.type <> 'Geometry':
+                    drop.append(field.name)
+            if len(drop) > 0:
+                arcpy.DeleteField_management(contour_nodes_sort, drop)
 
             #  p. save contour polygons and contour nodes to evidence layer folder
             os.path.join(evpath, 'contourNodes_' + thalweg_basename + '.shp')
