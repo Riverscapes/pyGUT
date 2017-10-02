@@ -194,6 +194,54 @@ def main():
                 cursor.updateRow(row)
 
     #  ---------------------------------
+    #  check bankfull centerline fields
+    #  ---------------------------------
+    if not 'Channel' in [f.name for f in arcpy.ListFields(os.path.join(config.workspace, config.bfCL))]:
+        arcpy.AddField_management(os.path.join(config.workspace, config.bfCL), 'Channel', 'TEXT', '', '', 15)
+        arcpy.AddField_management(os.path.join(config.workspace, config.bfCL), 'CLID', 'SHORT')
+        ct = 1
+        with arcpy.da.UpdateCursor(os.path.join(config.workspace, config.bfCL), ['Channel', 'CLID']) as cursor:
+            for row in cursor:
+                row[0] = 'Main'
+                row[1] = ct
+                ct += 1
+                cursor.updateRow(row)
+
+    # ---------------------------------------
+    #  calculate reach gradient and sinuosity
+    #  --------------------------------------
+
+    tmp_thalweg = arcpy.CopyFeatures_management(os.path.join(config.workspace, config.thalwegShp),
+                                                        'in_memory/tmp_thalweg')
+    arcpy.AddField_management(tmp_thalweg, 'Length', 'DOUBLE')
+    with arcpy.da.UpdateCursor(tmp_thalweg, ['SHAPE@LENGTH', 'Length']) as cursor:
+        for row in cursor:
+            row[1] = round(row[0], 3)
+            cursor.updateRow(row)
+
+    maxLength = round(arcpy.SearchCursor(tmp_thalweg, "", "", "", 'Length' + " D").next().getValue('Length'),
+                      3)  # Get 1st row in descending cursor sort
+
+    exp = "{0}={1}".format('Length', maxLength)
+    arcpy.MakeFeatureLayer_management(tmp_thalweg, 'thalweg_lyr', exp)
+
+    thalweg_pts = arcpy.FeatureVerticesToPoints_management('thalweg_lyr', 'in_memory/thalweg_pts', "BOTH_ENDS")
+    ExtractMultiValuesToPoints(thalweg_pts, [[dem, 'demZ']])
+    arcpy.PointDistance_analysis(thalweg_pts, thalweg_pts, 'tbl_thalweg_dist.dbf')
+
+    maxZ = round(arcpy.SearchCursor(thalweg_pts, "", "", "", 'demZ' + " D").next().getValue('demZ'), 3)
+    minZ = round(arcpy.SearchCursor(thalweg_pts, "", "", "", 'demZ' + " A").next().getValue('demZ'), 3)
+    gradient = round(((maxZ - minZ) / maxLength) * 100, 3)
+
+    straightLength = round(
+        arcpy.SearchCursor('tbl_thalweg_dist.dbf', "", "", "", 'DISTANCE' + " D").next().getValue('DISTANCE'),
+        3)
+    sinuosity = round(maxLength / straightLength, 3)
+
+    print '...reach gradient: ' + str(gradient) + ' percent...'
+    print '...reach sinuosity: ' + str(sinuosity) + '...'
+
+    #  ---------------------------------
     #  tier 2 evidence layers
     #  ---------------------------------
     inCh = SetNull(bf, 1, '"VALUE" = 0')
@@ -712,6 +760,8 @@ def main():
     copy.write('Integrated bankfull width: ' + str(bfw) + ' m' + '\n')
     copy.write('Integrated wetted width: ' + str(ww) + ' m' + '\n')
     copy.write('Wall slope threshold: ' + str(slopeTh) + ' degrees')
+    copy.write('Reach sinuosity: ' + str(sinuosity) + '\n')
+    copy.write('Reach gradient: ' + str(gradient) + ' percent' + '\n')
     copy.close()
 
     print '...done with Tier 2 classification.'
