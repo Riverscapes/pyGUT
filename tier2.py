@@ -237,6 +237,8 @@ def main():
         arcpy.SearchCursor('tbl_thalweg_dist.dbf', "", "", "", 'DISTANCE' + " D").next().getValue('DISTANCE'),
         3)
     sinuosity = round(maxLength / straightLength, 3)
+    totalLength = sum((r[0] for r in arcpy.da.SearchCursor(tmp_thalweg, ['Length'])))
+    thalwegRatio = round(totalLength / maxLength, 3)
 
     print '...reach gradient: ' + str(gradient) + ' percent...'
     print '...reach sinuosity: ' + str(sinuosity) + '...'
@@ -762,6 +764,7 @@ def main():
     copy.write('Wall slope threshold: ' + str(slopeTh) + ' degrees')
     copy.write('Reach sinuosity: ' + str(sinuosity) + '\n')
     copy.write('Reach gradient: ' + str(gradient) + ' percent' + '\n')
+    copy.write('Thalweg ratio: ' + str(thalwegRatio) + '\n')
     copy.close()
 
     print '...done with Tier 2 classification.'
