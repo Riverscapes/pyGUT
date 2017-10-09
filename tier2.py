@@ -549,15 +549,15 @@ def main():
                     for row in cursor:
                         if index + 1 < len(elevDiffList) and index > 1:
                             if row[5] != contourList[index + 1]:
-                                if row[2] < 0.05 and row[2] > -0.05 and elevDiffList[index + 1] < 0 and elevDiffList[index - 1] > 0 and elevDiffList[index - 2] > 0 and row[7] < (2 * bfw):
+                                if row[2] < 0.05 and row[2] > -0.05 and elevDiffList[index + 1] < 0 and elevDiffList[index - 1] > 0 and elevDiffList[index - 2] > 0 and row[7] < (1.5 * bfw):
                                     row[4] = 'US'
                                     row[3] = index
                             if row[5] != contourList[index - 1]:
-                                if row[2] < 0 and elevDiffList[index - 1] > -0.05 and elevDiffList[index - 1] < 0.05 and elevDiffList[index - 2] > 0 and elevDiffList[index - 3] > 0 and row[7] < (2 * bfw):
+                                if row[2] < 0 and elevDiffList[index - 1] > -0.05 and elevDiffList[index - 1] < 0.05 and elevDiffList[index - 2] > 0 and elevDiffList[index - 3] > 0 and row[7] < (1.5 * bfw):
                                     row[4] = 'DS'
                                     row[3] = index - 1
                         nodeDirList.append(row[4])
-                        if index + 1 == len(elevDiffList) and str(nodeDirList[index - 1]) == 'US' and row[7] < (2 * bfw):
+                        if index + 1 == len(elevDiffList) and str(nodeDirList[index - 1]) == 'US' and row[7] < (1.5 * bfw):
                             row[4] = 'DS'
                             row[3] = index - 1
                         index += 1
