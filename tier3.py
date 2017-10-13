@@ -219,24 +219,48 @@ def main():
 
     if not os.path.exists(os.path.join(evpath, 'bfSlope_Smooth_Cat.shp')):
         print '...bankfull surface slope categories...'
+        if thalwegRatio > 2.0 or sinuosity > 1.3:
+            bfSlope_SmoothCat_ras = Con(bfSlope_Smooth < 2.3, 1, Con(bfSlope_Smooth < 4.3, 2, Con(bfSlope_Smooth < 11.3, 3, 4)))
+            bfSlope_Smooth_Cat = arcpy.RasterToPolygon_conversion(bfSlope_SmoothCat_ras, os.path.join(evpath, 'bfSlope_Smooth_Cat.shp'), 'NO_SIMPLIFY', 'VALUE')
+            arcpy.AddField_management(bfSlope_Smooth_Cat, 'bfSlopeCat', 'TEXT', '', '', 10)
+            with arcpy.da.UpdateCursor(bfSlope_Smooth_Cat, ['GRIDCODE', 'bfSlopeCat']) as cursor:
+                for row in cursor:
+                    if row[0] == 1:
+                        row[1] = 'Low'
+                    elif row[0] == 2:
+                        row[1] = 'Moderate'
+                    elif row[0] == 3:
+                        row[1] = 'High'
+                    elif row[0] == 4:
+                        row[1] = 'Very High'
+                    else:
+                        row[1] = 'NA'
+                    cursor.updateRow(row)
+            arcpy.MakeFeatureLayer_management(os.path.join(evpath, 'bfSlope_Smooth_Cat.shp'), 'bfSlope_lyr')
+        else:
+            bfSlope_SmoothCat_ras = Con(bfSlope_Smooth < 0.6, 1, Con(bfSlope_Smooth < 2.3, 2,
+                                        Con(bfSlope_Smooth < 4.3, 3, Con(bfSlope_Smooth < 11.3, 4, 5))))
+            bfSlope_Smooth_Cat = arcpy.RasterToPolygon_conversion(bfSlope_SmoothCat_ras,
+                                                                  os.path.join(evpath, 'bfSlope_Smooth_Cat.shp'),
+                                                                  'NO_SIMPLIFY', 'VALUE')
+            arcpy.AddField_management(bfSlope_Smooth_Cat, 'bfSlopeCat', 'TEXT', '', '', 10)
+            with arcpy.da.UpdateCursor(bfSlope_Smooth_Cat, ['GRIDCODE', 'bfSlopeCat']) as cursor:
+                for row in cursor:
+                    if row[0] == 1:
+                        row[1] = 'VeryLow'
+                    elif row[0] == 2:
+                        row[1] = 'Low'
+                    elif row[0] == 3:
+                        row[1] = 'Moderate'
+                    elif row[0] == 4:
+                        row[1] = 'High'
+                    elif row[0] == 5:
+                        row[1] = 'Very High'
+                    else:
+                        row[1] = 'NA'
+                    cursor.updateRow(row)
+            arcpy.MakeFeatureLayer_management(os.path.join(evpath, 'bfSlope_Smooth_Cat.shp'), 'bfSlope_lyr')
 
-        bfSlope_SmoothCat_ras = Con(bfSlope_Smooth < 2.3, 1, Con(bfSlope_Smooth < 4.3, 2, Con(bfSlope_Smooth < 11.3, 3, 4)))
-        bfSlope_Smooth_Cat = arcpy.RasterToPolygon_conversion(bfSlope_SmoothCat_ras, os.path.join(evpath, 'bfSlope_Smooth_Cat.shp'), 'NO_SIMPLIFY', 'VALUE')
-        arcpy.AddField_management(bfSlope_Smooth_Cat, 'bfSlopeCat', 'TEXT', '', '', 10)
-        with arcpy.da.UpdateCursor(bfSlope_Smooth_Cat, ['GRIDCODE', 'bfSlopeCat']) as cursor:
-            for row in cursor:
-                if row[0] == 1:
-                    row[1] = 'Low'
-                elif row[0] == 2:
-                    row[1] = 'Moderate'
-                elif row[0] == 3:
-                    row[1] = 'High'
-                elif row[0] == 4:
-                    row[1] = 'Very High'
-                else:
-                    row[1] = 'NA'
-                cursor.updateRow(row)
-        arcpy.MakeFeatureLayer_management(os.path.join(evpath, 'bfSlope_Smooth_Cat.shp'), 'bfSlope_lyr')
     else:
         arcpy.MakeFeatureLayer_management(os.path.join(evpath, 'bfSlope_Smooth_Cat.shp'), 'bfSlope_lyr')
 
@@ -713,7 +737,7 @@ def main():
     #  at higher gradient sites split by bankfull surface slope
     if gradient < 3.0:
         if sinuosity > 1.3 or thalwegRatio > 2.0:
-            troughplane_slope_int = arcpy.Intersect_analysis(['troughplane_lyr', 'bedSlope_lyr'], 'in_memory/troughplane_slope_int')
+            troughplane_slope_int = arcpy.Intersect_analysis(['troughplane_lyr', 'bedSlope_lyr', 'bfSlope_lyr'], 'in_memory/troughplane_slope_int')
         else:
             troughplane_slope_int = arcpy.Intersect_analysis(['troughplane_lyr', 'bfSlope_lyr'],
                                                              'in_memory/troughplane_slope_int')
@@ -1401,7 +1425,7 @@ def main():
                             row[7] = 'GR'
                         elif row[5] < 4.3:
                             row[6] = 'Rapid'
-                            row[7] = 'Rp'
+                            row[7] = 'Ra'
                         else:
                             if row[2] == 'Transverse':
                                 row[6] = 'Step'
@@ -1417,13 +1441,13 @@ def main():
 
         print '...classifying tier 3 trough features...'
 
-        fields = ['UnitForm', 'Forcing', 'OrientCat', 'bfSlopeSm', 'OnThalweg', 'Width', 'GU', 'GUKey', 'Morphology', 'Area', 'Length', 'bfwRatio']
+        fields = ['UnitForm', 'Forcing', 'OrientCat', 'bfSlopeSm', 'OnThalweg', 'Width', 'GU', 'GUKey', 'Morphology', 'Area', 'Length', 'bfwRatio', 'ElongRatio']
 
         with arcpy.da.UpdateCursor(units, fields) as cursor:
             for row in cursor:
                 if row[0] == 'Trough':
                     if row[1] == 'NA':  # if not forced
-                        if row[4] == 'No':
+                        if row[4] == 'No' and row[12] < 0.4:
                             row[6] = 'Transition'
                             row[7] = 'Tr'
                         else:
