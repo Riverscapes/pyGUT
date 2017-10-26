@@ -1591,6 +1591,7 @@ def main():
     t3_units = units_elim2
 
     arcpy.CopyFeatures_management(t3_units, os.path.join(outpath, 'Tier3_InChannel_GU.shp'))
+    arcpy.CopyFeatures_management(t3_units, os.path.join(outpath, 'Tier3_InChannel_GU_Raw.shp'))
 
     fields = arcpy.ListFields(units_t2)
     keep = ['ValleyUnit', 'UnitShape', 'UnitForm']
@@ -1617,6 +1618,7 @@ def main():
             cursor.updateRow(row)
 
     arcpy.CopyFeatures_management(t3_units_forms, os.path.join(outpath, 'Tier3_InChannel_GU_Form.shp'))
+    arcpy.CopyFeatures_management(t3_units_forms, os.path.join(outpath, 'Tier3_InChannel_GU_Form_Raw.shp'))
     # ----------------------------------------------------------
     # Remove temporary files
     print '...removing intermediary surfaces...'
