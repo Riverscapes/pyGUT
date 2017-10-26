@@ -108,8 +108,9 @@ def main():
                             cursor.updateRow(row)
 
         mergeList = [i for i in shpList if i not in ('in_memory/Saddle', 'in_memory/Wall')]
-
+        print 'finished update cursor'
         units_merge = arcpy.Merge_management(mergeList, 'in_memory/units_merge')
+        print 'finished merge'
         if 'in_memory/Saddle' in shpList:
             units_update = arcpy.Update_analysis('in_memory/units_merge', 'in_memory/Saddle', 'in_memory/units_update')
             units_update2 = arcpy.Update_analysis('in_memory/units_update', 'in_memory/Wall', 'in_memory/units_update2')
@@ -138,17 +139,19 @@ def main():
 
         # create unit id field and update area field
         arcpy.AddField_management(tmp_units, 'FormID', 'SHORT')
+        arcpy.AddField_management(tmp_units, 'UnitID', 'SHORT')
         arcpy.AddField_management(tmp_units, 'Area', 'DOUBLE')
         ct = 1
-        with arcpy.da.UpdateCursor(tmp_units, ['FormID', 'SHAPE@AREA', 'Area']) as cursor:
+        with arcpy.da.UpdateCursor(tmp_units, ['FormID', 'SHAPE@AREA', 'Area', 'UnitID']) as cursor:
             for row in cursor:
                 row[0] = ct
                 row[2] = row[1]
+                row[3] = row[0]
                 ct += 1
                 cursor.updateRow(row)
         # remove unnecessary fields
         fields = arcpy.ListFields(tmp_units)
-        keep = ['ValleyUnit', 'UnitShape', 'UnitForm', 'Area', 'FormID']
+        keep = ['ValleyUnit', 'UnitShape', 'UnitForm', 'Area', 'FormID', 'UnitID']
         drop = []
         for field in fields:
             if not field.required and field.name not in keep and field.type <> 'Geometry':
@@ -157,10 +160,8 @@ def main():
             arcpy.DeleteField_management(tmp_units, drop)
 
         if 'in_memory/MoundPlane' in shpList:
-            arcpy.CopyFeatures_management(tmp_units, os.path.join(outpath, 'Tier2_InChannel_Transition_Raw.shp'))
             arcpy.CopyFeatures_management(tmp_units, os.path.join(outpath, 'Tier2_InChannel_Transition.shp'))
         else:
-            arcpy.CopyFeatures_management(tmp_units, os.path.join(outpath, 'Tier2_InChannel_Raw.shp'))
             arcpy.CopyFeatures_management(tmp_units, os.path.join(outpath, 'Tier2_InChannel.shp'))
 
         shpList.extend([tmp_units])
@@ -736,7 +737,9 @@ def main():
     cmSlope = cm * inChDEMSlope * mound  # isolate slope values for channel margin convexities
     wall = SetNull(cmSlope, 1, '"VALUE" <= ' + str(slopeTh))  # apply slope threshold
 
+    print 'finished wall slope null statement'
     ras2poly_cn(mound, plane, bowl, trough, saddle, wall)
+    print 'finished running first delineation'
     ras2poly_cn(mound2, plane2, bowl2, trough2, saddle, wall, MoundPlane = moundplane2, TroughBowl = troughbowl2)
 
     # # ----------------------------------------------------------

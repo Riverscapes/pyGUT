@@ -25,12 +25,11 @@
 
 # Tier 3 Additional Parameters
     # bfXS:			    Bankfull cross sections shapefile [Required field: 'Channel']
-
+    # areaThresh:       Area threshold (as ratio fo bfw) for cascades, rapids, transitions, glide-runs.
 # ---------------------------------------------------------------------
-
 #  Project Level Parameters
-workspace      = r'C:\et_al\Shared\Projects\USA\CHaMP\ResearchProjects\GUT\wrk_Data\Wenatchee\LWIN0001-000041\2015\VISIT_3275\ModelRuns'
-runFolderName  = 'GUT_2.1\Run_01'
+workspace      = r'C:\et_al\Shared\Projects\USA\CHaMP\ResearchProjects\GUT\wrk_Data\Lemhi\CBW05583-028079\2012\VISIT_1029\ModelRuns'
+runFolderName  = 'GUT_2.1\Run_03'
 
 #  Tier 1 Parameters
 #  -----------------------------
@@ -49,13 +48,13 @@ wCL            = 'Inputs/CenterLine.shp'
 createSaddles = 'True' # Default: 'True'
 wallSlopeTh    = '' # Default: '' [if left blank slope distribution [mean + sd] is used to set threshold]
 #  - Percentiles for Discrete Forms -
-bowlPercentile = (75, )  # Default: (50, )
+bowlPercentile = (50, )  # Default: (50, )
 troughPercentile = (25, ) # Default: (25, )
 planePercentile = (25, 25) # Default: (25, 25)
 moundPercentile = (25, ) # Default: (25, )
 #  - Percentiles for Forms with Transitions -
-bowlPercentile2 = (75, )  # Default: (50, )
-troughPercentile2 = (25, 75) # Default: (25, 50)
+bowlPercentile2 = (50, )  # Default: (50, )
+troughPercentile2 = (25, 50) # Default: (25, 50)
 planePercentile2 = (25, 15) # Default: (25, 15)
 moundTransitionPercentile = (15, 35)  # Default: (15, 35)
 moundPercentile2 = (35, ) # Default: (35, )
@@ -64,8 +63,9 @@ moundPercentile2 = (35, ) # Default: (35, )
 #  -----------------------------
 #  Input Shapefiles and Rasters:
 bfXS           = 'Inputs/BankfullXS.shp'
+areaThresh = 0.75  # Default: 0.75
 
-#execfile('tier1.py')
-#execfile('tier2.py')
+execfile('tier1.py')
+execfile('tier2.py')
 execfile('tier3.py')
 
