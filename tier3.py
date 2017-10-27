@@ -14,7 +14,7 @@ arcpy.CheckOutExtension('Spatial')
 arcpy.CheckOutExtension("3D")
 
 
-def main():
+def tier3():
 
     print 'Starting Tier 3 classification...'
 
@@ -1632,4 +1632,4 @@ def main():
     print '...done with Tier 3 classification.'
 
 if __name__ == '__main__':
-    main()
+    tier3()

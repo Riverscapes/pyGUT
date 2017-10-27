@@ -28,8 +28,8 @@
     # areaThresh:       Area threshold (as ratio fo bfw) for cascades, rapids, transitions, glide-runs.
 # ---------------------------------------------------------------------
 #  Project Level Parameters
-workspace      = r'C:\et_al\Shared\Projects\USA\CHaMP\ResearchProjects\GUT\wrk_Data\Lemhi\CBW05583-028079\2012\VISIT_1029\ModelRuns'
-runFolderName  = 'GUT_2.1\Run_03'
+workspace      = r'E:/Box Sync/ET_AL/Projects/USA/ISEMP/GeomorphicUnits/HundredSites/Data/VisitData/VISIT_22/GUT'
+runFolderName  = 'GUT_2.1/Run_05'
 
 #  Tier 1 Parameters
 #  -----------------------------
@@ -38,6 +38,7 @@ bfPolyShp      = 'Inputs/Bankfull.shp'
 bfCL           = 'Inputs/BankfullCL.shp'
 wPolyShp       = 'Inputs/WaterExtent.shp'
 inDEM          = 'Inputs/DEM.tif'
+
 
 #  Tier 2 Additional Parameters
 #  -----------------------------
@@ -65,7 +66,11 @@ moundPercentile2 = (35, ) # Default: (35, )
 bfXS           = 'Inputs/BankfullXS.shp'
 areaThresh = 0.75  # Default: 0.75
 
-execfile('tier1.py')
-execfile('tier2.py')
-execfile('tier3.py')
-
+if __name__=='__main__':
+    #I recommend something other than execfile. Probably import or something.
+    #but this should still work.
+    execfile('tier1.py')
+    execfile('tier2.py')
+    execfile('tier3.py')
+#Making config into more of a bucket o variables, removing actual execution. -Leif
+#trying to preserve the standalone functionality... not tested.

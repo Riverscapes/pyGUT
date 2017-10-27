@@ -8,9 +8,9 @@ from arcpy.sa import *
 arcpy.CheckOutExtension('Spatial')
 
 
-def main():
+def tier1():
 
-    print config.workspace
+    print('Workspace: %s'%config.workspace)
     print 'Starting Tier 1 classification...'
 
     #  create temporary workspace
@@ -192,4 +192,4 @@ def main():
     print '...done with Tier 1 classification.'
 
 if __name__ == '__main__':
-    main()
+    tier1()

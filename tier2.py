@@ -10,7 +10,7 @@ from arcpy.sa import *
 arcpy.CheckOutExtension('Spatial')
 
 
-def main():
+def tier2():
 
     print 'Starting Tier 2 classification...'
 
@@ -773,4 +773,4 @@ def main():
     print '...done with Tier 2 classification.'
 
 if __name__ == '__main__':
-    main()
+    tier2()
