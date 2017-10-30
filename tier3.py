@@ -1049,7 +1049,6 @@ def tier3():
 
     # ----------------------------------------------------------
     # Attribute tier 3 bowl transition features
-    arcpy.CopyFeatures_management(bowltrans, os.path.join(evpath, 'tmp_bowltrans_postgu.shp'))
     fields = ['UnitForm', 'bfSlopeSm', 'OnThalweg', 'Area', 'ElongRatio', 'SHAPE@', 'GU', 'GUKey']
 
     with arcpy.da.UpdateCursor(bowltrans, fields) as cursor:
@@ -1069,12 +1068,8 @@ def tier3():
             if row[6] != 'Chute':
                 cursor.deleteRow()
 
-    arcpy.CopyFeatures_management(bowltrans, os.path.join(evpath, 'tmp_bowltrans.shp'))
-
     arcpy.SelectLayerByAttribute_management('units_t2_elim_lyr', "NEW_SELECTION", """ "UnitForm" = 'Trough' OR "UnitForm" = 'Bowl Transition' """)
-    arcpy.CopyFeatures_management('units_t2_elim_lyr', os.path.join(evpath, 'tmp_units_t2_elim_lyr_select.shp'))
     arcpy.SelectLayerByLocation_management('units_t2_elim_lyr', 'ARE_IDENTICAL_TO', bowltrans, '','REMOVE_FROM_SELECTION')
-    arcpy.CopyFeatures_management('units_t2_elim_lyr', os.path.join(evpath, 'tmp_units_t2_elim_lyr_select2.shp'))
     bowltras_trough_dissolve = arcpy.Dissolve_management('units_t2_elim_lyr', 'in_memory/bowltras_trough_dissolve', ['ValleyUnit'], '', 'SINGLE_PART', 'UNSPLIT_LINES')
     units_update = arcpy.Update_analysis(units_t2_elim, bowltras_trough_dissolve, 'in_memory/units_update')
     with arcpy.da.UpdateCursor(units_update, ['SHAPE@Area', 'Area', 'UnitShape', 'UnitForm']) as cursor:
@@ -1427,12 +1422,6 @@ def tier3():
                     else:
                         row[8] = 'Mid Channel Bar'
                         row[9] = 'Bc'
-                elif row[7] == 'Cut-off' and row[4] < 0.4 and row[6] > (0.25 * bfw):
-                        row[8] = 'Chute'
-                        row[9] = 'Ch'
-                elif row[7] == 'Braid' and row[4] < 0.4 and row[6] > (0.25 * bfw):
-                        row[8] = 'Chute'
-                        row[9] = 'Ch'
                 else:
                     if row[2] < 2.3:
                         row[8] = 'Glide-Run'
