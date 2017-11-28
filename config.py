@@ -24,12 +24,11 @@
     # wCL               Wetted centerline shapefile
 
 # Tier 3 Additional Parameters
-    # bfXS:			    Bankfull cross sections shapefile [Required field: 'Channel']
     # areaThresh:       Area threshold (as ratio fo bfw) for cascades, rapids, transitions, glide-runs.
 # ---------------------------------------------------------------------
 #  Project Level Parameters
-workspace      = r'E:/Box Sync/ET_AL/Projects/USA/ISEMP/GeomorphicUnits/HundredSites/Data/VisitData/VISIT_22/GUT'
-runFolderName  = 'GUT_2.1/Run_05'
+workspace      = r'C:/et_al/Shared/Projects/USA/CHaMP/ResearchProjects/GUT/wrk_Data/Lemhi/CBW05583-170447/2012/VISIT_920\ModelRuns'
+runFolderName  = 'GUT_2.1\Run_01'
 
 #  Tier 1 Parameters
 #  -----------------------------
@@ -38,7 +37,6 @@ bfPolyShp      = 'Inputs/Bankfull.shp'
 bfCL           = 'Inputs/BankfullCL.shp'
 wPolyShp       = 'Inputs/WaterExtent.shp'
 inDEM          = 'Inputs/DEM.tif'
-
 
 #  Tier 2 Additional Parameters
 #  -----------------------------
@@ -49,13 +47,13 @@ wCL            = 'Inputs/CenterLine.shp'
 createSaddles = 'True' # Default: 'True'
 wallSlopeTh    = '' # Default: '' [if left blank slope distribution [mean + sd] is used to set threshold]
 #  - Percentiles for Discrete Forms -
-bowlPercentile = (50, )  # Default: (50, )
+bowlPercentile = (65, )  # Default: (50, )
 troughPercentile = (25, ) # Default: (25, )
 planePercentile = (25, 25) # Default: (25, 25)
 moundPercentile = (25, ) # Default: (25, )
 #  - Percentiles for Forms with Transitions -
-bowlPercentile2 = (50, )  # Default: (50, )
-troughPercentile2 = (25, 50) # Default: (25, 50)
+bowlPercentile2 = (65, )  # Default: (50, )
+troughPercentile2 = (25, 65) # Default: (25, 50)
 planePercentile2 = (25, 15) # Default: (25, 15)
 moundTransitionPercentile = (15, 35)  # Default: (15, 35)
 moundPercentile2 = (35, ) # Default: (35, )
@@ -63,14 +61,12 @@ moundPercentile2 = (35, ) # Default: (35, )
 #  Tier 3 Additional Parameters
 #  -----------------------------
 #  Input Shapefiles and Rasters:
-bfXS           = 'Inputs/BankfullXS.shp'
 areaThresh = 0.75  # Default: 0.75
 
-if __name__=='__main__':
-    #I recommend something other than execfile. Probably import or something.
-    #but this should still work.
-    execfile('tier1.py')
-    execfile('tier2.py')
-    execfile('tier3.py')
-#Making config into more of a bucket o variables, removing actual execution. -Leif
-#trying to preserve the standalone functionality... not tested.
+import tierFunctions
+myVars = globals()
+
+tierFunctions.tier1(**myVars)
+tierFunctions.tier2(**myVars)
+tierFunctions.tier3(**myVars)
+tierFunctions.tier3_subGU(**myVars)
