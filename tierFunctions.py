@@ -37,12 +37,10 @@ def guAttributes(units, bfw, dem, tmp_thalwegs, bfSlope, bfSlope_Smooth, evpath,
         arcpy.DeleteField_management(units, drop)
 
     # add attribute fields to tier units shapefile
-    nfields = [('UnitID', 'SHORT', ''),
-               ('Channel', 'TEXT', '5'), ('ForceType', 'TEXT', '25'), ('ForceElem', 'TEXT', '25'), ('ForceHyd', 'TEXT', '15'),
+    nfields = [('UnitID', 'SHORT', ''), ('ForceType', 'TEXT', '25'), ('ForceElem', 'TEXT', '25'), ('ForceHyd', 'TEXT', '15'),
                ('Perimeter', 'DOUBLE', ''), ('ElongRatio', 'DOUBLE', ''), ('Morphology', 'TEXT', '20'),
                ('Position', 'TEXT', '20'), ('Orient', 'DOUBLE', ''), ('OrientCat', 'TEXT', '15'),
-               ('bfSlope', 'DOUBLE', ''), ('bfSlopeSm', 'DOUBLE', ''),
-               ('bedSlope', 'DOUBLE', '')]
+               ('bfSlope', 'DOUBLE', ''), ('bfSlopeSm', 'DOUBLE', ''), ('bedSlope', 'DOUBLE', '')]
 
     for nfield in nfields:
         arcpy.AddField_management(units, nfield[0], nfield[1], '', '', nfield[2])
@@ -244,60 +242,49 @@ def guAttributes(units, bfw, dem, tmp_thalwegs, bfSlope, bfSlope_Smooth, evpath,
 
     print '...thalweg intersection...'
 
-    # Set fieldmapping
-    fms = arcpy.FieldMappings()
-    fms.addTable(units)
-    fm = arcpy.FieldMap()
-    fm.addInputField(tmp_thalwegs, 'Channel')
-    field = fm.outputField
-    field.name = 'allThalCh'
-    field.type = 'String'
-    field.length = 150
-    fm.outputField = field
-    fm.mergeRule = 'Join'
-    field.isNullable = True
-    fm.joinDelimiter = ', '
-    fms.addFieldMap(fm)
+    unit_thalweg_ch = arcpy.SpatialJoin_analysis(units, tmp_thalwegs, 'in_memory/unit_thalwegs_ch', 'JOIN_ONE_TO_MANY', '', '', 'INTERSECT')
 
-    unit_thalweg_ch = arcpy.SpatialJoin_analysis(units, tmp_thalwegs, 'in_memory/unit_thalwegs_ch',
-                                                 'JOIN_ONE_TO_ONE', '',
-                                                 fms, 'INTERSECT')
-    arcpy.JoinField_management(units, 'UnitID', unit_thalweg_ch, 'UnitID', ['allThalCh'])
+    channelDict = {}  # create a dictionary for unit/thalweg channel
+    thalwegDict = {}  # create a dictionary for unit/thalweg type
 
-    # Set fieldmapping
-    fms = arcpy.FieldMappings()
-    fms.addTable(units)
-    fm = arcpy.FieldMap()
-    fm.addInputField(tmp_thalwegs, 'ThalwegTyp')
-    field = fm.outputField
-    field.name = 'allThalTyp'
-    field.type = 'String'
-    field.length = 150
-    fm.outputField = field
-    fm.mergeRule = 'Join'
-    field.isNullable = True
-    fm.joinDelimiter = ', '
-    fms.addFieldMap(fm)
-
-    unit_thalweg = arcpy.SpatialJoin_analysis(units, tmp_thalwegs, 'in_memory/unit_thalwegs', 'JOIN_ONE_TO_ONE', '',
-                                              fms, 'INTERSECT')
-    arcpy.JoinField_management(units, 'UnitID', unit_thalweg, 'UnitID', ['allThalTyp'])
+    with arcpy.da.SearchCursor(unit_thalweg_ch, ['UnitID', 'Channel', 'ThalwegTyp']) as cursor:
+        for row in cursor:
+            unitid = row[0]
+            channel = str(row[1])
+            thalwegtype = str(row[2])
+            if not row[1] == None:  # if channel field isn't blank/empty
+                if unitid not in channelDict:  # if the unit id isn't in the dict, add it along with the channel
+                    channelDict[unitid] = [channel]
+                else:
+                    if channel not in channelDict[unitid]:  # if the channel isn't in the dictionary with the unit id key, append to the list
+                        channelDict[unitid].append(channel)
+                if unitid not in thalwegDict:  # if the unit id isn't in the dict, add it along with the thalweg
+                    thalwegDict[unitid] = [thalwegtype]
+                else:
+                    if thalwegtype not in thalwegDict[unitid]:  # if the channel isn't in the dictionary with the unit id key, append to the list
+                        thalwegDict[unitid].append(thalwegtype)
+            else:
+                channelDict[unitid] = ['None']
+                thalwegDict[unitid] = ['None']
 
     arcpy.AddField_management(units, 'ThalwegCh', 'TEXT', '', '', 50)
-    arcpy.AddField_management(units, 'OnThalweg', 'TEXT', '', '', 50)
+    arcpy.AddField_management(units, 'ThalwegTyp', 'TEXT', '', '', 50)
 
-    with arcpy.da.UpdateCursor(units, ['allThalCh', 'ThalwegCh', 'allThalTyp', 'OnThalweg']) as cursor:
+    with arcpy.da.UpdateCursor(units, ['UnitID', 'ThalwegCh', 'ThalwegTyp']) as cursor:
         for row in cursor:
-            # print list(set(row[0].split(', ')))
-            if not row[0] == None:
-                row[1] = ', '.join(set(row[0].split(', ')))
-                row[3] = ', '.join(set(row[2].split(', ')))
-            else:
-                row[1] = 'None'
-                row[3] = 'None'
+            unitid = row[0]
+            row[1] = ', '.join(channelDict[unitid])
+            row[2] = ', '.join(thalwegDict[unitid])
             cursor.updateRow(row)
 
-    arcpy.DeleteField_management(units, ['allThalCh', 'allThalTyp'])
+    thalweg_ct = arcpy.Statistics_analysis(unit_thalweg_ch, 'in_memory/thalweg_ct', 'Join_Count SUM', 'UnitID')
+    arcpy.AddField_management(thalweg_ct, 'ThalwegCt', 'SHORT')
+    with arcpy.da.UpdateCursor(thalweg_ct, ['SUM_Join_Count', 'ThalwegCt']) as cursor:
+        for row in cursor:
+            row[1] = row[0]
+            cursor.updateRow(row)
+
+    arcpy.JoinField_management(units, 'UnitID', thalweg_ct, 'UnitID', 'ThalwegCt')
 
     # ----------------------------------------------------------
     # Attribute bankfull surface slope
@@ -711,7 +698,7 @@ def tier2(**myVars):
                 row[1] = row[0]
                 cursor.updateRow(row)
 
-        #  filter out tiny units (area < 0.1 * bfw) by merging with unit that shares longest border
+        #  filter out tiny units (area < 0.1 * bfw) by merging with unit that shares longest border  #ToDo: Ask NK/JW if we want to use the oonfig area thresh here instead
         #  run 2x
         units_sp_lyr = arcpy.MakeFeatureLayer_management(units_sp, 'units_sp_lyr')
         arcpy.SelectLayerByAttribute_management(units_sp_lyr, 'NEW_SELECTION', """ ("UnitForm" IN ('Bowl', 'Trough', 'Plane', 'Mound', 'Saddle', 'Wall') AND  "Area" < """ + str(0.1 * bfw) + """) OR ("UnitForm" IN ('Bowl Transition', 'Mound Transition') AND "Area" <= 0.1) """)
@@ -1865,7 +1852,7 @@ def tier3(**myVars):
 
     # ----------------------------------------------------------
     # Attribute tier 3 bowl transition features
-    fields = ['UnitForm', 'bfSlopeSm', 'OnThalweg', 'Area', 'ElongRatio', 'SHAPE@', 'GU', 'GUKey']
+    fields = ['UnitForm', 'bfSlopeSm', 'ThalwegTyp', 'Area', 'ElongRatio', 'SHAPE@', 'GU', 'GUKey']
 
     with arcpy.da.UpdateCursor(bowltrans, fields) as cursor:
         for row in cursor:
@@ -1912,14 +1899,14 @@ def tier3(**myVars):
             row[1] = row[0]
             cursor.updateRow(row)
 
-    #  find trough features < 0.25 * bfw and merge with adjacent trough units
+    #  find trough features < 0.25 * bfw and merge with adjacent trough units  # ToDo: Ask NK/JW if we should use the config area threshold instead
     trough_sp = arcpy.Select_analysis(troughplane_slope_sp, 'in_memory/trough_sp', """ "UnitForm" = 'Trough' """)
     arcpy.MakeFeatureLayer_management(trough_sp, 'trough_lyr')
     arcpy.SelectLayerByAttribute_management('trough_lyr', "NEW_SELECTION", """ "Area" < %s """ % str(0.25 * bfw))
     trough_elim = arcpy.Eliminate_management('trough_lyr', 'in_memory/trough_elim', 'LENGTH')
 
 
-    #  find trough features < 0.25 * bfw and merge with adjacent trough units
+    #  find trough features < 0.25 * bfw and merge with adjacent trough units  # ToDo: Ask NK/JW if we should use the config area threshold instead
     plane_sp = arcpy.Select_analysis(troughplane_slope_sp, 'in_memory/plane_sp', """ "UnitForm" = 'Plane' """)
     arcpy.MakeFeatureLayer_management(plane_sp, 'plane_lyr')
     arcpy.SelectLayerByAttribute_management('plane_lyr', "NEW_SELECTION", """ "Area" < %s """ % str(0.25 * bfw))
@@ -2013,7 +2000,7 @@ def tier3(**myVars):
 
     guAttributes(planeflowtype, bfw, dem, tmp_thalwegs, bfSlope, bfSlope_Smooth, evpath, **myVars)
 
-    fields = ['UnitForm', 'Position', 'bfSlopeSm', 'bfwRatio', 'ElongRatio', 'FlowUnit', 'Area', 'OnThalweg', 'GU', 'GUKey']
+    fields = ['UnitForm', 'Position', 'bfSlopeSm', 'bfwRatio', 'ElongRatio', 'FlowUnit', 'Area', 'ThalwegTyp', 'GU', 'GUKey']
 
     with arcpy.da.UpdateCursor(planeflowtype, fields) as cursor:
         for row in cursor:
@@ -2049,7 +2036,7 @@ def tier3(**myVars):
 
         print '...classifying tier 3 trough features...'
 
-        fields = ['UnitForm', 'bfSlopeSm', 'OnThalweg', 'Area', 'ElongRatio', 'SHAPE@', 'GU', 'GUKey']
+        fields = ['UnitForm', 'bfSlopeSm', 'ThalwegTyp', 'Area', 'ElongRatio', 'SHAPE@', 'GU', 'GUKey']
 
         with arcpy.da.UpdateCursor(units_update3, fields) as cursor:
             for row in cursor:
@@ -2081,7 +2068,7 @@ def tier3(**myVars):
 
         print '...classifying tier 3 bowl transition features...'
 
-        fields = ['UnitForm', 'bfSlopeSm', 'OnThalweg', 'Area', 'ElongRatio', 'SHAPE@', 'GU', 'GUKey']
+        fields = ['UnitForm', 'bfSlopeSm', 'ThalwegTyp', 'Area', 'ElongRatio', 'SHAPE@', 'GU', 'GUKey']
 
         with arcpy.da.UpdateCursor(units_update3, fields) as cursor:
             for row in cursor:
@@ -2170,7 +2157,7 @@ def tier3(**myVars):
             cursor.updateRow(row)
     arcpy.MakeFeatureLayer_management(units_dissolve, 'units_dissolve_lyr')
     arcpy.SelectLayerByAttribute_management('units_dissolve_lyr', "NEW_SELECTION", """ "GU" = 'Transition' OR  "GU" = 'Glide-Run' OR "GU" = 'Rapid' OR "GU" = 'Cascade' """)
-    arcpy.SelectLayerByAttribute_management('units_dissolve_lyr', "SUBSET_SELECTION", """ "Area" < %s """ % str(myVars['areaThresh'] * bfw))
+    arcpy.SelectLayerByAttribute_management('units_dissolve_lyr', "SUBSET_SELECTION", """ "Area" < %s """ % str(myVars['areaThresh'] * bfw))   # ToDo: Ask NK/JW if we should apply the config area threshold to all units
     arcpy.SelectLayerByLocation_management('units_dissolve_lyr', 'INTERSECT', thalweg_pts, '', 'REMOVE_FROM_SELECTION')
 
     #units_elim2 = arcpy.Eliminate_management('units_dissolve_lyr', 'in_memory/units_elim2', 'LENGTH', """ "GU" = 'Pool' OR  "GU" = 'Pond' OR "GU" = 'Pocket Pool' """)
@@ -2463,7 +2450,7 @@ def tier3_subGU(**myVars):
     # --tier 3 pool sub geomorphic unit logic--
     print '...classifying tier 3 pool sub geomorphic units...'
 
-    fields = ['GU', 'SubGU', 'SubGUKey', 'ForceElem', 'ForceHyd', 'OnThalweg', 'mBendCat']
+    fields = ['GU', 'SubGU', 'SubGUKey', 'ForceElem', 'ForceHyd', 'ThalwegTyp', 'mBendCat']
 
     with arcpy.da.UpdateCursor(t3_subunits, fields) as cursor:
         for row in cursor:
@@ -2491,7 +2478,7 @@ def tier3_subGU(**myVars):
     # --tier 3 chute sub geomorphic unit logic--
     print '...classifying tier 3 chute sub geomorphic units...'
 
-    fields = ['GU', 'SubGU', 'SubGUKey', 'ForceElem', 'OnThalweg']
+    fields = ['GU', 'SubGU', 'SubGUKey', 'ForceElem', 'ThalwegTyp']
     #  ToDo: need to add logic for case where main and cut-off are present (see NK keys)
     with arcpy.da.UpdateCursor(t3_subunits, fields) as cursor:
         for row in cursor:
@@ -2582,9 +2569,9 @@ def tier3_subGU(**myVars):
 
     # --tier 3 mid channel bar sub geomorphic unit logic--
     print '...classifying tier 3 mid channel bar sub geomorphic units...'
-    #  ToDo: need to add logic for bank attached islands and thalweg count (see NK keys)
+    #  ToDo: need to add logic for bank attached islands (see NK keys)
     #  ToDo: talk with NK about concatenating morphology + bar (many features are elongated...)
-    fields = ['GU', 'SubGU', 'SubGUKey', 'OrientCat', 'ForceHyd', 'Morphology']
+    fields = ['GU', 'SubGU', 'SubGUKey', 'OrientCat', 'ForceHyd', 'Morphology', 'ThalwegCt']
     with arcpy.da.UpdateCursor(t3_subunits, fields) as cursor:
         for row in cursor:
             if row[0] == 'Mid Channel Bar':
@@ -2601,6 +2588,9 @@ def tier3_subGU(**myVars):
                 elif row[5] == 'Lobate':
                     row[1] = 'Lobate Bar'
                     row[2] = 'Bc-Lb'
+                elif row[6] > 1:
+                    row[1] = 'Compound Bar'
+                    row[2] = 'Bc-Cp'
                 elif row[3] == 'Longitudinal':
                     row[1] = 'Longitudinal Bar'
                     row[2] = 'Bc-Lo'
