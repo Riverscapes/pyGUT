@@ -4,17 +4,17 @@ title: Geomorphic Unit Tool
 
 ![GUTLogo](docs\assets\images\GUTLogo.png)
 
-Welcome to PyGUT website. The Geomorphic Unit Tool (GUT).  This documentation is still under construction.  Documentation will be provided before Jan 1, 2017.
+Welcome to PyGUT website. The Geomorphic Unit Tool (GUT).  This documentation is still under construction and will be provided shortly.
 
 Two posters on GUT were presented at AGU 2017.  If you have questions or want to run the code, please contact Sara Bangen or Natalie Kramer (see posters for emails)
 
 
-EP11A-1546: Discusses some example applications of GUT.
+EP11A-1546: Discusses some example applications of GUT. (Monday Morning 10-12)
 
 ![Kramer_AGUPoster2_2017]({{site.baseurl}}/assets/images/Kramer_AGUPoster2_2017.jpg)
 
 
 
-EP31D-1901: Describes some of the inner workings of GUT.
+EP31D-1901: Describes some of the inner workings of GUT. (Wed Morning 10-12)
 
-![Bangen_AGUPoster_2017]({{site.baseurl}}assets\images\Bangen_AGUPoster_2017.jpg)
+![Bangen_AGUPoster_2017]({{site.baseurl}}/assets/images/Bangen_AGUPoster_2017.jpg)
