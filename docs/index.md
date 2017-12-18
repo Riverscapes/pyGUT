@@ -2,7 +2,7 @@
 title: Geomorphic Unit Tool
 ---
 
-[![GUTLogo]({{site.baseurl}}/assets/images/GUTLogo.png)]({{site.baseurl}}/assets/images/Large/GUTLogo.png)
+[![GUTLogo]({{site.baseurl}}/assets/images/GUTLogo.png)]({{site.baseurl}}/assets/images/Large/GUTLogo.png){ width=50% }
 
 Welcome to PyGUT website. This website houses code and documentation for the Geomoprhic Unit Tool (GUT).  The tool delineates instream geomorphic units (GUs) from topography using a 3-tiered hierarchical classification adapted from [(Wheaton et al 2015)](https://doi.org/10.1016/j.geomorph.2015.07.010).  Currently the code has ESRI dependencies, but in the future will be converted to an open source language.
 
