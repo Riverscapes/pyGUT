@@ -4,10 +4,15 @@ title: Geomorphic Unit Tool
 
 [![GUTLogo]({{site.baseurl}}/assets/images/GUTLogo.png)]({{site.baseurl}}/assets/images/hr/GUTLogo.png)
 
-Welcome to PyGUT website. This website houses code and documentation for the Geomoprhic Unit Tool (GUT).  The tool delineates instream geomorphic units (GUs) from topography using a 3-tiered hierarchical classification adapted from [(Wheaton et al 2015)](https://doi.org/10.1016/j.geomorph.2015.07.010).  Currently the code has ESRI dependencies, but in the future will be converted to an open source language.
+Welcome to PyGUT website. This website houses code and documentation for the Geomorphic Unit Tool (GUT).  The tool delineates instream geomorphic units (GUs) from topography using a 3-tiered hierarchical classification adapted from [(Wheaton et al., 2015)](https://doi.org/10.1016/j.geomorph.2015.07.010).  Currently the code has ESRI dependencies, but in the future will be converted to an open source language.
 
-[![GUT_Framework]({{site.baseurl}}/assets/images/GUT_Framework.png)]({{site.baseurl}}/assets/images/hr/GUT_Framework.png)
-Figure showing the GUT hierarchical classification framework adapted from Wheaton et al (2015)
+We provide documentation on:
+
+1. Theoretical [background]({{ site.baseurl }}/background) underpinning the tool.
+2. How to [run GUT]({{ site.baseurl }}/1.RunningGUT/index.md).
+3. Understanding [the output]({{ site.baseurl }}/2.GUToutput/index.md).
+4. Example [applications]({{ site.baseurl }}/3.Applications/index.md).
+5. The  [nuts and bolts]({{ site.baseurl }}/4.guDescriptions/index.md) behind the algorithms.
 
 *The website is still under construction but will be fully populated shortly.  In the meantime, if you have questions or want to run the code, please contact Sara Bangen (sara.bangen@gmail.com) or Natalie Kramer (n.kramer.anderson@gmail.com).*
 
@@ -22,3 +27,4 @@ Figure showing the GUT hierarchical classification framework adapted from Wheato
 - Bangen SG, Kramer N, Wheaton, JM, and Bouwes N. 2017. The GUTs of the Geomorphic Unit Tool: What is under the hood. EP31D-1901. AGU. New Orleans, LA, 11-15 Dec. 
   [![Bangen_AGUPoster_2017]({{site.baseurl}}/assets/images/Bangen_AGUPoster_2017.jpg)]({{site.baseurl}}/assets/images/hr/Bangen_AGUPoster_2017.jpg)
 - Bangen SG, Kramer N, Wheaton JM, and Bouwes N. In Preparation. Mapping instream geomorphic units from high resolution topography. 
+

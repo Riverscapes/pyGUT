@@ -2,8 +2,6 @@
 title: User Inputs
 ---
 
-[![GUTLogo]({{site.baseurl}}/assets/images/GUTLogo.png)]({{site.baseurl}}/assets/images/Large/GUTLogo.png)
-
 This describes user inputs needed to run GUT.  
 
 
@@ -31,11 +29,11 @@ The tool relies on the user deciding where the bankfull and low flow water exten
 
 This is an input line layer that is simply line(s) drawn through the center of the bankfull polygon.  Where multiple channels exist, the centerline splits into two or more lines.  The bankfull centerlines are used to determine average bankfull width of the channel, which is in turn used as a scalar for size thresholding during unit delimination.  The bankfull centerline is also used as the reference base when calculating the orientation of units.
 
-## Thalweg Lines
+## Thalweg Line(s)
 
 For the In-Channel mapping to run successfully, a user must provide a thalweg, a line connecting the lowest points of successive cross-sections along the course of a valley or river. The thalweg line is used to pull out Tier 2 saddle forms and riffles.  If the thaweg is not appropriately placed, then the algorithms may falsly identify or miss saddles and riffles.  See here for an explanation of how saddles are extracted.
 
-In order for a user to be able to identify saddles not along the main thalweg, you have the option of supplying an input thalweg layer that includes, not just the main thalweg, but thalwegs associated with secondary flow paths.  These secondary thalweg paths are used to identify riffles not along the main flow, and sub Geomorphic Units at the Tier 3 level such as cut-off chutes, diagonal bars, confluence pools, backwater ponds, etc.  For the algorithms to use the multiple thalwegs to full advantage, you should have two fields for each thalweg segment **'Channel'** and **'ThalwegTyp'** and each segment should be categorized following the scheme below. However, the algorithm will run whether or not you have attributed all your thalwegs, it just might not pull out all the Tier 3 subGU units.
+In order to identify saddles not along the main thalweg, you have the option of supplying an input thalweg layer that includes, not just the main thalweg, but thalwegs associated with secondary flow paths.  These secondary thalweg paths are also used to name sub geomorphic units at the Tier 3 level such as cut-off chutes, diagonal bars, confluence pools, backwater ponds, etc.  For the algorithms to use the multiple thalwegs to full advantage, you should have two fields for each thalweg segment **'Channel'** and **'ThalwegTyp'** and each segment should be categorized following the scheme below. The algorithm will run whether or not you have attributed all your thalwegs, it just might not name all the Tier 3 subGU units.  
 
 #### Channel
 * **Main** - The bankfull channel through which the thalweg that follows the deepest path is within
@@ -46,8 +44,17 @@ In order for a user to be able to identify saddles not along the main thalweg, y
 #### ThalwegTyp
 
 * **Main**- The thalweg within the bankful channel that follows the deepest path.
+
 * **Anabranch**- The main thalweg of secondary channels.
+
 * **Return**- Thalwegs returning flow from floodplain or backwater areas.
+
 * **Cut-off**- Thalwegs within smaller chute like channels that cut across depostional features.  These typically depart and return from another thalweg and are often on the outside of bends cutting across diagonal and compound bars.
+
 * **Braid**- Thalwegs that cut across bar features and connect two different larger thalwegs. 
+
 * **Split**- Thalwegs that split from another thalweg and then return without cutting through depositional features.  Split flow often forms around boulders, steps and other structural elements in the channel.
+
+  ​
+
+  When making your thalwegs, make sure that they typology is correct.  The line segments should be directional in the direction of downstream and all confluences and diffluences should share a node. Currently the code will not be able to extract saddles (ie riffles) that have a confluence or diffluence on top of them, so if you think you have an area that should be called a riffle, make sure you are not starting or ending any thalweg segment within its bounds. 

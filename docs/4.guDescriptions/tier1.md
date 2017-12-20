@@ -6,6 +6,7 @@ title: Tier 1 - Valley Unit and Flow Unit
 - **Out-of-Channel** - Outside of bankfull channel
 
 ### Flow Units
-- **Submerged** - Within wetted channel
-- **Emergent** - Within bankfull channel but not wetted
-- **High** - Outside of bankfull channel
+- **high** = outside the bankfull extent.
+- **emergent**=between the low flow extent and the bankfull extent.
+- **submerged**=within the low flow extent.
+
