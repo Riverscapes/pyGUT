@@ -19,23 +19,29 @@
     # thalwegShp:       Thalweg polyline shapefile
     # wCL               Wetted centerline shapefile
     # createSaddles:    Argument indicating if saddles should be created/classified
+    # saddleAreaThresh: Area threshold (as ratio fo bfw) for saddles
     # wallSlopeTh:      Slope theshold above which a cell will be classified as a wall (barring other criteria).  If value is left blank slope mean + sd will be calculated and used as threshold
     # Residual Topography Percentile Thresholds:
     #   - Statistical breaks in residual topography evidence raster used to classify Tier 2 shapes and forms
-    #   - Percentile thresholds are defined for 'discrete' forms (i.e., no trasition zones) and forms with transition zones
     #   - Percentile thresholds are defined be tuple in the order of (min, max)
     #   - Examples:
-    #       bowlPercentile = (65, ) - Positive residual topography values ranging from the 65th percentile to max will be classified as bowl (barring other criteria)
-    #       troughPercentile = (25, 65) - Positive residual topography values ranging from the 25th to 65th percentile will be classified as trough (barring other criteria)
+    #       bowlPercentile = (-65, ): Negative residual topography values ranging from the 65th percentile to max will be classified as bowl (barring other criteria)
+    #       moundTransitionPercentile = (15, 35): Positive residual topography values ranging from the 15th to 35th percentile will be classified as mound transition(barring other criteria)
 
+# Tier 3 GU Additional Parameters
+    # createPocketPools:    Argument indicating if pocket pools (i.e., pools with area < pool area threshold) should be created/classified
+    # poolAreaThresh:       Area threshold (as ratio fo bfw) for pool features.  Applies to pools, ponds
+    # planebedAreaThresh:   Area threshold (as ratio fo bfw) for planebed features.  Applies to: run-glides, rapids, cascades
+    # barAreaThresh:        Area threshold (as ratio fo bfw) for bar features.  Applies to: margin-attached bars, mid-channel bars.
+    # chuteAreaThresh:      Area threshold (as ratio fo bfw) for chute features.  Applies to: chutes, shallow thalwegs
 
-# Tier 3 Additional Parameters
-    # areaThresh:       Area threshold (as ratio fo bfw) for cascades, rapids, transitions, glide-runs.
+# Tier 3 SubGU Additional Parameters
+    # waterfallReliefThreshold: Relief value above which a step feature will be classified as a waterfall
 
 # ---------------------------------------------------------------------
 #  Project Level Parameters
 workspace      = r'C:\et_al\Shared\Projects\USA\CHaMP\ResearchProjects\GUT\wrk_Data\Lemhi\CBW05583-028079\2012\VISIT_1029\ModelRuns'
-runFolderName  = 'GUT_2.1\Run_Test02'
+runFolderName  = 'GUT_2.1\Run_Test04'
 
 #  Tier 1 Parameters
 #  -----------------------------
@@ -50,31 +56,36 @@ inDEM          = 'Inputs/DEM.tif'
 #  Input Shapefiles:
 thalwegShp     = 'Inputs/Thalwegs.shp'
 wCL            = 'Inputs/CenterLine.shp'
+
 #  Unit Form Arguments:
-createSaddles = 'True' # Default: 'True'
+createSaddles = 'Yes' # Default: 'Yes'
+saddleAreaThresh = 0.25 # Default: 0.25
 wallSlopeTh    = '' # Default: '' [if left blank slope distribution [mean + sd] is used to set threshold]
+
 #  - Residual Topography Percentile Thresholds -
-#  Discrete Form Output:
-bowlPercentile = (65, )  # Default: (65, )
-troughPercentile = (25, ) # Default: (25, )
-planePercentile = (25, 25) # Default: (25, 25)
-moundPercentile = (25, ) # Default: (25, )
-#  Transition Form Output:
-bowlPercentile2 = (65, )  # Default: (65, )
-troughPercentile2 = (25, 65) # Default: (25, 65)
-planePercentile2 = (25, 15) # Default: (25, 15)
-moundTransitionPercentile = (15, 35)  # Default: (15, 35)
-moundPercentile2 = (35, ) # Default: (35, )
+bowlPercentile = (-65, )  # Default: (-65, )
+troughPercentile = (-25, -65) # Default: (-25, -65)
+planePercentile = (-25, 15) # Default: (-25, 15)
+moundTransitionPercentile = (15, 35) # Default: (15, 35)
+moundPercentile = (35, ) # Default: (35, )
 
 #  Tier 3 Additional Parameters
 #  -----------------------------
-#  Input Shapefiles and Rasters:
-areaThresh = 0.75  # Default: 0.75
+createPocketPools = 'Yes' # Default: 'Yes'
+#  - Area Thresholds -
+poolAreaThresh = 0.5  # Default: 0.5; Applies to: pools, ponds
+planebedAreaThresh = 0.75  # Default: 0.75; Applies to: run-glides, rapids, cascades
+barAreaThresh = 0.25  # Default: 0.5; Applies to: margin-attached bars, mid-channel bars
+chuteAreaThresh = 0.25  # Default: 0.25; Applies to: chutes, shallow thalwegs
+
+#  Tier 3 SubGU Additional Parameters
+#  -----------------------------
+waterfallReliefThreshold = 3.0 # Default: 3.0
 
 import tierFunctions
 myVars = globals()
 
-tierFunctions.tier1(**myVars)
-tierFunctions.tier2(**myVars)
+#tierFunctions.tier1(**myVars)
+#tierFunctions.tier2(**myVars)
 tierFunctions.tier3(**myVars)
-tierFunctions.tier3_subGU(**myVars)
+#tierFunctions.tier3_subGU(**myVars)
