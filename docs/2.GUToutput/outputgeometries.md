@@ -1,64 +1,67 @@
 ---
-title: GUT outputs
+title: GUT Output
+weight: 20
 ---
-
-
-##Geometries
-
 Currently, GUT outputs several shapefiles and each has unique geometries.
 
+## Tier 1
 ### Tier1_InChannel.shp
-
 A shapefile where each geometry represents a flow unit.  This layer is derived from user supplied bankfull and low flow water extent polygon ([Tier 1  descripton]({{ site.baseurl }}/4.guDescriptions/Tier1)). 
 
-Each geometry is categorized  as:
-#### Flow Unit Categories
-- **high**
-- **emergent**
-- **submerged**
+#### Flow Unit Categories:
+- High
+- Emergent
+- Submerged
 
+## Tier 2 
 ### Tier2_InChannel.shp
+A shapefile where each geometry represents a form unit derived from topography.  Full definitions and description for how these are derived: ([Tier 2 descripton]({{ site.baseurl }}/4.guDescriptions/Tier2)) 
 
-A shapefile where each geometry represents a form unit derived from topography.. Figure 1 illustrates these form units relate to contour signatures. Full definitions and description for how these are derived: ([Tier 2 descripton]({{ site.baseurl }}/4.guDescriptions/Tier2)) 
+#### Unit Shape Categories:
+- Convexity
+- Planar Feature
+- Concavity
 
-[![shapeContour]({{site.baseurl}}(/assets/images/shapeContour.png)](/assets/images/hr/shapeContour.png)
-Figure 2. Cartoon of Tier 2 forms.
-
-Each geometry is categorized  as:
-#### Unit Form Categories
-
-#####Predominantly convex
+#### Unit Form Categories:
+**Predominantly Convex**
 - Mound
 - Mound Transition
 - Saddle
-#####Predominantly planar
+
+**Predominantly Planar**
 - Wall
 - Plane 
 - Trough
-#####Predominantly concave
+
+**Predominantly Concave**
 - Bowl Transition
 - Bowl
 
-### Tier2_InChannel_discrete.shp
+### Tier2_InChannel_Discrete.shp
 A shapefile where each geometry represents a form unit, but transitions (Mound Transitions and Bowl Transitions) are excluded from the output giving a more discrete look. ([Tier 2 descripton]({{ site.baseurl }}/4.guDescriptions/Tier2)) 
 
+## Tier 3 
 ### Tier3_InChannel_GU.shp
 A shapefile of major geomorphic units requiring minimal to no user editing to obtain decent maps. These units are created and named by using Tier2_InChannel output as well as derived evidence layers and numeric attributes.  Full definitions used in the algorithms and description of workflows can be viewed here: ([Tier 3  descripton]({{ site.baseurl }}/4.guDescriptions/Tier3)). In the configure file, minimum size thresholds can be set for different sets of units.  
 
 *Units  in italics are under development and are not currently included in the workflows.*
 
-#####Predominantly convex
+#### Geomorphic Unit Categories:
+
+**Predominantly Convex**
 - Margin Attached Bar
 - Mid-Channel Bar
 - Riffle
-#####Predominantly planar
+
+**Predominantly Planar**
 - Glide-Run
 - Rapid 
 - Cascade
 - Transition
 - Bank
 - *Step*
-#####Predominantly concave
+
+**Predominantly Concave**
 - Pocket Pool
 - Pond
 - Pool
@@ -76,32 +79,34 @@ This shapefile further categorizes geomorphic units with more specific names. Fo
 
 Below is  the selection of  Tier3 subGU units that the tool has logic to define  ([Tier 3 SubGU descripton]({{ site.baseurl }}/4.guDescriptions/Tier3Sub)). We recognize that this is not an exhaustive list and we are missing units of geomorphic interest.  Currently the output at this level of detail is still in being developed. You are fully welcome to edit your final maps to suit your own mapping needs. 
 
-
-
 *Sub units identified in italics are under development and are not currently included in the workflows.* 
-
 **Sub units in bold depend on user editing of the attributes**
 
-####Types of Banks
+#### Types of Banks
 Bank, *Cutbank*
-####Types of Margin Attached Bars
-Bar, Diagonal Bar, Lateral Bar, 
-####Types of Mid Channel Bars
+#### Types of Margin Attached Bars
+Bar, Diagonal Bar, Lateral Bar
+
+#### Types of Mid Channel Bars
 Longitudinal Bar, Island Bar, Diagonal Bar, Compound Bar, **Lobate Bar**
-####Types of Pools
+
+#### Types of Pools
 Pool, Confluence Pool, Meander Pool, **Plunge Pool**
-####Types of Ponds
+
+#### Types of Ponds
 Pond, Backwater Pond, *Beaver Pond*
-####Types of Transitions
+
+#### Types of Transitions
 Transition,*Barface, Bench* 
-####Types Chutes
+
+#### Types Chutes
 Cut-off Chute, Chute, Shallow Thalweg
-####*Types of Steps*  (steps not currently included.)
+
+#### *Types of Steps*  (steps not currently included.)
 *Wood-forced Step, Boulder forced step, Step, Waterfall*
-####Types of Glide-Runs
+
+#### Types of Glide-Runs
 Glide-Run,*Glide, Run*
-####Units without Sub Units
+
+#### Units without Sub Units
 Rapid, Cascade, Pocket Pool
-
-
-

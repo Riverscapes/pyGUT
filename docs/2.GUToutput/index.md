@@ -1,15 +1,15 @@
 ---
-title: GUT outputs
+title: GUT Output
 ---
-GUT outputs each unique geometry as a polygon shapefile.  These shapefiles contain categorical attribute and numeric attribute fields (columns)  to describe each unique polygon (row).  In addition to the output shapefiles the code will generate numerous evidence shapefiles (lines, points and polygons) and rasters that could be handy.  
+GUT outputs each unique geometry (e.g., Tier 1, Tier 2) as a polygon shapefile and writes them to an 'Output' folder.  These shapefiles contain categorical and numeric attribute fields (columns)  to describe each unique polygon (row).  In addition, GUT produces numerous intermediary shapefiles and rasters that are used in the model algorithms.   Several of these intermediary layers are written to a 'EvidenceLayers' folder as we find them useful for understanding the output and running subsequent analyses.
 
-1. [the output geometries]({{ site.baseurl }}/2.GUToutput/outputgeometries)
-2. [categorical attributes]({{ site.baseurl }}/2.GUToutput/categoricalattributes)
-3. [numeric attributes]({{ site.baseurl }}/2.GUToutput/numericattributes)
-4. [evidence layers]({{ site.baseurl }}/2.GUToutput/evidencelayers)
+An important element of the GUT framework is the conceptualization of each tier as having **geometries** in accordance to a theme: 
 
+- Tier 1 has **flow** related geometries
+- Tier 2 has **topographic** related geometries
+- Tier 3 has **geomorphic** related geometries.  
 
-The most important element of the  [GUT_Framework]({{site.baseurl}}/assets/images/hr/GUT_Framework.png)  is the conceptualization of each tier as having [geometries]({{site.baseurl}}/docs/2.GUToutput/outputgeometries) in accordance to a theme: tier 1 has flow related geometries, tier 2 has topographic related geometries, tier 3 has geomorphic related geometries.  For each geometry, previous tier geometry, [categorical]({{site.baseurl}}/docs/2.GUToutput/categoricalattributes) and   [numeric]({{site.baseurl}}/docs/2.GUToutput/numericattributes) attributes, and [evidence layers]({{site.baseurl}}/docs/GUToutput/evidencelayers) created from user supplied [inputs]({{site.baseurl}}/docs/1.RunningGUT/inputs) are utilized by the [tool's algorithms]({{site.baseurl}}/docs/4.guDescriptions/index.md) to derive unit names. 
+The **evidence layers** created from the user supplied inputs, the previous tier **geometry** (after Tier 1), along with the unit's **categorical and numeric attributes** are used in the GUT algorithms to derive unit names for each polygon.  
 
-It is important to note that tier outputs are used as evidence to derive subsequent tier outputs but that higher order tier geometries are not not necessarily nested within lower tier geometries. The modularization of the Tier output so that it doesn’t follow a strict hierarchy allows for flexible analysis and customization to suit a broad range of questions and many scales.  The geometries and associated attributes from any tier can be intersected with any other tier, making a wide variety of  [applications]({{site.baseurl}}/docs/Applications/index.md) possible.  For example, an analysis could be conducted using the intersection between banks (geomorphic name from Tier 3) and submergence (flow attribute from Tier 1).  
+It is important to note that while tier outputs are used as evidence to derive subsequent tier outputs, the higher order tier geometries (e.g., Tier 3) are not not necessarily nested within lower tier geometries (e.g., Tier 2). The modularization of the tier output so that it doesn’t follow a strict hierarchy allows for flexible analysis and customization to suit a broad range of questions and many scales.  The geometries and associated attributes from any tier can be intersected with any other tier, allowing for a wide variety of  analyses.  For example, an analysis could be conducted using the intersection between banks (classified at Tier 3) and submergence (Tier 1 flow attribute).  
 

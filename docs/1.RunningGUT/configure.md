@@ -1,6 +1,8 @@
 ---
-title: User defined variables
+title: Setting Tool Parameters
+weight: 50
 ---
 
-This explains the configure file and user defined variables. 
+This will explain the configure file and user defined settings/parameters..... 
 
+[![underConstruction]({{site.baseurl}}/assets/images/underConstruction.png)]({{site.baseurl}}/assets/images/hr/underConstruction.png)

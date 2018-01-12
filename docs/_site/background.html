@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+  <head>
+      <meta charset="utf-8">
+      <meta http-equiv="x-ua-compatible" content="ie=edge">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Geomorphic Unit Tool Documentation</title>
+
+      <meta name="viewport" content="width=device-width">
+      <link rel="stylesheet" href="/pyGUT/assets/css/app.css">
+      <link rel="stylesheet" href="/pyGUT/assets/css/custom.css">
+      <script src="https://use.fontawesome.com/586b1e1322.js"></script>
+
+      <link rel="apple-touch-icon" sizes="57x57" href="/pyGUT/assets/images/favicons/apple-icon-57x57.png">
+      <link rel="apple-touch-icon" sizes="60x60" href="/pyGUT/assets/images/favicons/apple-icon-60x60.png">
+      <link rel="apple-touch-icon" sizes="72x72" href="/pyGUT/assets/images/favicons/apple-icon-72x72.png">
+      <link rel="apple-touch-icon" sizes="76x76" href="/pyGUT/assets/images/favicons/apple-icon-76x76.png">
+      <link rel="apple-touch-icon" sizes="114x114" href="/pyGUT/assets/images/favicons/apple-icon-114x114.png">
+      <link rel="apple-touch-icon" sizes="120x120" href="/pyGUT/assets/images/favicons/apple-icon-120x120.png">
+      <link rel="apple-touch-icon" sizes="144x144" href="/pyGUT/assets/images/favicons/apple-icon-144x144.png">
+      <link rel="apple-touch-icon" sizes="152x152" href="/pyGUT/assets/images/favicons/apple-icon-152x152.png">
+      <link rel="apple-touch-icon" sizes="180x180" href="/pyGUT/assets/images/favicons/apple-icon-180x180.png">
+      <link rel="icon" type="image/png" sizes="192x192"  href="/pyGUT/assets/images/favicons/android-icon-192x192.png">
+      <link rel="icon" type="image/png" sizes="32x32" href="/pyGUT/assets/images/favicons/favicon-32x32.png">
+      <link rel="icon" type="image/png" sizes="96x96" href="/pyGUT/assets/images/favicons/favicon-96x96.png">
+      <link rel="icon" type="image/png" sizes="16x16" href="/pyGUT/assets/images/favicons/favicon-16x16.png">
+      <link rel="manifest" href="/pyGUT/assets/images/favicons/manifest.json">
+      <meta name="msapplication-TileColor" content="#ffffff">
+      <meta name="msapplication-TileImage" content="/pyGUT/assets/images/favicons/ms-icon-144x144.png">
+      <meta name="theme-color" content="#ffffff">
+
+      <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+      <![endif]-->
+  </head>
+
+  <body>
+
+  <div id="topbarnav"></div>
+  <header>
+    <div class="text-center callout large">
+      
+      <h4 class="subheader show-for-medium"><a href="/pyGUT/">Geomorphic Unit Tool Documentation</a></h4>   
+      <h1>Background</h1>
+            
+      
+    </div>
+  </header>
+
+  <div id="inner" class="row">
+    <div id="main" class="large-8 columns large-push-4">
+      <section><p>The Geomorphic Unit Tool (GUT) workflow is structured around a 3-tiered hierarchcial classification (Figure 1) adapted from  <a href="https://doi.org/10.1016/j.geomorph.2015.07.010">Wheaton et al (2015)</a>.  The Wheaton classification was modified to include attributes from the Geomorphic Unit Survey (<a href="https://doi.org/10.1016/j.geomorph.2017.01.032">Belletti et al, 2017</a>; <a href="http://www.reformrivers.eu/system/files/6.2%20Methods%20to%20assess%20hydromorphology%20of%20rivers%20part%20III%20revised_0.pdf">Rinaldi et al, 2015</a>) to better handle variations in flow stage.</p>
+
+<p><a href="/pyGUT/assets/images/hr/GUT_Framework.png"><img src="/pyGUT/assets/images/GUT_Framework.png" alt="GUT_Framework" /></a>
+Figure 1. Hierarchichal framework adapted from Wheaton et al (2015).</p>
+
+<h2 id="wheaton-fluvial-taxonomy">Wheaton Fluvial Taxonomy</h2>
+
+<p>Wheaton’s fluvial taxonomy <a href="https://doi.org/10.1016/j.geomorph.2015.07.010">(Wheaton et al., 2015)</a>  differentiates geomorphic units based on stage height (Tier 1), topographic shape (Tier 2), geomorphic attributes such as position and orientation (Tier 3), and patch characteristics such as vegetation and grain size (Tier 4). Furthermore, instream elements which are not shaped by the deposition and erosion of sediments are mapped as structural elements (e.g. logs, boulders, vegetation and man-made structures) and used to further differentiate geomorphic unit type (e.g., dam forced pool). The advantages of this scheme are: 1) after in-channel regions are identified at Tier 1, the delineation of units, such as the extent of bars, is flow independent, and 2) geomorphic units can be examined in relation to the spatial distribution of structural elements.   At this time, we have not incorporated Tier 4 patch attributes such as vegetation and grain size, but a workflow could be easily added that uses the output from Tier 3 along with additional patch characteristic input file to create patch level geomorphic units.</p>
+
+<h2 id="geomorphic-unit-system-gus">Geomorphic Unit System (GUS)</h2>
+
+<p>The Geomorphic Unit System (GUS) was developed independently around the same time as the Wheaton taxonomy and shares several similarities.  However, rather than focusing on deriving units from topography, GUS focuses on first classifying units from satellite and aerial imagery <a href="https://doi.org/10.1016/j.geomorph.2017.01.032">(Belletti et al, 2017)</a>. Once a region is mapped at the macro level, it is visited and mapped in finer detail at a unit or subunit scale based on identifying characteristics such as hydraulic conditions and process of formation. Units and subunits are identified using a guidebook of all possible units and subunits within each macro unit <a href="http://www.reformrivers.eu/system/files/6.2%20Methods%20to%20assess%20hydromorphology%20of%20rivers%20part%20III%20revised_0.pdf">(Rinaldi et al, 2015)</a>. This approach is flow dependent rather than independent, which is advantageous for exploring questions relating flow to geomorphic units.</p>
+
+<h2 id="topographic-form-classification">Topographic Form Classification</h2>
+
+<p>GUT includes a new topographic form attribute classification scheme at the Tier 2 level (Bangen et al, In Prep) that further differentiates topogaphic shapes into forms with similar topographic signatures: bowls, mounds, planes, troughs and walls (Figure 2).   During development, we discovered that these forms were needed to better segment topography prior to unit designation at the Tier 3 level.  Because the boundaries between these forms are inherently fuzzy, we also output a Tier 2 transitions shapefile which includes bowl transitions and mound transitions.  Boundaries are placed based on user-defined thresholds set in the configure file.  Analysis of transition zones can be conducted by adjusting these dials and comparing output.</p>
+
+<p><a href="/pyGUT/assets/images/hr/shapeContour.png"><img src="/pyGUT/assets/images/shapeContour.png" alt="shapeContour" /></a>
+Figure 2.  Generalized topographic shape (top) and contour signatures (bottom) for each of the main forms delineated by GUT.</p>
+</section>
+    </div>
+    <div id="sidebar" class="large-4 columns large-pull-8">
+        
+	
+	<div class="title-bar">
+		<div class="title-bar-title"><i class="fa fa-file-text"></i> Page Contents</div>		
+	</div>
+	<div id="toc"></div>
+	
+
+
+<div class="title-bar">
+	<div class="title-bar-title"><i class="fa fa-sitemap"></i> Site Contents
+		<div id="menuCtls" class="button-group tiny show-for-medium">
+				<span id="expand" class="button primary fa fa-plus has-tip top" data-tooltip title="Expand all items" aria-haspopup="true" data-disable-hover="false" ></span>
+				<span id="contract" class="button primary fa fa-minus has-tip top" data-tooltip title="Contract all items" aria-haspopup="true" data-disable-hover="false" ></span>
+			</div>	
+	</div>
+</div>
+<div id="sidenav"></div>
+
+      </div>
+  </div>
+
+    <footer class="row">
+    <div class="large-12 columns">
+© Copyright <script>var year = new Date();document.write(year.getFullYear());</script>
+    <a href="http://www.northarrowresearch.com" target="_blank">North Arrow Research</a>
+    </div>
+</footer>
+    <script type="text/javascript">var NAVTitle = "Geomorphic Unit Tool Documentation";var NAVHome = "/pyGUT";var NAVPages = [{url: "/1.RunningGUT/configure.html",absurl: "/pyGUT/1.RunningGUT/configure.html",slug: "configure.html",title: "Setting Tool Parameters",weight: "50"},{url: "/1.RunningGUT/execute.html",absurl: "/pyGUT/1.RunningGUT/execute.html",slug: "execute.html",title: "Executing the Tool",weight: "99"},{url: "/1.RunningGUT/",absurl: "/pyGUT/1.RunningGUT/",slug: "1.RunningGUT",title: "How to Run GUT",weight: ""},{url: "/1.RunningGUT/inputs.html",absurl: "/pyGUT/1.RunningGUT/inputs.html",slug: "inputs.html",title: "User Inputs",weight: "1"},{url: "/2.GUTOutput/categoricalattributes.html",absurl: "/pyGUT/2.GUTOutput/categoricalattributes.html",slug: "categoricalattributes.html",title: "Categorical Attributes",weight: "80"},{url: "/2.GUTOutput/evidencelayers.html",absurl: "/pyGUT/2.GUTOutput/evidencelayers.html",slug: "evidencelayers.html",title: "Evidence Layers",weight: "1"},{url: "/2.GUTOutput/",absurl: "/pyGUT/2.GUTOutput/",slug: "2.GUTOutput",title: "GUT Output",weight: ""},{url: "/2.GUTOutput/numericattributes.html",absurl: "/pyGUT/2.GUTOutput/numericattributes.html",slug: "numericattributes.html",title: "Numeric Attributes",weight: "99"},{url: "/2.GUTOutput/outputgeometries.html",absurl: "/pyGUT/2.GUTOutput/outputgeometries.html",slug: "outputgeometries.html",title: "GUT Output",weight: "20"},{url: "/3.GUTAlgorithms/",absurl: "/pyGUT/3.GUTAlgorithms/",slug: "3.GUTAlgorithms",title: "GU Algorithm Descriptions",weight: ""},{url: "/3.GUTAlgorithms/tier1.html",absurl: "/pyGUT/3.GUTAlgorithms/tier1.html",slug: "tier1.html",title: "Tier 1 - Valley Unit and Flow Unit",weight: ""},{url: "/3.GUTAlgorithms/tier2.html",absurl: "/pyGUT/3.GUTAlgorithms/tier2.html",slug: "tier2.html",title: "Tier 2 - Unit Shape and Form",weight: ""},{url: "/3.GUTAlgorithms/tier3.html",absurl: "/pyGUT/3.GUTAlgorithms/tier3.html",slug: "tier3.html",title: "Tier 3 - Geomorphic Unit",weight: ""},{url: "/3.GUTAlgorithms/tier3Sub.html",absurl: "/pyGUT/3.GUTAlgorithms/tier3Sub.html",slug: "tier3Sub.html",title: "Tier 3 - Sub Geomorphic Unit Workflows",weight: ""},{url: "/applications.html",absurl: "/pyGUT/applications.html",slug: "applications.html",title: "GUT Applications",weight: "999"},{url: "/background.html",absurl: "/pyGUT/background.html",slug: "background.html",title: "Background",weight: ""},{url: "/",absurl: "/pyGUT/",slug: "",title: "Geomorphic Unit Tool",weight: ""},{url: "/references.html",absurl: "/pyGUT/references.html",slug: "references.html",title: "References",weight: "999"},];var SiteSettings = {"autoPageContents":{"active":true,"onHome":false},"sideMenu":{"homeItem":true,"startExpanded":false},"topmenu":[{"title":"About","url":"ThingsA"},{"title":"Submenu","children":[{"title":"subsub","url":"ThingsB/subpageB.html"},{"title":"SubSUBmenu","children":[{"title":"Google","url":"https://google.com"}]}]},{"title":"Config","url":"index.html"},{"title":"Deploy","url":"index.html"}]};</script>
+
+    <script src="/pyGUT/assets/js/dist.js"></script>
+
+  </body>
+
+</html>

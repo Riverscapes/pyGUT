@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+  <head>
+      <meta charset="utf-8">
+      <meta http-equiv="x-ua-compatible" content="ie=edge">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Geomorphic Unit Tool Documentation</title>
+
+      <meta name="viewport" content="width=device-width">
+      <link rel="stylesheet" href="/pyGUT/assets/css/app.css">
+      <link rel="stylesheet" href="/pyGUT/assets/css/custom.css">
+      <script src="https://use.fontawesome.com/586b1e1322.js"></script>
+
+      <link rel="apple-touch-icon" sizes="57x57" href="/pyGUT/assets/images/favicons/apple-icon-57x57.png">
+      <link rel="apple-touch-icon" sizes="60x60" href="/pyGUT/assets/images/favicons/apple-icon-60x60.png">
+      <link rel="apple-touch-icon" sizes="72x72" href="/pyGUT/assets/images/favicons/apple-icon-72x72.png">
+      <link rel="apple-touch-icon" sizes="76x76" href="/pyGUT/assets/images/favicons/apple-icon-76x76.png">
+      <link rel="apple-touch-icon" sizes="114x114" href="/pyGUT/assets/images/favicons/apple-icon-114x114.png">
+      <link rel="apple-touch-icon" sizes="120x120" href="/pyGUT/assets/images/favicons/apple-icon-120x120.png">
+      <link rel="apple-touch-icon" sizes="144x144" href="/pyGUT/assets/images/favicons/apple-icon-144x144.png">
+      <link rel="apple-touch-icon" sizes="152x152" href="/pyGUT/assets/images/favicons/apple-icon-152x152.png">
+      <link rel="apple-touch-icon" sizes="180x180" href="/pyGUT/assets/images/favicons/apple-icon-180x180.png">
+      <link rel="icon" type="image/png" sizes="192x192"  href="/pyGUT/assets/images/favicons/android-icon-192x192.png">
+      <link rel="icon" type="image/png" sizes="32x32" href="/pyGUT/assets/images/favicons/favicon-32x32.png">
+      <link rel="icon" type="image/png" sizes="96x96" href="/pyGUT/assets/images/favicons/favicon-96x96.png">
+      <link rel="icon" type="image/png" sizes="16x16" href="/pyGUT/assets/images/favicons/favicon-16x16.png">
+      <link rel="manifest" href="/pyGUT/assets/images/favicons/manifest.json">
+      <meta name="msapplication-TileColor" content="#ffffff">
+      <meta name="msapplication-TileImage" content="/pyGUT/assets/images/favicons/ms-icon-144x144.png">
+      <meta name="theme-color" content="#ffffff">
+
+      <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+      <![endif]-->
+  </head>
+
+  <body>
+
+  <div id="topbarnav"></div>
+  <header>
+    <div class="text-center callout large">
+      
+      <h1>Geomorphic Unit Tool Documentation</h1>
+        
+      
+    </div>
+  </header>
+
+  <div id="inner" class="row">
+    <div id="main" class="large-8 columns large-push-4">
+      <section><p><a href="/pyGUT/assets/images/hr/GUTLogo.png"><img src="/pyGUT/assets/images/GUTLogo.png" alt="GUTLogo" /></a></p>
+
+<h2 id="about">About</h2>
+
+<p>Welcome to PyGUT website. This site provides documentation for the Geomorphic Unit Tool (GUT).  The tool delineates instream geomorphic units (GUs) from topography using a 3-tiered hierarchical classification adapted from <a href="https://doi.org/10.1016/j.geomorph.2015.07.010">(Wheaton et al., 2015)</a>.</p>
+
+<p>We provide documentation on:</p>
+
+<ol>
+  <li>Theoretical <a href="/pyGUT/background">background</a> underpinning the tool</li>
+  <li>Example <a href="/pyGUT/applications">applications</a></li>
+  <li>How to <a href="/pyGUT/1.RunningGUT/index">run GUT</a></li>
+  <li>Descriptions of <a href="/pyGUT/2.GUTOutput/index">GUT output</a></li>
+  <li>The  <a href="/pyGUT/3.GUTAlgorithms/index">nuts and bolts</a> behind the algorithms</li>
+</ol>
+
+<p><em>The website is still under construction but will be fully populated shortly.  In the meantime, if you have questions or want to run the code, please contact Sara Bangen (sara.bangen@gmail.com) or Natalie Kramer (n.kramer.anderson@gmail.com).</em></p>
+
+<h2 id="developers">Developers</h2>
+
+<p><a href="http://etal.joewheaton.org/people/researchers-technicians/sara-bangen">Sara Bangen</a>,   <a href="http://etal.joewheaton.org/people/researchers-technicians/natalie-kramer">Natalie Kramer</a>, and <a href="http://joewheaton.org/">Joe Wheaton</a> of Utah State University’s <a href="http://etal.joewheaton.org/">Ecogeomorphology &amp; Topographic Analysis Lab</a></p>
+
+<h2 id="source-code">Source Code</h2>
+
+<p>The code to run GUT is available in the <a href="https://github.com/Riverscapes/pyGUT">pyGUT repo</a> on GitHub.</p>
+
+<h2 id="prerequisites">Prerequisites</h2>
+
+<p>GUT is designed to run in Python and currently has ESRI dependencies.  Users need to have ArcMap 10.1 or greater along with Spatial Analyst and 3D Analyst extensions.  In the future, we plan to code GUT in an open source language.</p>
+
+<h2 id="presentations--publications">Presentations &amp; Publications</h2>
+
+<ul>
+  <li>Kramer N, Bangen SG, Wheaton JM, Bouwes N, Wall E, Saunders C, and Bennett S.. 2017. Geomorphic Unit Tool (GUT): Applications in Fluvial Mapping. EP11A-1546. AGU. New Orleans, LA, 11-15 Dec. DOI: <a href="https://doi.org/10.13140/RG.2.2.30142.18241">10.13140/RG.2.2.30142.18241</a></li>
+  <li>Bangen SG, Kramer N, Wheaton, JM, and Bouwes N. 2017. The GUTs of the Geomorphic Unit Tool: What is under the hood. EP31D-1901. AGU. New Orleans, LA, 11-15 Dec. DOI: <a href="https://doi.org/10.13140/RG.2.2.31118.66884">10.13140/RG.2.2.31118.66884</a></li>
+  <li>Bangen SG, Kramer N, Wheaton JM, and Bouwes N. In Preparation. Mapping instream geomorphic units from high resolution topography.</li>
+</ul>
+
+</section>
+    </div>
+    <div id="sidebar" class="large-4 columns large-pull-8">
+        
+	
+
+
+<div class="title-bar">
+	<div class="title-bar-title"><i class="fa fa-sitemap"></i> Site Contents
+		<div id="menuCtls" class="button-group tiny show-for-medium">
+				<span id="expand" class="button primary fa fa-plus has-tip top" data-tooltip title="Expand all items" aria-haspopup="true" data-disable-hover="false" ></span>
+				<span id="contract" class="button primary fa fa-minus has-tip top" data-tooltip title="Contract all items" aria-haspopup="true" data-disable-hover="false" ></span>
+			</div>	
+	</div>
+</div>
+<div id="sidenav"></div>
+
+      </div>
+  </div>
+
+    <footer class="row">
+    <div class="large-12 columns">
+© Copyright <script>var year = new Date();document.write(year.getFullYear());</script>
+    <a href="http://www.northarrowresearch.com" target="_blank">North Arrow Research</a>
+    </div>
+</footer>
+    <script type="text/javascript">var NAVTitle = "Geomorphic Unit Tool Documentation";var NAVHome = "/pyGUT";var NAVPages = [{url: "/1.RunningGUT/configure.html",absurl: "/pyGUT/1.RunningGUT/configure.html",slug: "configure.html",title: "Setting Tool Parameters",weight: "50"},{url: "/1.RunningGUT/execute.html",absurl: "/pyGUT/1.RunningGUT/execute.html",slug: "execute.html",title: "Executing the Tool",weight: "99"},{url: "/1.RunningGUT/",absurl: "/pyGUT/1.RunningGUT/",slug: "1.RunningGUT",title: "How to Run GUT",weight: ""},{url: "/1.RunningGUT/inputs.html",absurl: "/pyGUT/1.RunningGUT/inputs.html",slug: "inputs.html",title: "User Inputs",weight: "1"},{url: "/2.GUTOutput/categoricalattributes.html",absurl: "/pyGUT/2.GUTOutput/categoricalattributes.html",slug: "categoricalattributes.html",title: "Categorical Attributes",weight: "80"},{url: "/2.GUTOutput/evidencelayers.html",absurl: "/pyGUT/2.GUTOutput/evidencelayers.html",slug: "evidencelayers.html",title: "Evidence Layers",weight: "1"},{url: "/2.GUTOutput/",absurl: "/pyGUT/2.GUTOutput/",slug: "2.GUTOutput",title: "GUT Output",weight: ""},{url: "/2.GUTOutput/numericattributes.html",absurl: "/pyGUT/2.GUTOutput/numericattributes.html",slug: "numericattributes.html",title: "Numeric Attributes",weight: "99"},{url: "/2.GUTOutput/outputgeometries.html",absurl: "/pyGUT/2.GUTOutput/outputgeometries.html",slug: "outputgeometries.html",title: "GUT Output",weight: "20"},{url: "/3.GUTAlgorithms/",absurl: "/pyGUT/3.GUTAlgorithms/",slug: "3.GUTAlgorithms",title: "GU Algorithm Descriptions",weight: ""},{url: "/3.GUTAlgorithms/tier1.html",absurl: "/pyGUT/3.GUTAlgorithms/tier1.html",slug: "tier1.html",title: "Tier 1 - Valley Unit and Flow Unit",weight: ""},{url: "/3.GUTAlgorithms/tier2.html",absurl: "/pyGUT/3.GUTAlgorithms/tier2.html",slug: "tier2.html",title: "Tier 2 - Unit Shape and Form",weight: ""},{url: "/3.GUTAlgorithms/tier3.html",absurl: "/pyGUT/3.GUTAlgorithms/tier3.html",slug: "tier3.html",title: "Tier 3 - Geomorphic Unit",weight: ""},{url: "/3.GUTAlgorithms/tier3Sub.html",absurl: "/pyGUT/3.GUTAlgorithms/tier3Sub.html",slug: "tier3Sub.html",title: "Tier 3 - Sub Geomorphic Unit Workflows",weight: ""},{url: "/applications.html",absurl: "/pyGUT/applications.html",slug: "applications.html",title: "GUT Applications",weight: "999"},{url: "/background.html",absurl: "/pyGUT/background.html",slug: "background.html",title: "Background",weight: ""},{url: "/",absurl: "/pyGUT/",slug: "",title: "Geomorphic Unit Tool",weight: ""},{url: "/references.html",absurl: "/pyGUT/references.html",slug: "references.html",title: "References",weight: "999"},];var SiteSettings = {"autoPageContents":{"active":true,"onHome":false},"sideMenu":{"homeItem":true,"startExpanded":false},"topmenu":[{"title":"About","url":"ThingsA"},{"title":"Submenu","children":[{"title":"subsub","url":"ThingsB/subpageB.html"},{"title":"SubSUBmenu","children":[{"title":"Google","url":"https://google.com"}]}]},{"title":"Config","url":"index.html"},{"title":"Deploy","url":"index.html"}]};</script>
+
+    <script src="/pyGUT/assets/js/dist.js"></script>
+
+  </body>
+
+</html>

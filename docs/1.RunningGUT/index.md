@@ -2,8 +2,9 @@
 title: How to Run GUT
 ---
 
-This explains the file structure, inputs and user variables needed to run GUT as well as how to execute the Python Script in single or batch mode.
+This page details:
+- **User Inputs** - the inputs that required to run GUT
+- **Setting Tool Parameters** - how to set-up a GUT run 
+- **Executing the Tool** - how to execute a GUT run (i.e, run the code)
 
-[Configure]({{ site.baseurl }}/RunningGUT/configure)
-[Inputs]({{ site.baseurl }}/RunningGUT/inputs)
-[Execute]({{ site.baseurl }}/RunningGUT/execute)
+**Important:** GUT is designed to run in Python and currently has ESRI dependencies.  Users need to have ArcMap 10.1 or greater along with Spatial Analyst and 3D Analyst extensions.  In the future, we plan to code GUT in an open source language.
