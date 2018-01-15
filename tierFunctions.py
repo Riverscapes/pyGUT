@@ -731,9 +731,9 @@ def tier2(**myVars):
 
         #  save tier 2 output
         if 'in_memory/MoundPlane' in shpList:
-            arcpy.CopyFeatures_management(tmp_units, os.path.join(outpath, 'Tier2_InChannel_Transition.shp'))
-        else:
             arcpy.CopyFeatures_management(tmp_units, os.path.join(outpath, 'Tier2_InChannel.shp'))
+        else:
+            arcpy.CopyFeatures_management(tmp_units, os.path.join(outpath, 'Tier2_InChannel_Discrete.shp'))
 
         #  remove temporary form sps
         shpList.extend([tmp_units])
@@ -1543,7 +1543,7 @@ def tier3(**myVars):
 
         # remove mid-edge polygons that are completely surrounded by a mound
         arcpy.SelectLayerByAttribute_management('outChEdge_lyr', 'NEW_SELECTION', """ "midEdge" = 'Yes' """)
-        arcpy.MakeFeatureLayer_management(os.path.join(outpath, 'Tier2_InChannel_Transition.shp'), 'forms_lyr')
+        arcpy.MakeFeatureLayer_management(os.path.join(outpath, 'Tier2_InChannel.shp'), 'forms_lyr')
 
         edge_forms = arcpy.SpatialJoin_analysis('outChEdge_lyr', 'forms_lyr', 'in_memory/tmp_edge_forms', 'JOIN_ONE_TO_MANY', '', '', 'INTERSECT')
         edge_forms_tbl = arcpy.Frequency_analysis(edge_forms, 'tbl_edge_forms.dbf', ['EdgeID'])
@@ -1836,7 +1836,7 @@ def tier3(**myVars):
     #  split units by slope categories
 
     #  create copy of tier 2 shapefile
-    units_t2 = arcpy.CopyFeatures_management(os.path.join(outpath, 'Tier2_InChannel_Transition.shp'), 'in_memory/tmp_tier2_inChannel')
+    units_t2 = arcpy.CopyFeatures_management(os.path.join(outpath, 'Tier2_InChannel.shp'), 'in_memory/tmp_tier2_inChannel')
     arcpy.MakeFeatureLayer_management(units_t2, 'units_t2_lyr')
     arcpy.SelectLayerByAttribute_management('units_t2_lyr', "NEW_SELECTION", """ "UnitForm" = 'Bowl Transition' """)
 
@@ -2271,7 +2271,7 @@ def tier3_subGU(**myVars):
     #  ----------------------------------
     #    create tier 3 subGU polygons
     #  ----------------------------------
-    t2_units = arcpy.CopyFeatures_management(os.path.join(outpath, 'Tier2_InChannel_Transition.shp'), 'in_memory/t2_units')
+    t2_units = arcpy.CopyFeatures_management(os.path.join(outpath, 'Tier2_InChannel.shp'), 'in_memory/t2_units')
     t3_units = arcpy.CopyFeatures_management(os.path.join(outpath, 'Tier3_InChannel_GU.shp'), 'in_memory/t3_units')
     fields = arcpy.ListFields(t2_units)
     keep = ['ValleyUnit', 'UnitShape', 'UnitForm']
