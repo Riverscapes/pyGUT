@@ -22,9 +22,12 @@ We provide documentation on:
 
 [Sara Bangen](http://etal.joewheaton.org/people/researchers-technicians/sara-bangen),   [Natalie Kramer](http://etal.joewheaton.org/people/researchers-technicians/natalie-kramer), and [Joe Wheaton](http://joewheaton.org/) of Utah State University's [Ecogeomorphology & Topographic Analysis Lab](http://etal.joewheaton.org/)
 
+
+## Releases
+If you are wishing to run the [latest release of pyGUT](https://github.com/Riverscapes/pyGUT/releases/latest), you can download the python scripts and associated Arc files [here](https://github.com/Riverscapes/pyGUT/releases/latest) from GitHub.  
 ## Source Code
 
-The code to run GUT is available in the [pyGUT repo](https://github.com/Riverscapes/pyGUT) on GitHub.  
+For those wishing to tweak the source code and/or documentaton, the open source version of pyGUT is available in the [pyGUT repo](https://github.com/Riverscapes/pyGUT) on GitHub.  
 
 ## Prerequisites
 
