@@ -7,7 +7,7 @@ import fnmatch
 import tempfile
 from arcpy.sa import *
 arcpy.CheckOutExtension('Spatial')
-arcpy.CheckOutExtension("3D")
+arcpy.CheckOutExtension('3D')
 
 
 #  --integrated width function--
@@ -798,7 +798,7 @@ def tier2(**myVars):
         #  clip the output to the bankfull polygon
         arcpy.Clip_analysis(polyBuffer, os.path.join(myVars['workspace'], myVars['bfPolyShp']), 'in_memory/chMarginPoly')
         #  convert the output to a raster
-        cm_raw = arcpy.PolygonToRaster_conversion('in_memory/chMarginPoly', 'FID', 'in_memory/chMargin_raw.tif', 'CELL_CENTER', 'NONE', '0.1')
+        cm_raw = arcpy.PolygonToRaster_conversion('in_memory/chMarginPoly', 'FID', 'in_memory/chMargin_raw', 'CELL_CENTER', 'NONE')
         #  set all cells to value of 1
         cm = Con(cm_raw, 1, "VALUE" >= 0)
         #  save the output
@@ -806,6 +806,7 @@ def tier2(**myVars):
     else:
         cm = Raster(os.path.join(evpath, 'chMargin.tif'))
 
+    print '...saddle contours...'
     # --saddle contours--
     if myVars['createSaddles'] == 'Yes':
         thalweg_basename = os.path.splitext(os.path.basename(os.path.join(myVars['workspace'], myVars['thalwegShp'])))[0]
@@ -831,49 +832,59 @@ def tier2(**myVars):
             #  convert bankfull polygon to line and merge with contours
             bankfull_line = arcpy.FeatureToLine_management([os.path.join(myVars['workspace'], myVars['bfPolyShp'])], 'in_memory/bankfull_line')
             contours_bankfull_merge = arcpy.Merge_management([line_lyr, bankfull_line], 'in_memory/contours_bankfull_merge')
-            #  create points at contour endpoints and assign unique 'endID' field
+            #  create points at contour endpoints
             end_points = arcpy.FeatureVerticesToPoints_management(contours_bankfull_merge, 'in_memory/contours_bankfull_merge_ends', 'BOTH_ENDS')
-            arcpy.AddField_management(end_points, 'endID', 'SHORT')
-            fields = ['endID']
-            ct = 1
-            with arcpy.da.UpdateCursor(end_points, fields) as cursor:
-                for row in cursor:
-                    row[0] = ct
-                    ct += 1
-                    cursor.updateRow(row)
             #  delete end points that intersect > 1 contour line - only want points that fall on end of a line
             end_points_join = arcpy.SpatialJoin_analysis(end_points, contours_bankfull_merge, 'in_memory/end_points_join', 'JOIN_ONE_TO_ONE', 'KEEP_ALL', '', 'INTERSECT')
             with arcpy.da.UpdateCursor(end_points_join, ['Join_Count']) as cursor:
                 for row in cursor:
                     if row[0] > 1:
                         cursor.deleteRow()
-            #  find nearest end point to each end point
-            end_points_join2 = arcpy.SpatialJoin_analysis(end_points_join, end_points_join, 'in_memory/end_points_join2', 'JOIN_ONE_TO_ONE', 'KEEP_ALL', '', 'CLOSEST', '', 'nearDist')
-            #  delete end points where near distance is 0 since these are 'false' end points on closed contours
-            with arcpy.da.UpdateCursor(end_points_join2, ['nearDist']) as cursor:
+            #  find and delete end points that are identical since these are 'false' end point on closed contours
+            identical_tbl = arcpy.FindIdentical_management(end_points_join, 'in_memory/identical_tbl', ['Shape'], '', '', 'ONLY_DUPLICATES')
+            identical_list = [row[0] for row in arcpy.da.SearchCursor(identical_tbl, ['IN_FID'])]
+            oid_fn = arcpy.Describe(end_points_join).OIDFieldName
+            with arcpy.da.UpdateCursor(end_points_join, [oid_fn]) as cursor:
                 for row in cursor:
-                    if row[0] <= 0.0:
+                    if row[0] in identical_list:
                         cursor.deleteRow()
-            #  rename/calculate near end id field to logical name
-            arcpy.AddField_management(end_points_join2, 'nearEndID', 'SHORT')
-            arcpy.AddField_management(end_points_join2, 'strContour', 'TEXT')
-            with arcpy.da.UpdateCursor(end_points_join2, ['endID_1', 'nearEndID', 'Contour', 'strContour']) as cursor:
+            #  assign unique 'endID' field
+            arcpy.AddField_management(end_points_join, 'endID', 'SHORT')
+            fields = ['endID']
+            ct = 1
+            with arcpy.da.UpdateCursor(end_points_join, fields) as cursor:
                 for row in cursor:
-                    row[1] = row[0]
+                    row[0] = ct
+                    ct += 1
+                    cursor.updateRow(row)
+            #  find nearest end point to each end point
+            arcpy.Near_analysis(end_points_join, end_points_join)
+            endDict = {}  # create end point dictionary
+
+            with arcpy.da.SearchCursor(end_points_join, [oid_fn, 'endID']) as cursor:
+                for row in cursor:
+                    endDict[row[0]] = row[1]
+            #  rename/calculate near end id field to logical name
+            arcpy.AddField_management(end_points_join, 'nearEndID', 'SHORT')
+            arcpy.AddField_management(end_points_join, 'nearDist', 'DOUBLE')
+            arcpy.AddField_management(end_points_join, 'strContour', 'TEXT')
+            with arcpy.da.UpdateCursor(end_points_join, ['NEAR_FID', 'nearEndID', 'Contour', 'strContour', 'NEAR_DIST', 'nearDist']) as cursor:
+                for row in cursor:
+                    row[1] = endDict[row[0]]
                     row[3] = str(row[2])
+                    row[5] = row[4]
                     cursor.updateRow(row)
             # remove unnecessary fields from previous join operations
-            fields = arcpy.ListFields(end_points_join2)
+            fields = arcpy.ListFields(end_points_join)
             keep = ['endID', 'Contour', 'nearEndID', 'nearDist', 'strContour']
             drop = []
             for field in fields:
                 if not field.required and field.name not in keep and field.type <> 'Geometry':
                     drop.append(field.name)
-            arcpy.DeleteField_management(end_points_join2, drop)
-
+            arcpy.DeleteField_management(end_points_join, drop)
             #  make end point feature layer for selection operations
-            end_points_lyr = arcpy.MakeFeatureLayer_management(end_points_join2, 'end_points_lyr')
-            #  group end point pairs that fall of contour gaps
+            end_points_lyr = arcpy.MakeFeatureLayer_management(end_points_join, 'end_points_lyr')
+            #  group end point pairs that fall on contour gaps
             #  pair criteria:
             #   - must be nearest points to each other
             #   - must share the same contour value
@@ -890,18 +901,18 @@ def tier2(**myVars):
                     if count > 1:
                         if row[4] > 0:
                             pass
-                        elif row[5] > 1.0: # ToDo: This line skips points that are > 1.0 meters from nearest point.  May need to change threshold for really, really large sites
+                        elif row[5] > 0.25 * bfw: # ToDo: May want to expose this threshold or set as some multiple of cell size
                             pass
                         else:
                             arcpy.CalculateField_management(end_points_lyr, 'endIDGroup', groupIndex)
                             groupIndex += 1
             #  delete end points that aren't part of group (i.e., that weren't on contour gap)
-            with arcpy.da.UpdateCursor(end_points_join2, ['endIDGroup']) as cursor:
+            with arcpy.da.UpdateCursor(end_points_join, ['endIDGroup']) as cursor:
                 for row in cursor:
                     if row[0] <= 0.0:
                         cursor.deleteRow()
             #  create line connecting each end point pair
-            gap_lines = arcpy.PointsToLine_management(end_points_join2, 'in_memory/gap_lines', 'endIDGroup')
+            gap_lines = arcpy.PointsToLine_management(end_points_join, 'in_memory/gap_lines', 'endIDGroup')
             #  merge contour gap lines with contours
             contours_gap_merge = arcpy.Merge_management([line_lyr, gap_lines], 'in_memory/contours_gap_merge')
             #  dissolve all lines that are touching into single line
@@ -920,7 +931,6 @@ def tier2(**myVars):
                     ct += 1
                     cursor.updateRow(row)
             #  f. convert contour lines to polygon and clip to bankfull polygon
-            # arcpy.CopyFeatures_management(contours_bankfull_merge2, os.path.join(evpath, 'tmp_contours_bankfull_merge2.shp'))  # ToDo: Create tmp output files for all riffle repair steps up to this point
             contour_poly_raw = arcpy.FeatureToPolygon_management(contours_bankfull_merge2, 'in_memory/raw_contour_poly')
             contour_poly_clip = arcpy.Clip_analysis(contour_poly_raw, os.path.join(myVars['workspace'], myVars['bfPolyShp']), 'in_memory/contour_polygons_clip')
 
@@ -1858,10 +1868,10 @@ def tier3(**myVars):
                 cursor.deleteRow()
 
     arcpy.SelectLayerByAttribute_management('units_t2_lyr', "NEW_SELECTION", """ "UnitForm" = 'Trough' OR "UnitForm" = 'Bowl Transition' """)
-    arcpy.CopyFeatures_management('units_t2_lyr', os.path.join(evpath, 'tmp_units_t2_lyr.shp')) # ToDo: delete after testing
+    #arcpy.CopyFeatures_management('units_t2_lyr', os.path.join(evpath, 'tmp_units_t2_lyr.shp')) # ToDo: delete after testing
     arcpy.SelectLayerByLocation_management('units_t2_lyr', 'ARE_IDENTICAL_TO', bowltrans, '','REMOVE_FROM_SELECTION')
     bowltras_trough_dissolve = arcpy.Dissolve_management('units_t2_lyr', 'in_memory/bowltras_trough_dissolve', ['ValleyUnit'], '', 'SINGLE_PART', 'UNSPLIT_LINES')
-    arcpy.CopyFeatures_management(bowltras_trough_dissolve, os.path.join(evpath, 'tmp_bowltras_trough_dissolve.shp')) # ToDo: delete after testing
+    #arcpy.CopyFeatures_management(bowltras_trough_dissolve, os.path.join(evpath, 'tmp_bowltras_trough_dissolve.shp')) # ToDo: delete after testing
     units_bowltrans_update = arcpy.Update_analysis(units_t2, bowltras_trough_dissolve, 'in_memory/units_bowltrans_update')
     with arcpy.da.UpdateCursor(units_bowltrans_update, ['SHAPE@Area', 'Area', 'UnitShape', 'UnitForm']) as cursor:
         for row in cursor:
@@ -1898,9 +1908,9 @@ def tier3(**myVars):
     if myVars['createPocketPools'] != 'Yes':
         arcpy.MakeFeatureLayer_management(units_troughplane_update, 'units_troughplane_update_lyr')
         arcpy.SelectLayerByAttribute_management('units_troughplane_update_lyr', "NEW_SELECTION", """ "UnitForm" = 'Bowl' AND "Area" < %s """ % str(myVars['poolAreaThresh'] * bfw))
-        arcpy.CopyFeatures_management('units_troughplane_update_lyr', os.path.join(evpath, 'tmp_bowl_areaSelection.shp'))  # Todo: Delete after testing
+        #arcpy.CopyFeatures_management('units_troughplane_update_lyr', os.path.join(evpath, 'tmp_bowl_areaSelection.shp'))  # Todo: Delete after testing
         bowl_elim = arcpy.Eliminate_management('units_troughplane_update_lyr', 'in_memory/bowl_elim', 'AREA', """ "UnitForm" = 'Wall' """)
-        arcpy.CopyFeatures_management(bowl_elim, os.path.join(evpath, 'tmp_bowl_elim.shp')) # Todo: Delete after testing
+        #arcpy.CopyFeatures_management(bowl_elim, os.path.join(evpath, 'tmp_bowl_elim.shp')) # Todo: Delete after testing
         units_bowl_update = arcpy.Update_analysis(units_troughplane_update, bowl_elim, 'in_memory/units_bowl_update')
     else:
         units_bowl_update = units_troughplane_update
@@ -1942,7 +1952,7 @@ def tier3(**myVars):
                             row[4] = 'Margin Attached Bar'
                             row[5] = 'Br'
                         else:
-                            row[4] = 'Barface'
+                            row[4] = 'Barface'  # ToDo: Ask NK + JM about this classification
                             row[5] = 'Bf'
                     elif int(arcpy.GetCount_management(arcpy.SelectLayerByLocation_management('mound_mc_lyr', 'WITHIN_A_DISTANCE', row[2], 0.2 * bfw, "NEW_SELECTION")).getOutput(0)) > 0:
                         if row[3] >= (myVars['barAreaThresh'] * bfw):
