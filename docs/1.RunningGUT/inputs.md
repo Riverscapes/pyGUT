@@ -34,15 +34,15 @@ This is an input polyline shapefile that is simply line(s) drawn through the cen
 
 For the in-channel mapping to run successfully, a user must provide a thalweg polyline shapefile.  The thalweg is a line connecting the lowest points along the entire length of the streambed and represents the dominant flowpath of each channel. The thalweg lines(s) input is used to map Tier 2 saddles and Tier 3 riffles.  If the thaweg is not appropriately placed the algorithms may falsely identify or miss saddles and riffles. 
 
-In order to identify saddles not just along the main thalweg, you have the option of supplying an input thalweg layer that includes, not just the main thalweg, but thalwegs associated with secondary flow paths.  These secondary thalweg paths are also used to name sub GUs at the Tier 3 level (e.g., cut-off chutes, diagonal bars, confluence pools, backwater ponds).  For the algorithms to use the multiple thalwegs to full advantage, you should have two fields for each thalweg segment **'Channel'** and **'ThalwegTyp'** and each segment should be categorized following the scheme below. The algorithm will run whether or not you have attributed all your thalwegs, it just might not name all the Tier 3 subGUs correctly.  
+In order to identify saddles not just along the main thalweg, you have the option of supplying an input thalweg layer that includes, not just the main thalweg, but thalwegs associated with secondary flow paths.  These secondary thalweg paths are also used to name sub GUs at the Tier 3 level (e.g., cut-off chutes, diagonal bars, confluence pools, backwater ponds).  For the algorithms to use the multiple thalwegs to full advantage, you should have two fields for each thalweg segment `Channel` and `ThalwegTyp` and each segment should be categorized following the scheme below. The algorithm will run whether or not you have attributed all your thalwegs, it just might not name all the Tier 3 subGUs correctly.  
 
-#### Channel
+#### `Channel`
 * **Main** - The bankfull channel through which the thalweg that follows the deepest path is within
 * **Secondary** - A channel separated from the main channel at bankfull by an island that is not flooded. 
 * **Tributary** - A channel confluencing with the secondary or main channel that has an upstream catchement.
 * **Backwater** - A channel that is returning to a main or secondary channel from the floodplain.  These channels often reconnect abandoned channels and backwater pools with the hydrology of the main channel. They differ from Tributaries in that the source of their is from the floodplain rather than an upstream drainage network.
 
-#### ThalwegTyp
+#### `ThalwegTyp`
 * **Main** - The thalweg within the bankfull channel that follows the deepest path.
 * **Anabranch** - The main thalweg of secondary channels.
 * **Return**- Thalwegs returning flow from floodplain or backwater areas.
