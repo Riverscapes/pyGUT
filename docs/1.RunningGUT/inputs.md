@@ -56,6 +56,6 @@ See an example of how we classify thalwegs here:
 **Important:** When delineating your thalwegs, make sure that they typology is correct.  The line segments should be directional in the direction of downstream and all confluences and diffluences should share a node. Currently the code will not be able to extract saddles/riffles that have a confluence or diffluence on top of them so if you think you have an area that should be called a saddle/riffle, make sure you are not starting or ending any thalweg segment within its bounds. 
 
 ### Video Describing Process
-The video below 
+The first 15 minutes of video below describe the above inputs and how to point GUT to them and prepare a run. 
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/90wbto5YQRg" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
