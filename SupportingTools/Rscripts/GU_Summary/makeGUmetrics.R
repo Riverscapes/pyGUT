@@ -80,6 +80,7 @@ makeGUmetrics=function(GUTrunpath, layer="", attribute="", unitcats="None"){
     sumUnit=data %>% group_by(data[,attributecol]) %>% summarize_at(c("Area", "Perim"), sum, na.rm = TRUE)
     nUnit=data %>% count(data[,attributecol]) 
     
+    
     #combines data
     unitsummary=cbind(medUnit, meanUnit[2:3], sdUnit[,2:3], sumUnit[,2:3],nUnit[,2])
     names(unitsummary)=c("Unit","medArea", "medPerim","avgArea", "avgPerim",  "sdArea","sdPerim", "totArea", "totPerim", "n")

@@ -22,8 +22,8 @@ figdir=paste(localdir, "ExampleData\\Figures", sep="\\")
 
 #Some local variables to set
 Run="Run_01"  #Specify selection criteria for which GUT run(s) you want to summarize.
-layer="Tier2_InChannel_Transition" #Specify which GUT output layer you want to summarize 
-attribute="UnitForm" #Specify the field name of the GUT field name you are wanting to summarize over
+layer="Tier3_InChannel_GU" #Specify which GUT output layer you want to summarize 
+attribute="GU" #Specify the field name of the GUT field name you are wanting to summarize over
 
 ####DONE WITH USER DEFINED VARIABLES#############
 
@@ -60,7 +60,7 @@ GUTrunlist
 #similarly to what was done below for Unitform (Tier 2 form output) and GU (Tier 3 output) below.
 #######################################################################
 
-if(length(grep("Tier2",layer))>0 | attribute=="Unitform"){
+if(length(grep("Tier2",layer))>0 | attribute=="UnitForm"){
 
 unitcats=c("Saddle", "Bowl","Mound","Plane", "Trough", 
            "Bowl Transition", "Mound Transition")
@@ -97,7 +97,7 @@ for (i in c(1:length(GUTrunlist))){
 
 source(paste(Scriptpath, "/makeGUmetrics.R", sep=""))
 
-for (i in c(1:length(GUTrunlist))){
+for (i in c(2:length(GUTrunlist))){
   print(paste("i=",i, "starting", GUTrunlist[i]))
   v=makeGUmetrics(GUTrunlist[i], layer, attribute=attribute, unitcats=unitcats)
   if (i==1){metrics=v} else {metrics=rbind(metrics,v)} 
