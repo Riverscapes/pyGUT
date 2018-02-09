@@ -1,1 +1,9 @@
+*.gitignore
+
 *.pyc
+
+*.Rhistory
+
+*arc.dir
+
+*ExampleData
