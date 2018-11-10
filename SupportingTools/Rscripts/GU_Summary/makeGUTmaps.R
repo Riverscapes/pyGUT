@@ -1,29 +1,60 @@
-#This script Makes map of GUT output whith fish pts plotted on top"
+#This function Makes map of GUT output and provides an example script on how to batch process"
 
-#Natalie Kramer (n.kramer.andersonn@gmail.com)
-#updated Aug 30, 2017
+#Natalie Kramer (n.kramer.anderson@gmail.com)
+#updated Nov 9, 2018
 
+#This function Relies on the GUT data files. If any are missing, the code
+#should still run and a map file produced as a placeholder, but nothing will be drawn on the output map.
 
-library(rgdal)
-library(rgeos)
-library(raster)
-source('extractIDfrompath.R')
+#This function also Relies on files in the file structure of GUT. With three directories of Inputs, OUtput and Evidence.  
+#Within the output directory there should be a run folder that contains the outputs.
 
-#This script Relys on the following GUT data files. If any of these are missing, the code
-#should still run nothing will be drawn on the output map.
+#####Variables
+#GUTrunpath: The file path to output files from a GUT run (e.g. ".../GUT/Output/GUT_2.1/Run_01" )
+#layer: Specify which GUT output layer you want to summarize (e.g. "Tier3_InChannel_GU" )
+#figdir: the filepath to the directory to print the maps to (e.g....)
+#unitcolors: specify a vector the colors for each unit type. It does this automatically for Tier 2 and Tier 3, if set to NA.
+#overlaypath: path to desired overlay shapefile to be plotted on top of the GUT basemap.  If no overlay desired, set to NA.
+#plotthalweg: T/F if you want to plot the main CHaMP Thalweg
+#plotthalwegs: T/F if you want to plot the multiple thalweg layer (all thalwegs)
+#plotcontour: T/F for plotting the contours.
+#type: specify output as either ".pdf" of ".png" or ".jpg"
+#extractID: a number which specifies which element from the full path name to extract as an ID label for the figure.  Elements are counted backwards from the end of the path.  
+#         For example to extract 12 from path 'E:\A\12\b' you would define extractID to be 2, since it is the second from the end. If extractID=0, then it will automatically extract the visit number XXXX if in the format VISIT_XXXX.  
+#extractID: a number which specifies another element from the full path name to extract as an ID lable for the figure. IF extractID=F then no element is extracted.
+#####
 
-#multiple manual thalwegs="Thalwegs.shp"
-#main thalweg="Thalweg.shp"
-#Water Extent="WaterExtent.shp"
-#Contours=DEM Contours.shp
-
-makeGUTmaps=function(GUTrunpath, layer, figdir, Run, unitcolors=NA, 
-                     plotthalweg=T, plotthalwegs=T, plotcontour=T){
+makeGUTmaps=function(GUTrunpath, layer, figdir, unitcolors=NA, overlaypath=NA,
+                     plotthalweg=T, plotthalwegs=T, plotcontour=T, type=".pdf",  extractID=F, extractID2=F){
+ 
+  ###dependencies
   
-  visit=extractvisitfrompath(GUTrunpath)
+  library(rgdal)
+  library(rgeos)
+  library(raster)
+  
+  
+  split_path <- function(path) {
+    if (dirname(path) %in% c(".", path)) return(basename(path))
+    return(c(basename(path), split_path(dirname(path))))
+  }
+   
+  #Extracts visit number from path name
+    if(extractID!=F){
+     ID1=split_path(GUTrunpath)[extractID]
+     }
+  
+  #extracts a second id from the path name if desired
+    if(extractID2!=F){
+      ID2=split_path(GUTrunpath)[extractID2]
+    }
   
   #Creates path to general GUT folder from your run path
   GUTpath=strsplit(GUTrunpath, "Output")[[1]][1]
+  #Extracts name of your run folder to label titles on figures
+  Run=split_path(GUTrunpath)[1]
+  
+  #specifies locations and paths to shape files to plot
   WaterExtentpath=paste(GUTrunpath, "Tier1.shp",sep="\\")
   contourpath=paste(GUTpath,"EvidenceLayers", "DEM_Contours.shp", sep="\\")
   GUpath=paste(GUTrunpath, "\\" , layer, ".shp",sep="")
@@ -75,6 +106,11 @@ makeGUTmaps=function(GUTrunpath, layer, figdir, Run, unitcolors=NA,
     } 
   }
   
+  if(is.na(overlaypath)==F){
+    if(file.exists(overlaypath)){
+      myoverlay=readOGR(overlaypath)
+    }
+  }
   
   #sets colors output
   
@@ -107,12 +143,42 @@ makeGUTmaps=function(GUTrunpath, layer, figdir, Run, unitcolors=NA,
     
   
   print("creating summary plot")
-  pdf(paste(figdir,"\\" ,"GUmap_", "Visit_" , visit,  "_" ,Run ,"_",layer, ".pdf", sep=""), width=11.5, height=8)
+  
+  if(extractID==F & extractID2==F){
+    mytitle=paste(Run ,"_",layer, sep="")
+  }
+  
+  if(extractID!=F & extractID2==F){
+    mytitle=paste(ID1,"_",Run ,"_",layer, sep="")
+  }
+  
+  if(extractID2!=F & extractID!=F){
+    mytitle=paste(ID1,"_", ID2, "_",Run ,"_",layer, sep="")
+  }
+  
+  filename=paste(figdir,"\\" ,"GUmap_", mytitle, type, sep="")
+
+  if(type==".pdf"){
+  pdf(filename, width=11.5, height=8)
+  }
+  
+  if(type==".png"){
+  png(filename, width=1275, height=850)
+  }
+  
+  if(type==".jpg"){
+    jpeg(filename, width=1275, height=850)
+  }
+  
+  if(type==".tif"){
+    tiff(filename,width=1275, height=850)
+  }
+  
   par(mfrow=c(1,1), mar=c(3,6,3,0), oma=c(0,0,0,10))
   
   if(exists("GU.poly")){
     plot(GU.poly, col=GU.poly@data$GUcolor)
-    title(paste("VISIT", visit, Run, layer, sep=" "), cex.sub=3)
+    title(mytitle, cex.sub=3)
     
     #adding Coordinates
     xat <- pretty(extent(GU.poly)[1:2])
@@ -123,14 +189,20 @@ makeGUTmaps=function(GUTrunpath, layer, figdir, Run, unitcolors=NA,
     axis(1, at=xat, labels=xlab)
     axis(2, las=TRUE, at=yat, labels=ylab)
 
-    #plotting overlay data
+    print("plotting contours and thalwegs")
     if(exists("contours")){
       plot(contours, add=T, cex=.7, col="black")}
     if(exists("thalweg")){
       plot(thalweg, add=T, cex=.7, lty=2, lwd=2, col="blue")}
     if(exists("thalwegs")){
       plot(thalwegs, add=T, cex=.7, lty=2, col="black")}
+   
+     print("plotting overlay data")
+    if(exists("myoverlay")){
+      plot(myoverlay, add=T, cex=.7, lty=2, col="black")}
     
+    
+     print("plotting legend")
     #adds legend
   #  legend("bottomright",
     legend(par('usr')[2], par('usr')[4], bty='n',
@@ -143,3 +215,25 @@ makeGUTmaps=function(GUTrunpath, layer, figdir, Run, unitcolors=NA,
   
   
 }
+
+
+
+#Example Usage for batch processing of multiple GUT runs
+
+##Create a list of all file paths to all GUT Runs you are interested in
+#Datapath='E:\\Box Sync\\ET_AL\\Projects\\USA\\ISEMP\\GeomorphicUnits\\Data\\VisitData'
+#GUTrunlist=list.dirs(Datapath)[grep("Run_01",list.dirs(Datapath))] 
+
+#Datapath="E:\\Box Sync\\ET_AL\\Projects\\USA\\ISEMP\\GeomorphicUnits\\Data\\AsotinGUTfromAndy\\GUT_Natalie\\GUT\\Asotin"
+#GUTrunlist=list.dirs(Datapath)[grep("Run_05",list.dirs(Datapath))] 
+
+##Define local variables
+#figdir="E:\\Box Sync\\ET_AL\\Projects\\USA\\ISEMP\\GeomorphicUnits\\Data\\AsotinGUTfromAndy\\GUT_Natalie\\GUT\\AsotinMaps\\Tier2_Transition"
+#layer="Tier2_InChannel_Transition"
+
+##Loop function through list
+
+#for (i in c(1:length(GUTrunlist))){
+# print(paste("i=",i, "starting", GUTrunlist[i]))
+#  makeGUTmaps(GUTrunlist[i], layer, figdir, plotthalweg=T, plotthalwegs=T, plotcontour=F, overlaypath=NA, type=".pdf", extractID=5, extractID2=4)
+#}

@@ -15,7 +15,7 @@ Datapath=paste(localdir,"ExampleData\\VisitData",sep="\\")
 Metricpath=paste(localdir,"ExampleData\\Metrics",sep="\\")
 
 #folder containing the scripts which run the summaries
-Scriptpath=paste(localdir,"SupportingTools\\Rscripts\\GU_summary", sep="\\")
+Scriptpath=paste(localdir,"SupportingTools\\Rscripts\\OverlaySummary", sep="\\")
 
 #folder where you want any output figures to go
 figdir=paste(localdir, "ExampleData\\Figures", sep="\\")
@@ -24,22 +24,18 @@ figdir=paste(localdir, "ExampleData\\Figures", sep="\\")
 Run="Run_01"  #Specify selection criteria for which GUT run(s) you want to summarize.
 layer="Tier3_InChannel_GU" #Specify which GUT output layer you want to summarize 
 attribute="GU" #Specify the field name of the GUT field name you are wanting to summarize over
-
+overlaydir="NREI" #the following code is sensitive and needs the GUT directory to be at the same level as the NREI directory.
+overlay="predFishLocations.shp" #should be located within the overly directory specified without subfolders
 ####DONE WITH USER DEFINED VARIABLES#############
 
 #######################
-#Make GUT run summary list
+##specify list of visits with overlay files
 #########################
 
-#list of directories of all the GUT runs you want to summarize by searching for a specific run or runs. 
+#list of directories of all the overly data you want to summarize by geomorphic unit 
 #Further lines could be added to remove different run outputs from the list.  The code will summarize over this list, so make sure it is what you want.
 
-
-GUTrunlist=list.dirs(Datapath)[grep("Run",list.dirs(Datapath))] 
-
-#check to see if your list contains all the GUT runs you want to summarize
-GUTrunlist
-
+Fishrunlist=paste(list.dirs(Datapath)[grep(paste("/",overlaydir,sep=""),list.dirs(Datapath))], overlay, sep="/")
 
 ##############################
 #Extract ID from path--- READ THIS!!!!
@@ -52,7 +48,7 @@ GUTrunlist
 #All scripts source this file on the fly so as long as you have it in the same folder as this script it 
 #should be able to find it and source it and you can leave the line below commented out.
 
-#source(paste(Scriptpath, "extractIDfrompath.R", sep="/"))
+source(paste(Scriptpath, "extractIDfrompath.R", sep="/"))
 
 #######################################################################
 #Specify/customize universal colors and complete assemblage of geomorphic names
@@ -81,57 +77,10 @@ unitcolors=c(`Pocket Pool`="light blue", Pool="royalblue", Pond="dark green", `M
 #############################################################
 #Create Maps of GUT output
 #############################################################
-source(paste(Scriptpath, "/makeGUTmaps.R", sep="")) 
+source(paste(Scriptpath, "/makeGUToverlaymaps.R", sep="")) 
 
 #you have to be connected to the internet for this to work due to a package dependency.  Sorry.
-for (i in c(1:length(GUTrunlist))){
-  print(paste("i=",i, "starting", GUTrunlist[i]))
-  makeGUTmaps(GUTrunlist[i], layer, figdir, plotthalweg=T, plotthalwegs=T, plotcontour=T, overlaypath=NA, type=".pdf")
+for (i in c(1:length(Fishrunlist))){
+  print(paste("i=",i, "starting", Fishrunlist[i]))
+  makeGUToverlaymaps(Fishrunlist[i],overlaydir=overlaydir, overlayname="predicted Juveniles", layer, figdir, Run, plotthalweg=F, plotthalwegs=F, plotcontour=F)
 }
-
-#################################################################
-#GU Metrics
-#Summarizes Geomorphic Units
-#see makesiteGUTunitmetrics.R for details, this just loops these scripts over all your runs
-#################################################################
-
-source(paste(Scriptpath, "/makeGUmetrics.R", sep=""))
-
-for (i in c(2:length(GUTrunlist))){
-  print(paste("i=",i, "starting", GUTrunlist[i]))
-  v=makeGUmetrics(GUTrunlist[i], layer, attribute=attribute, unitcats=unitcats)
-  if (i==1){metrics=v} else {metrics=rbind(metrics,v)} 
-} 
-
-#cleans up data a little bit before export
-metrics2=as.data.frame(metrics)
-if((length(grep("exist", metrics2$Unit))>0)==T){metrics2[-grep("exist", metrics2$Unit),]} #cleans out lines printing that they didn't exist
-if(length(which(metrics2$n==1))>0){
-  metrics2[which(metrics2$n==1),]$sdArea=0 #sets sd to zero for items with only one value
-  metrics2[which(metrics2$n==1),]$sdPerim=0 #sets sd to zero for items with only one value
-}
-metrics2
-write.csv(metrics2, paste(Metricpath, "\\GUmetrics_", Run, "_", layer, ".csv" ,sep=""), row.names=F)
-
-
-##########################################################################################################
-#Site Metrics.  
-#Summarizes site complexity.
-#see makesiteGUTmetrics.R and intersectpts.R for details, this just loops these scripts over all your runs
-#########################################################################################################
-source(paste(Scriptpath, "/makesitemetrics.R", sep=""))
-source(paste(Scriptpath, "/intersectpts.R", sep="")) 
-
-#you have to be connected to the internet for this to work due to a package dependency.  Sorry.
-for (i in c(1:length(GUTrunlist))){
-  #for (i in runlist){
-  print(paste("i=",i, "starting", GUTrunlist[i]))
-  v=makesitemetrics(GUTrunlist[i], layer)
-  if (i==1){metrics=v} else {metrics=rbind(metrics,v)} 
-} 
-
-#cleans up table a tad before saving
-rownames(metrics)=seq(1,length(GUTrunlist))
-metrics1=as.data.frame(metrics)
-metrics1
-write.csv(metrics1, paste(Metricpath, "\\sitemetrics_", Run, "_", layer, ".csv" ,sep=""), row.names=F)
