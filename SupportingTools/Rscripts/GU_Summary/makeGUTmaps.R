@@ -6,8 +6,8 @@
 #This function Relies on the GUT data files. If any are missing, the code
 #should still run and a map file produced as a placeholder, but nothing will be drawn on the output map.
 
-#This function also Relies on files in the file structure of GUT. With three directories of Inputs, OUtput and Evidence.  
-#Within the output directory there should be a run folder that contains the outputs.
+#This function also Relies on files in the file structure of GUT with three directories of Inputs, OUtput and Evidence.  
+#Within the output directory there should be a run folder that contains the output shapefiles.
 
 #####Variables
 #GUTrunpath: The file path to output files from a GUT run (e.g. ".../GUT/Output/GUT_2.1/Run_01" )
@@ -218,22 +218,21 @@ makeGUTmaps=function(GUTrunpath, layer, figdir, unitcolors=NA, overlaypath=NA,
 
 
 
-#Example Usage for batch processing of multiple GUT runs
+##Example Usage for batch processing of multiple GUT runs
+
+#source('E:\\GitHub\\PyGUT\\SupportingTools\\Rscripts\\GU_Summary\\makeGUTmaps.R')
 
 ##Create a list of all file paths to all GUT Runs you are interested in
 #Datapath='E:\\Box Sync\\ET_AL\\Projects\\USA\\ISEMP\\GeomorphicUnits\\Data\\VisitData'
 #GUTrunlist=list.dirs(Datapath)[grep("Run_01",list.dirs(Datapath))] 
 
-#Datapath="E:\\Box Sync\\ET_AL\\Projects\\USA\\ISEMP\\GeomorphicUnits\\Data\\AsotinGUTfromAndy\\GUT_Natalie\\GUT\\Asotin"
-#GUTrunlist=list.dirs(Datapath)[grep("Run_05",list.dirs(Datapath))] 
-
 ##Define local variables
-#figdir="E:\\Box Sync\\ET_AL\\Projects\\USA\\ISEMP\\GeomorphicUnits\\Data\\AsotinGUTfromAndy\\GUT_Natalie\\GUT\\AsotinMaps\\Tier2_Transition"
+#figdir="E:\\Box Sync\\ET_AL\\Projects\\USA\\ISEMP\\GeomorphicUnits\\Figs\\Maps\\GU\\Tier2Trans"
 #layer="Tier2_InChannel_Transition"
 
 ##Loop function through list
 
 #for (i in c(1:length(GUTrunlist))){
 # print(paste("i=",i, "starting", GUTrunlist[i]))
-#  makeGUTmaps(GUTrunlist[i], layer, figdir, plotthalweg=T, plotthalwegs=T, plotcontour=F, overlaypath=NA, type=".pdf", extractID=5, extractID2=4)
+#  makeGUTmaps(GUTrunlist[i], layer, figdir, plotthalweg=T, plotthalwegs=T, plotcontour=F, overlaypath=NA, type=".pdf", extractID=5, extractID2=F)
 #}
