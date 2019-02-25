@@ -191,7 +191,7 @@ def guAttributes(units, bfw, dem, tmp_thalwegs, bfSlope, bfSlope_Smooth, evpath,
                                             '', 'INTERSECT')
     edge_tbl = arcpy.Frequency_analysis(edge_units, 'tbl_edge_units.dbf', ['UnitID'])
     arcpy.AddField_management(edge_tbl, 'onEdge', 'SHORT')
-    arcpy.CalculateField_management(edge_tbl, 'onEdge', '[FREQUENCY]')
+    arcpy.CalculateField_management(edge_tbl, 'onEdge', '!FREQUENCY!', 'PYTHON_9.3')
     arcpy.JoinField_management(units, 'UnitID', edge_tbl, 'UnitID', ['onEdge'])
 
     edge_units2 = arcpy.SpatialJoin_analysis(nearEdge_buffer, units, 'in_memory/tmp_edge_units', 'JOIN_ONE_TO_MANY',
@@ -199,7 +199,7 @@ def guAttributes(units, bfw, dem, tmp_thalwegs, bfSlope, bfSlope_Smooth, evpath,
                                              '', 'INTERSECT')
     edge_tbl2 = arcpy.Frequency_analysis(edge_units2, 'tbl_edge_units2.dbf', ['UnitID'])
     arcpy.AddField_management(edge_tbl2, 'nearEdge1', 'SHORT')
-    arcpy.CalculateField_management(edge_tbl2, 'nearEdge1', '[FREQUENCY]')
+    arcpy.CalculateField_management(edge_tbl2, 'nearEdge1', '!FREQUENCY!', 'PYTHON_9.3')
     arcpy.JoinField_management(units, 'UnitID', edge_tbl2, 'UnitID', ['nearEdge1'])
     # arcpy.SelectLayerByAttribute_management('edge_lyr', 'NEW_SELECTION', """ "midEdge" = 'Yes' """)
     # arcpy.SelectLayerByLocation_management('units_lyr', 'INTERSECT', 'edge_lyr', '', 'NEW_SELECTION')
@@ -904,7 +904,7 @@ def tier2(**myVars):
                         elif row[5] > 0.25 * bfw: # ToDo: May want to expose this threshold or set as some multiple of cell size
                             pass
                         else:
-                            arcpy.CalculateField_management(end_points_lyr, 'endIDGroup', groupIndex)
+                            arcpy.CalculateField_management(end_points_lyr, 'endIDGroup', groupIndex, 'PYTHON_9.3')
                             groupIndex += 1
             #  delete end points that aren't part of group (i.e., that weren't on contour gap)
             with arcpy.da.UpdateCursor(end_points_join, ['endIDGroup']) as cursor:
@@ -1548,14 +1548,14 @@ def tier3(**myVars):
         edge_forms = arcpy.SpatialJoin_analysis('outChEdge_lyr', 'forms_lyr', 'in_memory/tmp_edge_forms', 'JOIN_ONE_TO_MANY', '', '', 'INTERSECT')
         edge_forms_tbl = arcpy.Frequency_analysis(edge_forms, 'tbl_edge_forms.dbf', ['EdgeID'])
         arcpy.AddField_management(edge_forms_tbl, 'formCount', 'SHORT')
-        arcpy.CalculateField_management(edge_forms_tbl, 'formCount', '[FREQUENCY]')
+        arcpy.CalculateField_management(edge_forms_tbl, 'formCount', '!FREQUENCY!', 'PYTHON_9.3')
         arcpy.JoinField_management('outChEdge_lyr', 'EdgeID', edge_forms_tbl, 'EdgeID', ['formCount'])
 
         arcpy.SelectLayerByAttribute_management('forms_lyr', 'NEW_SELECTION', """ "UnitForm" = 'Mound' """)
         edge_mounds = arcpy.SpatialJoin_analysis('outChEdge_lyr', 'forms_lyr', 'in_memory/tmp_edge_mounds', 'JOIN_ONE_TO_MANY', '', '', 'INTERSECT')
         edge_mounds_tbl = arcpy.Frequency_analysis(edge_mounds, 'tbl_edge_mounds.dbf', ['EdgeID'])
         arcpy.AddField_management(edge_mounds_tbl, 'moundCount', 'SHORT')
-        arcpy.CalculateField_management(edge_mounds_tbl, 'moundCount', '[FREQUENCY]')
+        arcpy.CalculateField_management(edge_mounds_tbl, 'moundCount', '!FREQUENCY!', 'PYTHON_9.3')
         arcpy.JoinField_management('outChEdge_lyr', 'EdgeID', edge_mounds_tbl, 'EdgeID', ['moundCount'])
 
         with arcpy.da.UpdateCursor('outChEdge_lyr', ['formCount', 'moundCount']) as cursor:
@@ -1640,10 +1640,10 @@ def tier3(**myVars):
         #  d2c. calculate residual and standardized residual btwn DEM and trend DEM Z
         arcpy.AddField_management(thalPts, 'trResid', 'DOUBLE')
         arcpy.AddField_management(thalPts, 'trStResid', 'DOUBLE')
-        arcpy.CalculateField_management(thalPts, 'trResid', '[demZ] - [trendZ]', 'VB')
+        arcpy.CalculateField_management(thalPts, 'trResid', '!demZ! - !trendZ!', 'PYTHON_9.3')
         arr = arcpy.da.FeatureClassToNumPyArray(thalPts, ['trResid'])
         trResid_sd = arr['trResid'].std()
-        arcpy.CalculateField_management(thalPts, 'trStResid', '[trResid] /' + str(trResid_sd), 'VB')
+        arcpy.CalculateField_management(thalPts, 'trStResid', '!trResid! /' + str(trResid_sd), 'PYTHON_9.3')
 
         #  d2d. remove any thalweg points where standardized residual < 1.0 sd
         with arcpy.da.UpdateCursor(thalPts, 'trStResid') as cursor:
