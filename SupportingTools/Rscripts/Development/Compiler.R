@@ -1,35 +1,32 @@
+# Code runs summary metrics ---------------------------
+
 # Load required packages ---------------------------
 library(sp)
 library(rgeos)
 library(maptools)
 library(dplyr)
 
-########################################################################
-##########Calling in Data and Running Summary Metrics####################
-########################################################################
+# Set required paths ---------------------------
 
-####HUNDRED SITES
 Datapath="C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data"
 Metricpath="C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data/00_Projectwide/Metrics"
 Scriptpath="C:/etal/LocalCode/pyGUT/SupportingTools/RScripts/Development"
 figdir="C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data/00_Projectwide/Figs"
 
-#############################################################
-#Set list of visits to loop over
-#############################################################
-#list of directories of all the fish visits
+# Create list of visits to loop over ---------------------------
+
+# list of directories of all the fish visits
+
 Fishrunlist=list.dirs(Datapath)[grep("/NREI",list.dirs(Datapath))]
 Fishrunlist=Fishrunlist[-grep("Old", Fishrunlist)] #cleans out unnecessary items from list
 Fishrunlist=Fishrunlist[-grep("samesite", Fishrunlist)] #cleans out unnecessary items from list
 
 
-#list of directories of all the matching GUT visits
+# list of directories of all the matching GUT visits
+
 GUTrunlist=list.dirs(Datapath)[grep("GUT/Output/GUT_2.1/Run_01",list.dirs(Datapath))]
 
-#############################################################
-#Set plotting colors and categories
-#############################################################
-
+# Set plotting colors and categories ---------------------------
 
 GUcats=c("Pocket Pool", "Pool", "Pond", "Margin Attached Bar", "Mid Channel Bar" ,
          "Riffle", "Cascade", "Rapid", "Run-Glide", "Chute", "Transition", "Bank")
@@ -45,22 +42,19 @@ form.colors=c(Bowl="royalblue",Mound="darkred",Plane="khaki1",Saddle="orange2",T
 
 shape.colors=c(Planar="khaki1", Convexity="orange2", Concavity="royalblue")
 
-#############################################################
-#Import universal Scripts and variables
-#############################################################
+# Import universal Scripts and variables ---------------------------
+
 source(paste(Scriptpath, "extract_visit_from_path.R", sep="/")) #pulls out visit ID from Path
 
+# Make spatial data of fish points and habitat polygons from NREI and HSI output ---------------------------
 
-################################################################
-#Make spatial data of fish points and habitat polygons from NREI and HSI output 
-################################################################
 source(paste(Scriptpath, "create_fish_pts.R", sep="/"))
 source(paste(Scriptpath, "create_habitat_poly.R", sep="/"))
 
 
 #2014(i=23),2019(i=24),2021(i=25),2028 (i=28) spatial points are off
 
-#makes predicted fish point shapefiles
+# makes predicted fish point shapefiles
 for (i in c(1:length(Fishrunlist))){
   #if(file.exists(paste(Fishrunlist[i],"predFishLocations.shp", sep="/"))==F){
     Createfishpts(Fishrunlist[i], zrank="max", plotNREI=F)#}
@@ -72,7 +66,7 @@ GUTpath=paste(strsplit(Fishrunlist[23], "NREI"),"GUT",sep="")
 plot(readOGR(paste(GUTpath, "Output/GUT_2.1/Run_01/Tier3_InChannel_Gu.shp", sep="/")))
 plot(paste(Fishrunlist[23],"predFishLocations.shp", sep="/")
 
-#makes habitat polygons
+# makes habitat polygons
 for (i in c(1:length(Fishrunlist))){
   print(paste("i=",i))
   if(file.exists(paste(Fishrunlist[i],"suitableNreiPoly.shp", sep="/"))==F){
@@ -92,8 +86,8 @@ for (i in c(1:length(Fishrunlist))){
   }
 }
 
-#makes DelftExtent polygons
-#Re-run this as you have time.
+# makes DelftExtent polygons
+# Re-run this as you have time.
 for (i in c(1:length(Fishrunlist))){
   if(file.exists(paste(Fishrunlist[i],"DelftExtent.shp", sep="/"))==F){ #need to fix names for the first some odd
     if(file.exists(paste(Fishrunlist[i],"delftDepth.tif", sep="/"))==T){
@@ -108,10 +102,10 @@ for (i in c(1:length(Fishrunlist))){
     }
   }
 }
-#################################################################
-####Data Clean Up and check###########
 
-#Checking NREI outputs
+# Data clean-up and QA/QC ---------------------------
+
+# check NREI outputs
 for (i in c(1:length(Fishrunlist))){
   visit=extractvisitfrompath(Fishrunlist[i])
   if(file.exists(paste(Fishrunlist[i],"predFishLocations.shp", sep="/"))==F){print(paste("visit",visit,"predFishLocations.shp does not exist"))}
@@ -120,14 +114,14 @@ for (i in c(1:length(Fishrunlist))){
   if(file.exists(paste(Fishrunlist[i],"suitableNreiPoly.shp", sep="/"))==F){print(paste("visit",visit,"suitableNreiPoly.shp"))}
 }
 
-#checking Delft extent outputs    
+# checking Delft extent outputs    
 for (i in c(1:length(Fishrunlist))){
   visit=extractvisitfrompath(Fishrunlist[i])
     if(file.exists(paste(Fishrunlist[i],"delftDepth.tif", sep="/"))==F){print(paste("visit",visit,"delftDepth.tif does not exist"))}
     if(file.exists(paste(Fishrunlist[i],"DelftExtent.shp", sep="/"))==F){print(paste("visit",visit,"delftExtent.tif does not exist"))}
 }
   
-#checking Delft extent spatial matches fish output -- all okay...
+# checking Delft extent spatial matches fish output -- all okay...
 delftspatial=c(NA,NA,NA)
 colnames(delftspatial=c("VistitID","nrei.crs", "delft.crs"))
 for (i in c(1:length(Fishrunlist))){
@@ -144,7 +138,7 @@ for (i in c(1:length(Fishrunlist))){
 }
 
 
-#checking Redd outputs 
+# checking redd outputs 
 for (i in c(1:length(Fishrunlist))){
 visit=extractvisitfrompath(Fishrunlist[i])
 HSIpath=paste(strsplit(Fishrunlist[i], visit)[[1]][1], visit,"/HSI",sep="")
@@ -159,14 +153,14 @@ HSIpath=paste(strsplit(Fishrunlist[i], visit)[[1]][1], visit,"/HSI",sep="")
   if(file.exists(paste(HSIpath,"reddPlacement/sthdPredReddLocs.shp", sep="/"))==F){print(paste("visit",visit,"sthdPredReddLocs.shp does not existbut the .csv does"))}}
 }
 
-#Fixing and checking stuff
+# fixing and checking stuff
 i=1
 for (i in c(1:length(Fishrunlist))){
   visit=extractvisitfrompath(Fishrunlist[i])
   if(i==1){visitlist=visit}else{visitlist=c(visitlist, visit)}
   }
 
-#These have no predicted juveniles
+# these have no predicted juveniles
 for (i in c(1:length(Fishrunlist))){
 if(file.exists(paste(Fishrunlist[i], "\\predFishLocations.shp",sep=""))==F & file.exists(paste(Fishrunlist[i], "\\predFishLocations.csv", sep=""))==T){   
   visit=extractvisitfrompath(Fishrunlist[i])  
@@ -175,7 +169,7 @@ if(file.exists(paste(Fishrunlist[i], "\\predFishLocations.shp",sep=""))==F & fil
 }
 }
 
-#These have no predicted redds
+# these have no predicted redds
 for (i in c(1:length(Fishrunlist))){
   visit=extractvisitfrompath(Fishrunlist[i])  
   HSIpath=paste(strsplit(Fishrunlist[i], visit)[[1]][1], visit,"/HSI",sep="")
@@ -189,7 +183,7 @@ for (i in c(1:length(Fishrunlist))){
     }
   }
 
-#No GUT ouptput
+# no GUT ouptput
 for (i in c(1:length(GUTrunlist))){
   visit=extractvisitfrompath(GUTrunlist[i])  
   #GUTpath=paste(strsplit(GUTrunlist[i], visit)[[1]][1], visit,"/GUT",sep="")
@@ -200,12 +194,8 @@ for (i in c(1:length(GUTrunlist))){
 
 
 
-  
-#################################################################
-#Create Maps of fish output overlain on GUT output
-#################################################################
-####Make Maps
-##############################################################
+# Create maps of fish output overlain on GUT output ---------------------------
+
 source(paste(Scriptpath, "/create_figures.R", sep=""))
 
 
@@ -214,14 +204,14 @@ for (i in c(1:length(GUTrunlist))){
               shape.colors=shape.colors, plotfish=T, plotcontour=F, plotthalweg=F)
 } 
 
-#FOr this map crop gut the NREI extent...after fixing projection for a couple of sites.
+# for this map crop gut the NREI extent...after fixing projection for a couple of sites.
 
 for (i in c(1:length(GUTrunlist))){
   MakeGUTmaps(GUTrunlist[i],figdir=figdir, form.colors=form.colors, GU.colors=GU.colors,
               shape.colors=shape.colors, plotfish=F, plotcontour=T, plotthalweg=T)
 } 
 
-#These maps have a scale and only show one type of GUT output
+# These maps have a scale and only show one type of GUT output
 source(paste(Scriptpath, "/make_gut_overlay_maps.R", sep=""))
 layer="Tier3_InChannel_GU" #Specify which GUT output layer you want to summarize 
 attribute="GU"
@@ -238,9 +228,7 @@ for (i in c(1:length(overlaylist))){
 
 #2014,2019,2021,2028 spatial points are off
 
-#################################################################
-#Site GUT Metrics
-#################################################################
+# Site GUT metrics ---------------------------
 
 source(paste(Scriptpath, "/make_site_gut_metrics.R", sep=""))
 source(paste(Scriptpath, "/intersect_pts.R", sep=""))
@@ -298,9 +286,7 @@ write.csv(metrics1, paste(Metricpath, "\\GUTMetrics\\GUT2.1Run01\\siteGUTmetrics
 #list.dirs(Datapath)
 #GUTrunlist[9]           
 
-#################################################################
-#Site GUT Unit Metrics
-#################################################################
+# Site GUT unit metrics ---------------------------
 
 source(paste(Scriptpath, "/make_site_gut_unit_metrics.R", sep=""))
 
@@ -324,9 +310,8 @@ unitcats=GUcats
 attribute="GU"
 write.csv(metrics1, paste(Metricpath, "\\GUTMetrics\\GUT2.1Run01\\siteGUTunitmetrics_", layer, ".csv", sep=""))
 
-#################################################################
-#Site Fish Metrics
-#-+5################################################################
+# Site fish metrics ---------------------------
+
 source(paste(Scriptpath, "/make_site_fish_metrics.R", sep=""))
 #re-run after HSI hab polys are run.
 i=1
@@ -342,10 +327,8 @@ metrics4=as.data.frame(metrics4)
 write.csv(metrics4, paste(Metricpath, "\\ReachMetrics\\reachmetrics_fishresponse.csv", sep=""))
 str(metrics4)
 
-
-############################################################################################
-#By GUT FISH by UNIT   ######THIS IS THE ONE I AM MOST INTERSTED IN QA QC.##################
-############################################################################################
+# By GUT FISH by UNIT ---------------------------
+# THIS IS THE ONE I AM MOST INTERSTED IN QA QC
 
 rm(list=ls())
 
@@ -372,7 +355,8 @@ for (i in c(1:length(GUTrunlist))){
 #}
 #cleanup(metrics2)
 
-####NREI###############
+# NREI ---------------------------
+
 Model="NREI"
 species=""
 
@@ -395,7 +379,8 @@ write.csv(metrics6, paste(Metricpath, "\\GUTMetrics\\GUT2.1Run01\\UnitID_NREImet
 
 dim(metrics5)
 
-####HSI STHD, GU###############
+# HSI STHD, GU ---------------------------
+
 layer="Tier3_InChannel_GU"
 Model="HSI"
 species="chnk"
