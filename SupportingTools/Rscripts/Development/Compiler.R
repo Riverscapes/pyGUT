@@ -64,7 +64,7 @@ Createfishpts(Fishrunlist[23], zrank="max", plotNREI=F)#}
 
 GUTpath=paste(strsplit(Fishrunlist[23], "NREI"),"GUT",sep="")
 plot(readOGR(paste(GUTpath, "Output/GUT_2.1/Run_01/Tier3_InChannel_Gu.shp", sep="/")))
-plot(paste(Fishrunlist[23],"predFishLocations.shp", sep="/")
+plot(paste(Fishrunlist[23],"predFishLocations.shp", sep="/"))
 
 # makes habitat polygons
 for (i in c(1:length(Fishrunlist))){
