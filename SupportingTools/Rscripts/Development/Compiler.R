@@ -8,23 +8,23 @@ library(dplyr)
 
 # Set required paths ---------------------------
 
-Datapath="C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data"
-Metricpath="C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data/00_Projectwide/Metrics"
-Scriptpath="C:/etal/LocalCode/pyGUT/SupportingTools/RScripts/Development"
-figdir="C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data/00_Projectwide/Figs"
+data_path = "C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data"
+metric_path = "C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data/00_Projectwide/Metrics"
+script_path = "C:/etal/LocalCode/pyGUT/SupportingTools/RScripts/Development"
+fig_path = "C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data/00_Projectwide/Figs"
 
 # Create list of visits to loop over ---------------------------
 
 # list of directories of all the fish visits
 
-Fishrunlist=list.dirs(Datapath)[grep("/NREI",list.dirs(Datapath))]
+Fishrunlist=list.dirs(data_path)[grep("/NREI",list.dirs(data_path))]
 Fishrunlist=Fishrunlist[-grep("Old", Fishrunlist)] #cleans out unnecessary items from list
 Fishrunlist=Fishrunlist[-grep("samesite", Fishrunlist)] #cleans out unnecessary items from list
 
 
 # list of directories of all the matching GUT visits
 
-GUTrunlist=list.dirs(Datapath)[grep("GUT/Output/GUT_2.1/Run_01",list.dirs(Datapath))]
+GUTrunlist=list.dirs(data_path)[grep("GUT/Output/GUT_2.1/Run_01",list.dirs(data_path))]
 
 # Set plotting colors and categories ---------------------------
 
@@ -44,12 +44,12 @@ shape.colors=c(Planar="khaki1", Convexity="orange2", Concavity="royalblue")
 
 # Import universal Scripts and variables ---------------------------
 
-source(paste(Scriptpath, "extract_visit_from_path.R", sep="/")) #pulls out visit ID from Path
+source(paste(script_path, "extract_visit_from_path.R", sep="/")) #pulls out visit ID from Path
 
 # Make spatial data of fish points and habitat polygons from NREI and HSI output ---------------------------
 
-source(paste(Scriptpath, "create_fish_pts.R", sep="/"))
-source(paste(Scriptpath, "create_habitat_poly.R", sep="/"))
+source(paste(script_path, "create_fish_pts.R", sep="/"))
+source(paste(script_path, "create_habitat_poly.R", sep="/"))
 
 
 #2014(i=23),2019(i=24),2021(i=25),2028 (i=28) spatial points are off
@@ -196,32 +196,32 @@ for (i in c(1:length(GUTrunlist))){
 
 # Create maps of fish output overlain on GUT output ---------------------------
 
-source(paste(Scriptpath, "/create_figures.R", sep=""))
+source(paste(script_path, "/create_figures.R", sep=""))
 
 
 for (i in c(1:length(GUTrunlist))){
-  MakeGUTmaps(GUTrunlist[i],figdir, form.colors=form.colors, GU.colors=GU.colors,
+  MakeGUTmaps(GUTrunlist[i],fig_path, form.colors=form.colors, GU.colors=GU.colors,
               shape.colors=shape.colors, plotfish=T, plotcontour=F, plotthalweg=F)
 } 
 
 # for this map crop gut the NREI extent...after fixing projection for a couple of sites.
 
 for (i in c(1:length(GUTrunlist))){
-  MakeGUTmaps(GUTrunlist[i],figdir=figdir, form.colors=form.colors, GU.colors=GU.colors,
+  MakeGUTmaps(GUTrunlist[i],fig_path=fig_path, form.colors=form.colors, GU.colors=GU.colors,
               shape.colors=shape.colors, plotfish=F, plotcontour=T, plotthalweg=T)
 } 
 
 # These maps have a scale and only show one type of GUT output
-source(paste(Scriptpath, "/make_gut_overlay_maps.R", sep=""))
+source(paste(script_path, "/make_gut_overlay_maps.R", sep=""))
 layer="Tier3_InChannel_GU" #Specify which GUT output layer you want to summarize 
 attribute="GU"
-figdir="E:\\Box Sync\\ET_AL\\Projects\\USA\\ISEMP\\GeomorphicUnits\\Figs\\Maps\\T3withJuv"
+fig_path="E:\\Box Sync\\ET_AL\\Projects\\USA\\ISEMP\\GeomorphicUnits\\Figs\\Maps\\T3withJuv"
 #you have to be connected to the internet for this to work due to a package dependency.  Sorry.
 overlaylist=paste(Fishrunlist, "predFishLocations.shp", sep="/")
 
 for (i in c(1:length(overlaylist))){
   print(paste("i=",i, "starting", overlaylist[i]))
-  makeGUToverlaymaps(overlaylist[i],overlaydir="NREI", overlayname="Juveniles", layer, figdir, Run="Run_01", plotthalweg=F, plotthalwegs=F, plotcontour=F)
+  makeGUToverlaymaps(overlaylist[i],overlaydir="NREI", overlayname="Juveniles", layer, fig_path, Run="Run_01", plotthalweg=F, plotthalwegs=F, plotcontour=F)
 }
 
 #These didn't produce maps prob no GUT 3297, 2898, 2271, 1971
@@ -230,8 +230,8 @@ for (i in c(1:length(overlaylist))){
 
 # Site GUT metrics ---------------------------
 
-source(paste(Scriptpath, "/make_site_gut_metrics.R", sep=""))
-source(paste(Scriptpath, "/intersect_pts.R", sep=""))
+source(paste(script_path, "/make_site_gut_metrics.R", sep=""))
+source(paste(script_path, "/intersect_pts.R", sep=""))
 
 #you have to be connected to the internet for this to work
 for (i in c(1:length(GUTrunlist))){
@@ -248,10 +248,10 @@ metrics1=as.data.frame(metrics)
 metrics1$ThalwegR=round(1/as.numeric(as.character(metrics1$ThalwegR)),2)
 
 layer="Tier2_InChannel_Transition"
-write.csv(metrics1, paste(Metricpath, "\\GUTMetrics\\GUT2.1Run01\\siteGUTmetrics_", layer, ".csv" ,sep=""))
+write.csv(metrics1, paste(metric_path, "\\GUTMetrics\\GUT2.1Run01\\siteGUTmetrics_", layer, ".csv" ,sep=""))
 
 layer="Tier3_InChannel_GU"
-write.csv(metrics1, paste(Metricpath, "\\GUTMetrics\\GUT2.1Run01\\siteGUTmetrics_Tier3GU.csv", sep=""))
+write.csv(metrics1, paste(metric_path, "\\GUTMetrics\\GUT2.1Run01\\siteGUTmetrics_Tier3GU.csv", sep=""))
 
 #Datacleanup and check
 
@@ -264,8 +264,8 @@ write.csv(metrics1, paste(Metricpath, "\\GUTMetrics\\GUT2.1Run01\\siteGUTmetrics
 #  if(i==1){visitlist=visit}else{visitlist=c(visitlist, visit)}
 #}
 
-#site=read.csv(paste(Metricpath, "\\GUTMetrics\\GUT2.1Run01\\siteGUTmetrics_", layer, ".csv" ,sep=""))
-#write.csv(metrics, paste(Metricpath, "\\GUTMetrics\\GUT2.1Run01\\siteGUTmetrics_", layer, ".csv" ,sep=""))
+#site=read.csv(paste(metric_path, "\\GUTMetrics\\GUT2.1Run01\\siteGUTmetrics_", layer, ".csv" ,sep=""))
+#write.csv(metrics, paste(metric_path, "\\GUTMetrics\\GUT2.1Run01\\siteGUTmetrics_", layer, ".csv" ,sep=""))
 
 
 #match(visitlist, site$VisitID)
@@ -283,12 +283,12 @@ write.csv(metrics1, paste(Metricpath, "\\GUTMetrics\\GUT2.1Run01\\siteGUTmetrics
 #site=site[,-1]
 #site[9,]=v
 
-#list.dirs(Datapath)
+#list.dirs(data_path)
 #GUTrunlist[9]           
 
 # Site GUT unit metrics ---------------------------
 
-source(paste(Scriptpath, "/make_site_gut_unit_metrics.R", sep=""))
+source(paste(script_path, "/make_site_gut_unit_metrics.R", sep=""))
 
 for (i in c(1:length(GUTrunlist))){
   v=makesiteGUTunitmetrics(GUTrunlist[i], layer=paste(layer, ".shp",sep=""), attribute=attribute, unitcats=unitcats)
@@ -303,16 +303,16 @@ metrics1[which(metrics1$n==1),]$sdPerim=0 #sets sd to zero for items with only o
 layer="Tier2_InChannel_Transition"
 attribute="UnitForm"
 unitcats=formcats
-write.csv(metrics1, paste(Metricpath, "\\GUTMetrics\\GUT2.1Run01\\siteGUTunitmetrics_", layer, ".csv" ,sep=""))
+write.csv(metrics1, paste(metric_path, "\\GUTMetrics\\GUT2.1Run01\\siteGUTunitmetrics_", layer, ".csv" ,sep=""))
 
 layer="Tier3_InChannel_GU"  
 unitcats=GUcats
 attribute="GU"
-write.csv(metrics1, paste(Metricpath, "\\GUTMetrics\\GUT2.1Run01\\siteGUTunitmetrics_", layer, ".csv", sep=""))
+write.csv(metrics1, paste(metric_path, "\\GUTMetrics\\GUT2.1Run01\\siteGUTunitmetrics_", layer, ".csv", sep=""))
 
 # Site fish metrics ---------------------------
 
-source(paste(Scriptpath, "/make_site_fish_metrics.R", sep=""))
+source(paste(script_path, "/make_site_fish_metrics.R", sep=""))
 #re-run after HSI hab polys are run.
 i=1
 for (i in c(42:length(Fishrunlist))){
@@ -324,7 +324,7 @@ for (i in c(42:length(Fishrunlist))){
 metrics4=metrics
 rownames(metrics4)=seq(1,length(metrics4[,1]))
 metrics4=as.data.frame(metrics4)
-write.csv(metrics4, paste(Metricpath, "\\ReachMetrics\\reachmetrics_fishresponse.csv", sep=""))
+write.csv(metrics4, paste(metric_path, "\\ReachMetrics\\reachmetrics_fishresponse.csv", sep=""))
 str(metrics4)
 
 # By GUT FISH by UNIT ---------------------------
@@ -332,7 +332,7 @@ str(metrics4)
 
 rm(list=ls())
 
-source(paste(Scriptpath, "/make_unit_fish_metrics.R", sep=""))
+source(paste(script_path, "/make_unit_fish_metrics.R", sep=""))
 
 i=1
 #ilist=seq(1,100,1)[-c(16,20, 42, 45,54,73,109,112)] Trouble sites
@@ -342,7 +342,7 @@ for (i in c(1:length(GUTrunlist))){
   print(paste("i=",i))
   #v=makeUnitFishmetrics(GUTrunlist[ilist[i]], layer=paste(layer, ".shp", sep="") , Model=Model, species=species)
   v=makeUnitFishmetrics(GUTrunlist[i], layer=layer , 
-            figdir=paste(figdir,"\\Maps\\Fish\\", Model, "\\Tier3GU\\", species, sep=""), Model=Model, species=species, ModelMedians=T)
+            fig_path=paste(fig_path,"\\Maps\\Fish\\", Model, "\\Tier3GU\\", species, sep=""), Model=Model, species=species, ModelMedians=T)
   if(length(grep("Forc",names(v)))>0){  v1=v[,-grep("Forc",names(v))]}  # Not sure what this does
   if(length(grep("SubGU",names(v1)))>0){v2=v1[,-grep("SubGU",names(v1))]} # Not sure what this does
   if (i==1){metrics=v2} else {metrics=rbind(metrics,v2)} 
@@ -362,7 +362,7 @@ species=""
 
 #layer="Tier2_InChannel_Transition"
 #UnitIDT2=cleanup(metrics)
-#write.csv(UnitIDT2, paste(Metricpath, "\\GUTMetrics\\GUT2.1Run01\\UnitID_Juvmetrics_", layer, ".csv" ,sep=""))
+#write.csv(UnitIDT2, paste(metric_path, "\\GUTMetrics\\GUT2.1Run01\\UnitID_Juvmetrics_", layer, ".csv" ,sep=""))
 #str(metrics)
 
 layer="Tier3_InChannel_GU" #48-104,106 hab not found then pred fsh not found
@@ -375,7 +375,7 @@ badspatial=c(which(metrics5$VisitID==2014 | metrics5$VisitID==2019 |metrics5$Vis
 metrics6=metrics5
 metrics6[badspatial,5:11]=NA #gets rid of visits with bad spatial alignment
 
-write.csv(metrics6, paste(Metricpath, "\\GUTMetrics\\GUT2.1Run01\\UnitID_NREImetrics_", layer, ".csv" ,sep=""), row.names=F)
+write.csv(metrics6, paste(metric_path, "\\GUTMetrics\\GUT2.1Run01\\UnitID_NREImetrics_", layer, ".csv" ,sep=""), row.names=F)
 
 dim(metrics5)
 
@@ -389,7 +389,7 @@ species="chnk"
 #metrics0=metrics[-grep("exist", metrics$UnitID),] #cleans out lines printing that they didn't exist
 metrics0=metrics0[-which(is.na(metrics0$UnitID)),] #cleans out lines with GU=NA
 
-write.csv(metrics1, paste(Metricpath, "\\GUTMetrics\\GUT2.1Run01\\UnitID_",Model, species, "metrics_", layer, ".csv" ,sep=""))
+write.csv(metrics1, paste(metric_path, "\\GUTMetrics\\GUT2.1Run01\\UnitID_",Model, species, "metrics_", layer, ".csv" ,sep=""))
 str(metrics)
 
 layer="Tier3_InChannel_GU"
@@ -400,6 +400,6 @@ species="chnk"
 #metrics0=metrics[-grep("exist", metrics$UnitID),] #cleans out lines printing that they didn't exist
 metrics0=metrics0[-which(is.na(metrics0$UnitID)),] #cleans out lines with GU=NA
 
-write.csv(metrics1, paste(Metricpath, "\\GUTMetrics\\GUT2.1Run01\\UnitID_",Model, species, "metrics_", layer, ".csv" ,sep=""))
+write.csv(metrics1, paste(metric_path, "\\GUTMetrics\\GUT2.1Run01\\UnitID_",Model, species, "metrics_", layer, ".csv" ,sep=""))
 str(metrics)
 
