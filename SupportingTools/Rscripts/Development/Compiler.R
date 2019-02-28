@@ -1,12 +1,18 @@
+# Load required packages ---------------------------
+library(sp)
+library(rgeos)
+library(maptools)
+library(dplyr)
+
 ########################################################################
 ##########Calling in Data and Running Summary Metrics####################
 ########################################################################
 
 ####HUNDRED SITES
-Datapath="E:\\Box Sync\\ET_AL\\Projects\\USA\\ISEMP\\GeomorphicUnits\\Data\\VisitData"
-Metricpath="E:\\Box Sync\\ET_AL\\Projects\\USA\\ISEMP\\GeomorphicUnits\\Data\\Metrics"
-Scriptpath="E:\\Box Sync\\ET_AL\\Projects\\USA\\ISEMP\\GeomorphicUnits\\Scripts\\RFunctions"
-figdir="E:\\Box Sync\\ET_AL\\Projects\\USA\\ISEMP\\GeomorphicUnits\\Figs"
+Datapath="C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data"
+Metricpath="C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data/00_Projectwide/Metrics"
+Scriptpath="C:/etal/LocalCode/pyGUT/SupportingTools/RScripts/Development"
+figdir="C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data/00_Projectwide/Figs"
 
 #############################################################
 #Set list of visits to loop over
@@ -42,14 +48,14 @@ shape.colors=c(Planar="khaki1", Convexity="orange2", Concavity="royalblue")
 #############################################################
 #Import universal Scripts and variables
 #############################################################
-source(paste(Scriptpath, "extractvisitfrompath.R", sep="/")) #pulls out visit ID from Path
+source(paste(Scriptpath, "extract_visit_from_path.R", sep="/")) #pulls out visit ID from Path
 
 
 ################################################################
 #Make spatial data of fish points and habitat polygons from NREI and HSI output 
 ################################################################
-source(paste(Scriptpath, "Createfishpts.R", sep="/"))
-source(paste(Scriptpath, "Createhabitatpoly.R", sep="/"))
+source(paste(Scriptpath, "create_fish_pts.R", sep="/"))
+source(paste(Scriptpath, "create_habitat_poly.R", sep="/"))
 
 
 #2014(i=23),2019(i=24),2021(i=25),2028 (i=28) spatial points are off
@@ -88,9 +94,6 @@ for (i in c(1:length(Fishrunlist))){
 
 #makes DelftExtent polygons
 #Re-run this as you have time.
-library(sp)
-library(rgeos)
-library(maptools)
 for (i in c(1:length(Fishrunlist))){
   if(file.exists(paste(Fishrunlist[i],"DelftExtent.shp", sep="/"))==F){ #need to fix names for the first some odd
     if(file.exists(paste(Fishrunlist[i],"delftDepth.tif", sep="/"))==T){
@@ -203,7 +206,7 @@ for (i in c(1:length(GUTrunlist))){
 #################################################################
 ####Make Maps
 ##############################################################
-source(paste(Scriptpath, "/FigureFuncs.R", sep=""))
+source(paste(Scriptpath, "/create_figures.R", sep=""))
 
 
 for (i in c(1:length(GUTrunlist))){
@@ -219,7 +222,7 @@ for (i in c(1:length(GUTrunlist))){
 } 
 
 #These maps have a scale and only show one type of GUT output
-source(paste(Scriptpath, "/makeGUToverlaymaps.R", sep=""))
+source(paste(Scriptpath, "/make_gut_overlay_maps.R", sep=""))
 layer="Tier3_InChannel_GU" #Specify which GUT output layer you want to summarize 
 attribute="GU"
 figdir="E:\\Box Sync\\ET_AL\\Projects\\USA\\ISEMP\\GeomorphicUnits\\Figs\\Maps\\T3withJuv"
@@ -239,8 +242,8 @@ for (i in c(1:length(overlaylist))){
 #Site GUT Metrics
 #################################################################
 
-source(paste(Scriptpath, "/makesiteGUTmetrics.R", sep=""))
-source(paste(Scriptpath, "/intersectpts.R", sep=""))
+source(paste(Scriptpath, "/make_site_gut_metrics.R", sep=""))
+source(paste(Scriptpath, "/intersect_pts.R", sep=""))
 
 #you have to be connected to the internet for this to work
 for (i in c(1:length(GUTrunlist))){
@@ -263,7 +266,7 @@ layer="Tier3_InChannel_GU"
 write.csv(metrics1, paste(Metricpath, "\\GUTMetrics\\GUT2.1Run01\\siteGUTmetrics_Tier3GU.csv", sep=""))
 
 #Datacleanup and check
-library(dplyr)
+
 #Fixing and checking stuff
 
 
@@ -299,7 +302,7 @@ library(dplyr)
 #Site GUT Unit Metrics
 #################################################################
 
-source(paste(Scriptpath, "/makesiteGUTunitmetrics.R", sep=""))
+source(paste(Scriptpath, "/make_site_gut_unit_metrics.R", sep=""))
 
 for (i in c(1:length(GUTrunlist))){
   v=makesiteGUTunitmetrics(GUTrunlist[i], layer=paste(layer, ".shp",sep=""), attribute=attribute, unitcats=unitcats)
@@ -324,7 +327,7 @@ write.csv(metrics1, paste(Metricpath, "\\GUTMetrics\\GUT2.1Run01\\siteGUTunitmet
 #################################################################
 #Site Fish Metrics
 #-+5################################################################
-source(paste(Scriptpath, "/makesiteFISHmetrics.R", sep=""))
+source(paste(Scriptpath, "/make_site_fish_metrics.R", sep=""))
 #re-run after HSI hab polys are run.
 i=1
 for (i in c(42:length(Fishrunlist))){
@@ -346,7 +349,7 @@ str(metrics4)
 
 rm(list=ls())
 
-source(paste(Scriptpath, "/makeUnitFishmetrics.R", sep=""))
+source(paste(Scriptpath, "/make_unit_fish_metrics.R", sep=""))
 
 i=1
 #ilist=seq(1,100,1)[-c(16,20, 42, 45,54,73,109,112)] Trouble sites
