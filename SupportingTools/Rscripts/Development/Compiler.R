@@ -8,6 +8,8 @@ library(rgdal)
 library(maptools)
 library(tidyverse)
 library(purrr)
+library(purrrlyr)
+library(raster)
 
 # Set required paths ---------------------------
 
@@ -60,18 +62,11 @@ shape.colors=c(Planar="khaki1", Convexity="orange2", Concavity="royalblue")
 
 # Make spatial data of fish points and habitat polygons from NREI and HSI output ---------------------------
 
-# Create predicted fish locations
-
-
-
 #2014(i=23),2019(i=24),2021(i=25),2028 (i=28) spatial points are off
 
-# makes predicted fish point shapefiles
-for (i in c(1:length(Fishrunlist))){
-  #if(file.exists(paste(Fishrunlist[i],"predFishLocations.shp", sep="/"))==F){
-    Createfishpts(Fishrunlist[i], zrank="max", plotNREI=F)#}
-}
-
+# Create predicted fish locations
+# todo: change plot.nrei parameter back to 'FALSE' after testing
+by_row(visit.summary, check.fish.pts, zrank = "max", plot.nrei = TRUE)
 
 # makes habitat polygons
 for (i in c(1:length(Fishrunlist))){
