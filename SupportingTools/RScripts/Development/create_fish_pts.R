@@ -1,24 +1,3 @@
-# Creates point shapefiles from csvs of HSI and NREI predicted fish locations
-# Also creates a raster of NREI values within the suitable habitat regions
-#
-# Args:
-#   fisrunpath: a path to the NREI visit folder.  To run HSI must be in file structure as is.
-#               example:
-#               fishrunpath="E:\\Box Sync\\ET_AL\\Projects\\USA\\ISEMP\\GeomorphicUnits\\FifteenStartingSites\\Data\\VisitData/VISIT_1029/NREI"
-#
-# Returns:
-#   predFishLocations.shp: ESRI shapefile of predicted fish points from predFishLocations.csv
-#   predReddLocations.shp: ESRI Shapefile of predicted redd locations from predReddLocs.csv
-#   allNreiPts.shp: ESRI Shapefile of all NREI pts from allNreiPts.csv
-#   SuitableNreiPts.shp: ESRI Shapefile of NREI pts >0 and above 40%pval threshold. 
-#                        These are the pool of points that the predicted fish locs were chosen from
-#                        Only one point per x,y is chosen based on optional argument zrank
-#                        zrank="max" which takes the maximum NREI from the water column at each location
-#                        zrank="XX" takes a number specifying the water column placement. 1= bed of stream.
-#   suitableNreiRaster.tiff: GeoTiff created from SuitableNreiPts.shp. Used to create habitat polygons.
-
-
-
 #' Create points shapefile from csv
 #'
 #' @param visit.dir Full filepath to visit folder 
@@ -61,7 +40,20 @@ create.pts = function(visit.dir, visit.crs, file.name, out.name){
 #' @param zrank Value user to select single NREI value for each xy point.  Either set to "max" or numeric value.
 #' @param plot.nrei If set to TRUE will output suitable NREI points shapefile and raster
 #'
-#' @return Outputs several shapefiles 
+#' @return
+#' Returns following if shapefiles if they don't exist on file:
+#' predFishLocations.shp: ESRI shapefile of predicted fish points from predFishLocations.csv
+#' chkPredReddLocs.shp: ESRI Shapefile of predicted Chinook redd locations from chkPredReddLocs.csv
+#' sthdPredReddLocss.shp: ESRI Shapefile of predicted steelhead redd locations from sthdPredReddLocs.csv
+#' allNreiPts.shp: ESRI Shapefile of all NREI pts from allNreiPts.csv
+#' 
+#' Returns folloiwng if files don't exist and 'plot.nrei' argument set to TRUE
+#' SuitableNreiPts.shp: ESRI Shapefile of NREI pts > 0 and above 40% pval threshold. 
+#'                      These are the pool of points that the predicted fish locs were chosen from
+#'                      Only one point per x,y is chosen based on optional argument zrank
+#'                      zrank="max" which takes the maximum NREI from the water column at each location
+#'                      zrank="XX" takes a number specifying the water column placement. 1 = bed of stream.
+#' suitableNreiRaster.tiff: GeoTiff created from SuitableNreiPts.shp. Used to create habitat polygons. 
 #' @export
 #'
 #' @examples
