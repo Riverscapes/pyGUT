@@ -22,6 +22,7 @@ fig.path = "C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data/00_Projectwide/Figs"
 source(file.path(script.path, "check_visit_data.R"))
 source(file.path(script.path, "create_fish_pts.R"))
 source(file.path(script.path, "create_habitat_poly.R"))
+source(file.path(script.path, "create_delft_poly.R"))
 source(file.path(script.path, "create_figures.R"))
 source(file.path(script.path, "make_gut_overlay_maps.R"))
 source(file.path(script.path, "make_site_gut_metrics.R"))
@@ -74,23 +75,10 @@ visit.summary = map_dfr(visit.dirs$visit.dir, check.visit.data)
 # Create habitat polygons
 by_row(visit.summary, check.habitat.poly)
 
-# makes DelftExtent polygons
-# Re-run this as you have time.
+# Create delft extent polygons
+by_row(visit.summary, check.delft.poly)
 
-for (i in c(1:length(Fishrunlist))){
-  if(file.exists(paste(Fishrunlist[i],"DelftExtent.shp", sep="/"))==F){ #need to fix names for the first some odd
-    if(file.exists(paste(Fishrunlist[i],"delftDepth.tif", sep="/"))==T){
-      print(Fishrunlist[i])
-      r=aggregate(raster(paste(Fishrunlist[i],"delftDepth.tif", sep="//")))
-      print("done reading in and aggregating")
-      p2=gUnaryUnion(rasterToPolygons(r, dissolve=TRUE))
-      p2df = as.data.frame(1)
-      p3 = SpatialPolygonsDataFrame(p2, p2df) #Coerce to spatial polygons dataframe
-      writeOGR(p3, Fishrunlist[i], layer="DelftExtent" , overwrite_layer=TRUE, driver="ESRI Shapefile")
-      print("finished writing")
-    }
-  }
-}
+
 
 # Data clean-up and QA/QC ---------------------------
 
