@@ -82,10 +82,15 @@ check.visit.data = function(visit.dir){
   delft.poly = check.data(visit.dir, "delftExtent.shp$")
   delft.raster = check.data(visit.dir, "delftDepth.tif$")
   
+  # - gut output
+  gut.t2 = check.data(visit.dir, "Tier2_InChannel.shp$")
+  gut.t2.trans = check.data(visit.dir, "Tier2_InChannel_Transition.shp$")
+  gut.t3 = check.data(visit.dir, "Tier3_InChannel_GU.shp$")
 
   data = tibble(visit.dir, visit.id, visit.crs, nrei.locs.csv, nrei.locs.shp, all.nrei.pts.csv, all.nrei.pts.shp, 
                 suit.nrei.pts.shp, suit.nrei.poly, suit.nrei.raster, ch.redd.locs.csv, ch.redd.locs.shp, ch.suit.poly,
-                ch.raster, st.redd.locs.csv, st.redd.locs.shp, st.suit.poly, st.raster, delft.poly, delft.raster)
+                ch.raster, st.redd.locs.csv, st.redd.locs.shp, st.suit.poly, st.raster, delft.poly, delft.raster,
+                gut.t2, gut.t2.trans, gut.t3)
   
   return(data)
   

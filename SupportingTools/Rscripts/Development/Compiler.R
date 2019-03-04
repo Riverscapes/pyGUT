@@ -82,14 +82,6 @@ by_row(visit.summary, check.delft.poly)
 
 # Data clean-up and QA/QC ---------------------------
 
-
-# fixing and checking stuff
-i=1
-for (i in c(1:length(Fishrunlist))){
-  visit=extractvisitfrompath(Fishrunlist[i])
-  if(i==1){visitlist=visit}else{visitlist=c(visitlist, visit)}
-  }
-
 # these have no predicted juveniles
 for (i in c(1:length(Fishrunlist))){
 if(file.exists(paste(Fishrunlist[i], "\\predFishLocations.shp",sep=""))==F & file.exists(paste(Fishrunlist[i], "\\predFishLocations.csv", sep=""))==T){   
@@ -112,17 +104,6 @@ for (i in c(1:length(Fishrunlist))){
       if(dim(sth)[1]==0){print(paste("visit" , visit, "has no predicted sth redds"))}
     }
   }
-
-# no GUT ouptput
-for (i in c(1:length(GUTrunlist))){
-  visit=extractvisitfrompath(GUTrunlist[i])  
-  #GUTpath=paste(strsplit(GUTrunlist[i], visit)[[1]][1], visit,"/GUT",sep="")
-  if(file.exists(paste(GUTrunlist[i],"Tier2_InChannel.shp", sep="/"))==F){print(paste("visit",visit,"Tier2_InChannel.shp does not exist"))}
-  if(file.exists(paste(GUTrunlist[i],"Tier2_InChannel_Transition.shp", sep="/"))==F){print(paste("visit",visit, "Tier2_InChannel_Transtion.shp does not exist"))}
-  if(file.exists(paste(GUTrunlist[i],"Tier3_InChannel_GU.shp", sep="/"))==F){print(paste("visit",visit,"Tier3_InChannel_GU.shp does not exist"))}
-  }
-
-
 
 # Create maps of fish output overlain on GUT output ---------------------------
 
