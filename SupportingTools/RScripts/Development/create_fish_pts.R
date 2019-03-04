@@ -128,7 +128,7 @@ check.fish.pts = function(data, zrank = "max", plot.nrei = FALSE){
       writeOGR(zrank.spdf, dirname(pts.csv), "suitableNreiPts", driver="ESRI Shapefile", overwrite_layer = TRUE)
       zrank.pixels = SpatialPixelsDataFrame(zrank.spdf, tolerance=.001, zrank.spdf@data)
       zrank.raster = raster(zrank.pixels[,'nrei_Jph'])
-      raster::writeRaster(zrank.raster, file.path(dirname(pts.csv), "suitableNreiRaster"), format="GTiff", overwrite = TRUE)
+      raster::writeRaster(zrank.raster, file.path(dirname(pts.csv), "suitableNreiRaster"), format = "GTiff", overwrite = TRUE)
     }
   }
 }
