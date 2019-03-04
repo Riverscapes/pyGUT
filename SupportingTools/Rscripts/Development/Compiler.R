@@ -82,53 +82,6 @@ by_row(visit.summary, check.delft.poly)
 
 # Data clean-up and QA/QC ---------------------------
 
-# check NREI outputs
-for (i in c(1:length(Fishrunlist))){
-  visit=extractvisitfrompath(Fishrunlist[i])
-  if(file.exists(paste(Fishrunlist[i],"predFishLocations.shp", sep="/"))==F){print(paste("visit",visit,"predFishLocations.shp does not exist"))}
-  if(file.exists(paste(Fishrunlist[i],"allNreiPts.shp", sep="/"))==F){print(paste("visit",visit, "allNREIpts.shp does not exist"))}
-  if(file.exists(paste(Fishrunlist[i],"suitableNreiRaster.tif", sep="/"))==F){print(paste("visit",visit,"suitableNreiRaster.tif does not exist"))}
-  if(file.exists(paste(Fishrunlist[i],"suitableNreiPoly.shp", sep="/"))==F){print(paste("visit",visit,"suitableNreiPoly.shp"))}
-}
-
-# checking Delft extent outputs    
-for (i in c(1:length(Fishrunlist))){
-  visit=extractvisitfrompath(Fishrunlist[i])
-    if(file.exists(paste(Fishrunlist[i],"delftDepth.tif", sep="/"))==F){print(paste("visit",visit,"delftDepth.tif does not exist"))}
-    if(file.exists(paste(Fishrunlist[i],"DelftExtent.shp", sep="/"))==F){print(paste("visit",visit,"delftExtent.tif does not exist"))}
-}
-  
-# checking Delft extent spatial matches fish output -- all okay...
-delftspatial=c(NA,NA,NA)
-colnames(delftspatial=c("VistitID","nrei.crs", "delft.crs"))
-for (i in c(1:length(Fishrunlist))){
- if(file.exists(paste(Fishrunlist[i],"DelftExtent.shp", sep="/"))==T 
-    & file.exists(paste(Fishrunlist[i],"predFishLocations.shp", sep="/"))==T){
-      delft.crs=crs(readOGR(paste(Fishrunlist[i],"DelftExtent.shp", sep="/")))
-      nrei.crs=proj4string(readOGR(paste(Fishrunlist[i],"predFishLocations.shp", sep="/")))
-      if (nrei.crs!=delft.crs){
-        visit=extractvisitfrompath(Fishrunlist[i])
-        nonmatching=c(visit, nrei.crs, delft.crs)
-    }
- }
-  delftspatial=rbind(delftspatial, nonmatching)
-}
-
-
-# checking redd outputs 
-for (i in c(1:length(Fishrunlist))){
-visit=extractvisitfrompath(Fishrunlist[i])
-HSIpath=paste(strsplit(Fishrunlist[i], visit)[[1]][1], visit,"/HSI",sep="")
-  if(file.exists(paste(HSIpath,"Output/FuzzyChinookSpawner_DVSC.tif", sep="/"))==F){print(paste("visit",visit,"FuzzyChinookSpawner_DVSC.tif does not exist"))} else{
-  if(file.exists(paste(HSIpath,"Output/suitableChnkPoly.shp", sep="/"))==F){print(paste("visit",visit,"suitableChnkPoly.shp does not exist but the .tiff does"))}}
-  if(file.exists(paste(HSIpath,"reddPlacement/chkPredReddLocs.csv", sep="/"))==F){print(paste("visit",visit,"chkPredReddLocs.csv does not exist"))}else{
-  if(file.exists(paste(HSIpath,"reddPlacement/chkPredReddLocs.shp", sep="/"))==F){print(paste("visit",visit,"chkPredReddLocs.shp does not exist but the .csv does"))}}
-
-  if(file.exists(paste(HSIpath,"Output/FuzzySteelheadSpawner_DVSC.tif", sep="/"))==F){print(paste("visit",visit,"FuzzySteelheadSpawner_DVSC.tif does not exist"))}else{
-  if(file.exists(paste(HSIpath,"Output/suitableSthdPoly.shp", sep="/"))==F){print(paste("visit",visit,"suitableSthdPoly.shp does not existbut the .tiff does"))}}
-  if(file.exists(paste(HSIpath,"reddPlacement/sthdPredReddLocs.csv", sep="/"))==F){print(paste("visit",visit,"sthdPredReddLocs.csv does not exist"))}else{
-  if(file.exists(paste(HSIpath,"reddPlacement/sthdPredReddLocs.shp", sep="/"))==F){print(paste("visit",visit,"sthdPredReddLocs.shp does not existbut the .csv does"))}}
-}
 
 # fixing and checking stuff
 i=1
