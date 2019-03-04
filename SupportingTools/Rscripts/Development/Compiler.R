@@ -68,25 +68,11 @@ shape.colors=c(Planar="khaki1", Convexity="orange2", Concavity="royalblue")
 # todo: change plot.nrei parameter back to 'FALSE' after testing
 by_row(visit.summary, check.fish.pts, zrank = "max", plot.nrei = TRUE)
 
-# makes habitat polygons
-for (i in c(1:length(Fishrunlist))){
-  print(paste("i=",i))
-  if(file.exists(paste(Fishrunlist[i],"suitableNreiPoly.shp", sep="/"))==F){
-    if(file.exists(paste(Fishrunlist[i],"suitableNreiRaster.tif", sep="/"))==T){
-      Createhabitatpoly( "suitableNreiRaster.tif", Fishrunlist[i], layer="suitableNreiPoly")}
-  }
-  visit=extractvisitfrompath(Fishrunlist[i])
-  HSIpath=paste(strsplit(Fishrunlist[i], visit)[[1]][1], visit,"/HSI/Output",sep="")
-  
-  if(file.exists(paste(HSIpath,"suitableChnkPoly.shp", sep="/"))==F){
-    if(file.exists(paste(HSIpath,"FuzzyChinookSpawner_DVSC.tif", sep="/"))==T){
-      Createhabitatpoly( "FuzzyChinookSpawner_DVSC.tif", HSIpath, layer="suitableChnkPoly", mybreaks=c(.4,.8,1))}
-  }
-  if(file.exists(paste(HSIpath,"suitableSthdPoly.shp", sep="/"))==F){
-    if(file.exists(paste(HSIpath,"FuzzySteelheadSpawner_DVSC.tif", sep="/"))==T){
-      Createhabitatpoly( "FuzzySteelheadSpawner_DVSC.tif", HSIpath, layer="suitableSthdPoly", mybreaks=c(.4,.8,1))}
-  }
-}
+# Re-run visit summary to update whether the suitable NREI raster now exists on file
+visit.summary = map_dfr(visit.dirs$visit.dir, check.visit.data)
+
+# Create habitat polygons
+by_row(visit.summary, check.habitat.poly)
 
 # makes DelftExtent polygons
 # Re-run this as you have time.
