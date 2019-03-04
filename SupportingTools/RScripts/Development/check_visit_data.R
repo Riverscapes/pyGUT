@@ -44,7 +44,7 @@ check.visit.data = function(visit.dir){
   
   # if there's a thawleg shapefile get the crs
   if(have.thalweg == "Yes"){
-    thalweg.path = unlist(list.files(path = visit.dir, pattern = "Thalweg.shp", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))[1]
+    thalweg.path = unlist(list.files(path = visit.dir, pattern = "Thalweg.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))[1]
     thalweg.shp = readOGR(dirname(thalweg.path), unlist(str_split(basename(thalweg.path), "\\."))[1])
     visit.crs = proj4string(thalweg.shp)
   }else{
@@ -54,29 +54,29 @@ check.visit.data = function(visit.dir){
   # search for relevant data (shapefiles, csvs, rasters):
   
   # - nrei juvenile predicted fish locations
-  nrei.locs.csv = check.data(visit.dir, "predFishLocations.csv")
-  nrei.locs.shp = check.data(visit.dir, "predFishLocations.shp")
+  nrei.locs.csv = check.data(visit.dir, "predFishLocations.csv$")
+  nrei.locs.shp = check.data(visit.dir, "predFishLocations.shp$")
   
   # - nrei all data
-  all.nrei.pts.csv = check.data(visit.dir, "allNreiPts.csv")
-  all.nrei.pts.shp = check.data(visit.dir, "allNreiPts.shp")
+  all.nrei.pts.csv = check.data(visit.dir, "allNreiPts.csv$")
+  all.nrei.pts.shp = check.data(visit.dir, "allNreiPts.shp$")
   
   # - suitable nrei data
-  suit.nrei.pts.shp = check.data(visit.dir, "suitableNreiPts.shp")
-  suit.nrei.poly = check.data(visit.dir, "suitableNreiPoly.shp")
-  suit.nrei.raster = check.data(visit.dir, "suitableNreiRaster.tif")
+  suit.nrei.pts.shp = check.data(visit.dir, "suitableNreiPts.shp$")
+  suit.nrei.poly = check.data(visit.dir, "suitableNreiPoly.shp$")
+  suit.nrei.raster = check.data(visit.dir, "suitableNreiRaster.tif$")
   
   # - chinook data
-  ch.redd.locs.csv = check.data(visit.dir, "chkPredReddLocs.csv")
-  ch.redd.locs.shp = check.data(visit.dir, "chkPredReddLocs.shp")
-  ch.suit.poly = check.data(visit.dir, "suitableChnkPoly.shp")
-  ch.raster = check.data(visit.dir, "FuzzyChinookSpawner_DVSC.tif")
+  ch.redd.locs.csv = check.data(visit.dir, "chkPredReddLocs.csv$")
+  ch.redd.locs.shp = check.data(visit.dir, "chkPredReddLocs.shp$")
+  ch.suit.poly = check.data(visit.dir, "suitableChnkPoly.shp$")
+  ch.raster = check.data(visit.dir, "FuzzyChinookSpawner_DVSC.tif$")
   
   # - steelhead redd locations
-  st.redd.locs.csv = check.data(visit.dir, "sthdPredReddLocs.csv")
-  st.redd.locs.shp = check.data(visit.dir, "sthdPredReddLocs.shp")
-  st.suit.poly = check.data(visit.dir, "suitableSthdPoly.shp")
-  st.raster = check.data(visit.dir, "FuzzySteelheadSpawner_DVSC.tif")
+  st.redd.locs.csv = check.data(visit.dir, "sthdPredReddLocs.csv$")
+  st.redd.locs.shp = check.data(visit.dir, "sthdPredReddLocs.shp$")
+  st.suit.poly = check.data(visit.dir, "suitableSthdPoly.shp$")
+  st.raster = check.data(visit.dir, "FuzzySteelheadSpawner_DVSC.tif$")
   
 
   data = tibble(visit.dir, visit.id, visit.crs, nrei.locs.csv, nrei.locs.shp, all.nrei.pts.csv, all.nrei.pts.shp, 

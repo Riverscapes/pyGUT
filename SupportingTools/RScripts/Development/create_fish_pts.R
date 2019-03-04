@@ -67,17 +67,17 @@ check.fish.pts = function(data, zrank = "max", plot.nrei = FALSE){
   
   # - for nrei predicted fish locations
   if(data$nrei.locs.shp == 'No' & data$nrei.locs.csv == 'Yes'){
-    create.pts(data$visit.dir, data$visit.crs, "predFishLocations.csv", "predFishLocations")
+    create.pts(data$visit.dir, data$visit.crs, "predFishLocations.csv$", "predFishLocations")
   }
 
   # - for chinook predicted redd locations
   if(data$ch.redd.locs.shp == 'No' & data$ch.redd.locs.csv == 'Yes'){
-    create.pts(data$visit.dir, data$visit.crs, "chkPredReddLocs.csv", "chkPredReddLocs")
+    create.pts(data$visit.dir, data$visit.crs, "chkPredReddLocs.csv$", "chkPredReddLocs")
   }
   
   # - for steelhead predicted redd locations
   if(data$st.redd.locs.shp == 'No' & data$st.redd.locs.csv == 'Yes'){
-    create.pts(data$visit.dir, data$visit.crs, "sthdPredReddLocs.csv", "sthdPredReddLocs")
+    create.pts(data$visit.dir, data$visit.crs, "sthdPredReddLocs.csv$", "sthdPredReddLocs")
   }  
   
   # - for nrei all points
@@ -86,14 +86,14 @@ check.fish.pts = function(data, zrank = "max", plot.nrei = FALSE){
   }
   
   if(plot.nrei == TRUE & data$all.nrei.pts.csv == 'Yes'){
-    create.pts(data$visit.dir, data$visit.crs, "allNreiPts.csv", "allNreiPts")
+    create.pts(data$visit.dir, data$visit.crs, "allNreiPts.csv$", "allNreiPts")
   }
   
   # create nrei suitable points shp and nrei raster
   if(plot.nrei == TRUE & data$all.nrei.pts.csv == 'Yes'){
     
     # get path to csv file
-    pts.csv = unlist(list.files(path = visit.dir, pattern = "allNreiPts.csv", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+    pts.csv = unlist(list.files(path = visit.dir, pattern = "allNreiPts.csv$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
     
     # read in csv and subset by pval and Jph columns
     pts.tb = read_csv(pts.csv) %>%

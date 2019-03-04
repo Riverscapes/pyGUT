@@ -35,7 +35,7 @@ create.habitat.poly = function(visit.dir, visit.crs, file.name, out.name){
   }
   
   # splits into 2 classes based on breaks
-  ras.cut = cut(ras.agg, breaks)
+  ras.cut = cut(ras.agg, breaks = ras.breaks)
   
   # convert to polygon
   poly.cut = rasterToPolygons(ras.cut, dissolve = TRUE)
@@ -58,17 +58,17 @@ check.habitat.poly = function(data){
   
   # - for nrei
   if(data$suit.nrei.poly == 'No' & data$suit.nrei.raster == 'Yes'){
-    create.habitat.poly(data$visit.dir, data$visit.crs, "suitableNreiRaster.tif", "suitableNreiPoly")
+    create.habitat.poly(data$visit.dir, data$visit.crs, "suitableNreiRaster.tif$", "suitableNreiPoly")
   }
   
   # - for chinook spawner fuzzy hsi
   if(data$ch.suit.poly == 'No' & data$ch.raster == 'Yes'){
-    create.habitat.poly(data$visit.dir, data$visit.crs, "FuzzyChinookSpawner_DVSC.tif", "suitableChnkPoly")
+    create.habitat.poly(data$visit.dir, data$visit.crs, "FuzzyChinookSpawner_DVSC.tif$", "suitableChnkPoly")
   }
   
   # - for steelhead spawner fuzzy hsi
   if(data$st.suit.poly == 'No' & data$st.raster == 'Yes'){
-    create.habitat.poly(data$visit.dir, data$visit.crs, "FuzzySteelheadSpawner_DVSC.tif", "suitableSthdPoly")
+    create.habitat.poly(data$visit.dir, data$visit.crs, "FuzzySteelheadSpawner_DVSC.tif$", "suitableSthdPoly")
   }  
 }
 
