@@ -78,10 +78,14 @@ check.visit.data = function(visit.dir){
   st.suit.poly = check.data(visit.dir, "suitableSthdPoly.shp$")
   st.raster = check.data(visit.dir, "FuzzySteelheadSpawner_DVSC.tif$")
   
+  # - delft
+  delft.poly = check.data(visit.dir, "delftExtent.shp$")
+  delft.raster = check.data(visit.dir, "delftDepth.tif$")
+  
 
   data = tibble(visit.dir, visit.id, visit.crs, nrei.locs.csv, nrei.locs.shp, all.nrei.pts.csv, all.nrei.pts.shp, 
                 suit.nrei.pts.shp, suit.nrei.poly, suit.nrei.raster, ch.redd.locs.csv, ch.redd.locs.shp, ch.suit.poly,
-                ch.raster, st.redd.locs.csv, st.redd.locs.shp, st.suit.poly, st.raster)
+                ch.raster, st.redd.locs.csv, st.redd.locs.shp, st.suit.poly, st.raster, delft.poly, delft.raster)
   
   return(data)
   
