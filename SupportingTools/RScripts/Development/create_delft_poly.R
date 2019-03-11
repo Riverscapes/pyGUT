@@ -4,7 +4,7 @@
 #' Create polygon of raster extent
 #'
 #' @param visit.dir Full filepath to visit folder 
-#' @param visit.crs CRS (projection) for visit
+#' @param ref.shp Reference shapefile for visit used to set CRS (projection) for output shapefile
 #' @param file.name Name of the raster
 #' @param out.name Name of the output shapefile
 #'
@@ -13,9 +13,8 @@
 #'
 #' @examples
 #' #' create.habitat.poly("C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data/VISIT_1027", 
-#' "+proj=utm +zone=12 +datum=NAD83 +units=m +no_defs +ellps=GRS80 +towgs84=0,0,0",
-#' "delftDepth.tif$", "delftExtent")
-create.delft.poly = function(visit.dir, visit.crs, file.name, out.name){
+#' "^Thalweg.shp$", "delftDepth.tif$", "delftExtent")
+create.delft.poly = function(visit.dir, ref.shp, file.name, out.name){
   
   # get path to raster file
   ras.path = unlist(list.files(path = visit.dir, pattern = file.name, full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
@@ -26,11 +25,11 @@ create.delft.poly = function(visit.dir, visit.crs, file.name, out.name){
   # relcassify all raster values to 1
   ras.rc = reclassify(ras.agg, c(-Inf, Inf, 1))
   
-  # convert to polygon
-  poly.rc = rasterToPolygons(ras.rc, dissolve = TRUE)
+  # convert to polygon and transform to correct coordinate system for visit
+  poly.rc = rasterToPolygons(ras.rc, dissolve = TRUE) %>% st_as_sf() %>% st_transform(crs = (st_crs(ref.shp)), partial = FALSE)
   
   # write output polygon to esri shapefile
-  writeOGR(poly.rc, dirname(ras.path), out.name, driver = "ESRI Shapefile", overwrite_layer = TRUE)
+  st_write(poly.rc, file.path(dirname(ras.path), out.name), delete_layer = TRUE)
 }
 
 #' Checks if delft extent polygon exists.  Creates it using 'delftDepth.tif' if the raster exists.
@@ -46,9 +45,12 @@ check.delft.poly = function(data){
   
   # - for nrei
   if(data$delft.poly == 'No' & data$delft.raster == 'Yes'){
-    create.delft.poly(data$visit.dir, data$visit.crs, "delftDepth.tif$", "delftExtent")
+    
+    # set reference shp
+    ref.shp.path = unlist(list.files(path = data$visit.dir, pattern = "^Thalweg.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+    ref.shp = st_read(ref.shp.path, quiet = TRUE)
+    
+    create.delft.poly(data$visit.dir, ref.shp, "delftDepth.tif$", "delftExtent.shp")
   }
 }
-
-check.delft.poly(data)
 

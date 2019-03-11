@@ -4,7 +4,7 @@
 #' Create suitable habitat polygon from raster using breaks in data
 #'
 #' @param visit.dir Full filepath to visit folder 
-#' @param visit.crs CRS (projection) for visit
+#' @param ref.shp Reference shapefile for visit used to set CRS (projection) for output shapefile
 #' @param file.name Name of the raster
 #' @param out.name Name of the output shapefile
 #'
@@ -13,20 +13,25 @@
 #'
 #' @examples
 #' #' create.habitat.poly("C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data/VISIT_1027", 
-#' "+proj=utm +zone=12 +datum=NAD83 +units=m +no_defs +ellps=GRS80 +towgs84=0,0,0",
-#' "suitableNreiRaster.tif", "suitableNreiPoly")
-create.habitat.poly = function(visit.dir, visit.crs, file.name, out.name){
+#' "^Thalweg.shp$", "suitableNreiRaster.tif", "suitableNreiPoly")
+create.habitat.poly = function(visit.dir, ref.shp, file.name, out.name){
   
   # get path to raster file
   ras.path = unlist(list.files(path = visit.dir, pattern = file.name, full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
   
+  # read in raster
+  ras = raster(ras.path)
+  
+  # set raster crs (raster package does not always read in datum)
+  crs(ras) = crs(ref.shp)
+  
   # read is raster at lower resolution
-  ras.agg = aggregate(raster(ras.path))
+  ras.agg = aggregate(ras)
   
   # set breaks for splitting raster
   # - if nrei raster use median and max
   # - otherwise set to (0.4, 0.8, 1) -- this assumes fuzzy hsi raster
-  if(out.name == "suitableNreiPoly"){
+  if(out.name == "suitableNreiPoly.shp"){
     ras.median = cellStats(ras.agg, median)
     ras.max = cellStats(ras.agg, max)
     ras.breaks = c(0, ras.median, ras.max)
@@ -38,10 +43,10 @@ create.habitat.poly = function(visit.dir, visit.crs, file.name, out.name){
   ras.cut = cut(ras.agg, breaks = ras.breaks)
   
   # convert to polygon
-  poly.cut = rasterToPolygons(ras.cut, dissolve = TRUE)
+  poly.cut = rasterToPolygons(ras.cut, dissolve = TRUE) %>% st_as_sf() %>% st_transform(crs = (st_crs(ref.shp)), partial = FALSE)
   
   # write output polygon to esri shapefile
-  writeOGR(poly.cut, dirname(ras.path), out.name, driver = "ESRI Shapefile", overwrite_layer = TRUE)
+  st_write(poly.cut, file.path(dirname(ras.path), out.name), delete_layer = TRUE)
 
 }
 
@@ -56,21 +61,22 @@ create.habitat.poly = function(visit.dir, visit.crs, file.name, out.name){
 #' check.habitat.poly(visit.summary)
 check.habitat.poly = function(data){
   
+  # set reference shp
+  ref.shp.path = unlist(list.files(path = data$visit.dir, pattern = "^Thalweg.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  ref.shp = st_read(ref.shp.path, quiet = TRUE)
+  
   # - for nrei
   if(data$suit.nrei.poly == 'No' & data$suit.nrei.raster == 'Yes'){
-    create.habitat.poly(data$visit.dir, data$visit.crs, "suitableNreiRaster.tif$", "suitableNreiPoly")
+    create.habitat.poly(data$visit.dir, ref.shp, "suitableNreiRaster.tif$", "suitableNreiPoly.shp")
   }
   
   # - for chinook spawner fuzzy hsi
   if(data$ch.suit.poly == 'No' & data$ch.raster == 'Yes'){
-    create.habitat.poly(data$visit.dir, data$visit.crs, "FuzzyChinookSpawner_DVSC.tif$", "suitableChnkPoly")
+    create.habitat.poly(data$visit.dir, ref.shp, "FuzzyChinookSpawner_DVSC.tif$", "suitableChnkPoly.shp")
   }
   
   # - for steelhead spawner fuzzy hsi
   if(data$st.suit.poly == 'No' & data$st.raster == 'Yes'){
-    create.habitat.poly(data$visit.dir, data$visit.crs, "FuzzySteelheadSpawner_DVSC.tif$", "suitableSthdPoly")
+    create.habitat.poly(data$visit.dir, ref.shp, "FuzzySteelheadSpawner_DVSC.tif$", "suitableSthdPoly.shp")
   }  
 }
-
-check.habitat.poly(data)
-
