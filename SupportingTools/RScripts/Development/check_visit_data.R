@@ -37,20 +37,6 @@ check.visit.data = function(visit.dir){
   # get visit id from visit directory
   visit.id = as.numeric(unlist(str_split(visit.dir, "VISIT_"))[2])
   
-  # get visit crs from thalweg shp in gut inputs
-  
-  # - search for thalweg shapefile
-  have.thalweg = check.data(visit.dir, "Thalweg.shp")
-  
-  # if there's a thawleg shapefile get the crs
-  if(have.thalweg == "Yes"){
-    thalweg.path = unlist(list.files(path = visit.dir, pattern = "Thalweg.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))[1]
-    thalweg.shp = readOGR(dirname(thalweg.path), unlist(str_split(basename(thalweg.path), "\\."))[1])
-    visit.crs = proj4string(thalweg.shp)
-  }else{
-    visit.crs = NA
-  }
-  
   # search for relevant data (shapefiles, csvs, rasters):
   
   # - nrei juvenile predicted fish locations
@@ -87,7 +73,7 @@ check.visit.data = function(visit.dir){
   gut.t2.trans = check.data(visit.dir, "Tier2_InChannel_Transition.shp$")
   gut.t3 = check.data(visit.dir, "Tier3_InChannel_GU.shp$")
 
-  data = tibble(visit.dir, visit.id, visit.crs, nrei.locs.csv, nrei.locs.shp, all.nrei.pts.csv, all.nrei.pts.shp, 
+  data = tibble(visit.dir, visit.id, nrei.locs.csv, nrei.locs.shp, all.nrei.pts.csv, all.nrei.pts.shp, 
                 suit.nrei.pts.shp, suit.nrei.poly, suit.nrei.raster, ch.redd.locs.csv, ch.redd.locs.shp, ch.suit.poly,
                 ch.raster, st.redd.locs.csv, st.redd.locs.shp, st.suit.poly, st.raster, delft.poly, delft.raster,
                 gut.t2, gut.t2.trans, gut.t3)
