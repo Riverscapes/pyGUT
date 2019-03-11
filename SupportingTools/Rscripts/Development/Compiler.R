@@ -2,14 +2,12 @@
 
 # Load required packages ---------------------------
 
-library(sp)
-library(rgeos)
-library(rgdal)
-library(maptools)
 library(tidyverse)
+library(ggplot2)
 library(purrr)
 library(purrrlyr)
 library(raster)
+library(sf)
 
 # Set required paths ---------------------------
 
@@ -40,26 +38,10 @@ dirs = list.dirs(data.path, recursive = FALSE)
 visit.dirs = tibble(visit.dir = grep(pattern = "VISIT", dirs, value = TRUE))
 
 # subset just for some testing
-visit.dirs = visit.dirs[1:4,]
+visit.dirs = visit.dirs %>% slice(2:2)
 
 # create summary of which data exist for each visit
 visit.summary = map_dfr(visit.dirs$visit.dir, check.visit.data)
-
-# Set plotting colors and categories ---------------------------
-
-GUcats=c("Pocket Pool", "Pool", "Pond", "Margin Attached Bar", "Mid Channel Bar" ,
-         "Riffle", "Cascade", "Rapid", "Run-Glide", "Chute", "Transition", "Bank")
-formcats=c("Saddle", "Bowl","Mound","Plane", "Trough", 
-           "Bowl Transition", "Mound Transition")
-Shapecats=c("Concavity", "Covexity", "Planar")
-
-GU.colors=  GU.colors=c(`Pocket Pool`="light blue", Pool="royalblue", Pond="dark green", `Margin Attached Bar`="darkred", `Mid Channel Bar`="brown2" , 
-                       Riffle="orange2", Cascade="pink", Rapid="green", Chute="aquamarine" ,
-                       `Glide-Run`="khaki1", Transition="grey90", Bank="grey10")
-form.colors=c(Bowl="royalblue",Mound="darkred",Plane="khaki1",Saddle="orange2",Trough="lightblue",Wall= "grey10",
-              `Bowl Transition`="aquamarine", `Mound Transition`="pink")
-
-shape.colors=c(Planar="khaki1", Convexity="orange2", Concavity="royalblue")
 
 # Make spatial data of fish points and habitat polygons from NREI and HSI output ---------------------------
 
@@ -82,57 +64,59 @@ by_row(visit.summary, check.delft.poly)
 
 # Data clean-up and QA/QC ---------------------------
 
-# these have no predicted juveniles
-for (i in c(1:length(Fishrunlist))){
-if(file.exists(paste(Fishrunlist[i], "\\predFishLocations.shp",sep=""))==F & file.exists(paste(Fishrunlist[i], "\\predFishLocations.csv", sep=""))==T){   
-  visit=extractvisitfrompath(Fishrunlist[i])  
-  fish=read.csv(paste(Fishrunlist[i],"\\predFishLocations.csv", sep=""), stringsAsFactors = FALSE)
-  if(dim(fish)[1]==0){print(paste("visit" , visit, "has no predicted fish"))}
-}
-}
-
-# these have no predicted redds
-for (i in c(1:length(Fishrunlist))){
-  visit=extractvisitfrompath(Fishrunlist[i])  
-  HSIpath=paste(strsplit(Fishrunlist[i], visit)[[1]][1], visit,"/HSI",sep="")
-  if(file.exists(paste(HSIpath, "/reddPlacement/chkPredReddLocs.shp",sep=""))==F & file.exists(paste(HSIpath, "/reddPlacement/chkPredReddLocs.csv", sep=""))==T){   
-    chk=read.csv(paste(HSIpath, "/reddPlacement/chkPredReddLocs.csv", sep=""), stringsAsFactors = FALSE)
-    if(dim(chk)[1]==0){print(paste("visit" , visit, "has no predicted chk redds"))}
-  }
-    if(file.exists(paste(HSIpath, "/reddPlacement/sthdPredReddLocs.shp",sep=""))==F & file.exists(paste(HSIpath, "/reddPlacement/sthdPredReddLocs.csv", sep=""))==T){   
-      sth=read.csv(paste(HSIpath, "/reddPlacement/sthdPredReddLocs.csv", sep=""), stringsAsFactors = FALSE)
-      if(dim(sth)[1]==0){print(paste("visit" , visit, "has no predicted sth redds"))}
-    }
-  }
+# # commenting this out for now
+# # todo: ask NK if she wants this written to a csv and if so over haul
+# # these have no predicted juveniles
+# for (i in c(1:length(Fishrunlist))){
+# if(file.exists(paste(Fishrunlist[i], "\\predFishLocations.shp",sep=""))==F & file.exists(paste(Fishrunlist[i], "\\predFishLocations.csv", sep=""))==T){   
+#   visit=extractvisitfrompath(Fishrunlist[i])  
+#   fish=read.csv(paste(Fishrunlist[i],"\\predFishLocations.csv", sep=""), stringsAsFactors = FALSE)
+#   if(dim(fish)[1]==0){print(paste("visit" , visit, "has no predicted fish"))}
+# }
+# }
+# 
+# # these have no predicted redds
+# for (i in c(1:length(Fishrunlist))){
+#   visit=extractvisitfrompath(Fishrunlist[i])  
+#   HSIpath=paste(strsplit(Fishrunlist[i], visit)[[1]][1], visit,"/HSI",sep="")
+#   if(file.exists(paste(HSIpath, "/reddPlacement/chkPredReddLocs.shp",sep=""))==F & file.exists(paste(HSIpath, "/reddPlacement/chkPredReddLocs.csv", sep=""))==T){   
+#     chk=read.csv(paste(HSIpath, "/reddPlacement/chkPredReddLocs.csv", sep=""), stringsAsFactors = FALSE)
+#     if(dim(chk)[1]==0){print(paste("visit" , visit, "has no predicted chk redds"))}
+#   }
+#     if(file.exists(paste(HSIpath, "/reddPlacement/sthdPredReddLocs.shp",sep=""))==F & file.exists(paste(HSIpath, "/reddPlacement/sthdPredReddLocs.csv", sep=""))==T){   
+#       sth=read.csv(paste(HSIpath, "/reddPlacement/sthdPredReddLocs.csv", sep=""), stringsAsFactors = FALSE)
+#       if(dim(sth)[1]==0){print(paste("visit" , visit, "has no predicted sth redds"))}
+#     }
+#   }
 
 # Create maps of fish output overlain on GUT output ---------------------------
 
 
-
-for (i in c(1:length(GUTrunlist))){
-  MakeGUTmaps(GUTrunlist[i],fig.path, form.colors=form.colors, GU.colors=GU.colors,
-              shape.colors=shape.colors, plotfish=T, plotcontour=F, plotthalweg=F)
-} 
-
-# for this map crop gut the NREI extent...after fixing projection for a couple of sites.
-
-for (i in c(1:length(GUTrunlist))){
-  MakeGUTmaps(GUTrunlist[i],fig.path=fig.path, form.colors=form.colors, GU.colors=GU.colors,
-              shape.colors=shape.colors, plotfish=F, plotcontour=T, plotthalweg=T)
-} 
-
-# These maps have a scale and only show one type of GUT output
-
-layer="Tier3_InChannel_GU" #Specify which GUT output layer you want to summarize 
-attribute="GU"
-fig.path="E:\\Box Sync\\ET_AL\\Projects\\USA\\ISEMP\\GeomorphicUnits\\Figs\\Maps\\T3withJuv"
-#you have to be connected to the internet for this to work due to a package dependency.  Sorry.
-overlaylist=paste(Fishrunlist, "predFishLocations.shp", sep="/")
-
-for (i in c(1:length(overlaylist))){
-  print(paste("i=",i, "starting", overlaylist[i]))
-  makeGUToverlaymaps(overlaylist[i],overlaydir="NREI", overlayname="Juveniles", layer, fig.path, Run="Run_01", plotthalweg=F, plotthalwegs=F, plotcontour=F)
-}
+# 
+# for (i in c(1:length(GUTrunlist))){
+#   MakeGUTmaps(GUTrunlist[i],fig.path, form.colors=form.colors, GU.colors=GU.colors,
+#               shape.colors=shape.colors, plotfish=T, plotcontour=F, plotthalweg=F)
+# } 
+# 
+# # for this map crop gut the NREI extent...after fixing projection for a couple of sites. -- ?? Not sure what this refers to ??
+# 
+# for (i in c(1:length(GUTrunlist))){
+#   MakeGUTmaps(GUTrunlist[i],fig.path=fig.path, form.colors=form.colors, GU.colors=GU.colors,
+#               shape.colors=shape.colors, plotfish=F, plotcontour=T, plotthalweg=T)
+# } 
+# 
+# # These maps have a scale and only show one type of GUT output
+# 
+# layer="Tier3_InChannel_GU" #Specify which GUT output layer you want to summarize 
+# attribute="GU"
+# fig.path="E:\\Box Sync\\ET_AL\\Projects\\USA\\ISEMP\\GeomorphicUnits\\Figs\\Maps\\T3withJuv"
+# #you have to be connected to the internet for this to work due to a package dependency.  Sorry.
+# overlaylist=paste(Fishrunlist, "predFishLocations.shp", sep="/")
+# 
+# for (i in c(1:length(overlaylist))){
+#   print(paste("i=",i, "starting", overlaylist[i]))
+#   makeGUToverlaymaps(overlaylist[i],overlaydir="NREI", overlayname="Juveniles", layer, fig.path, Run="Run_01", plotthalweg=F, plotthalwegs=F, plotcontour=F)
+# }
 
 #These didn't produce maps prob no GUT 3297, 2898, 2271, 1971
 
