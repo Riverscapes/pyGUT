@@ -1,240 +1,115 @@
-#Natalie Kramer (n.kramer.andersonn@gmail.com)
-#updated Aug 30, 2017
-
-#This script uses these GUT layers:
-
-
-#GUTrunpath="E:\\Box Sync\\ET_AL\\Projects\\USA\\ISEMP\\GeomorphicUnits\\HundredSites\\Data\\VisitData/VISIT_1027/GUT/Output/GUT_2.1/Run_01"
-#layer="Tier2_InChannel_Transition.shp"
-#thalweglayer="Thalwegs.shp"
-
-#Output
-
+#' Calculates site-level GUT metrics
+#'
+#' @param data 
+#'
+#' @return
 #BFArea: Bankfull Area in sq meters
 #WEArea: Wetted Area in sq meters
 #mainThalwegL:  Length in meters of the main Thalweg.
 #ThalwegsL: Sum of all Lengths from multiple thalwegs, including the main and any secondary ones
-#ThalwegsR: ThalwegsL/mainThalwegL
-
-
-#Note:The gIntersection in this script isn't working quite properly for all multiple thalweg layers. If running 
-#in batch, use CHaMP Thalwegs...
-
-#library dependencies: 
-#you need to find and source this script
-#source("E:\\Box Sync\\CRB_GU\\wrk_Scripts\\Functions\\extractvisitfrompath.R")
-#source("E:\\Box Sync\\CRB_GU\\wrk_Scripts\\Functions\\intersectpts.R")
-
-library(sp)
-library(rgdal)
-library(rgeos)
-library(rmapshaper)
-library(raster)
-
-
-
-makesiteGUTmetrics=function(GUTrunpath, layer="Tier2_InChannel.shp", thalweglayer="Thalwegs.shp", MultiThalweg=F){
- 
+#ThalwegsR: ThalwegsL/mainThalwegL 
+#' @export
+#'
+#' @examples
+calc.site.gut.metrics = function(visit.dir, run.dir, layer){
   
-  visit=extractvisitfrompath(GUTrunpath)
+  # get visit id from visit directory
+  visit.id = as.numeric(unlist(str_split(visit.dir, "VISIT_"))[2])
   
-  GUTpath=paste(strsplit(GUTrunpath, visit)[[1]][1], visit,"/GUT",sep="")
-  Bankfullpath=paste(GUTpath,"\\Inputs\\Bankfull.shp", sep="")
-  WaterExtentpath=paste(GUTpath,"\\Inputs\\WaterExtent.shp", sep="")
-  ChampThalwegpath=paste(GUTpath,"\\Inputs\\Thalweg.shp", sep="")
-  Thalwegspath=paste(GUTpath,"\\Inputs\\Thalwegs.shp", sep="")
-  
-  
-
-#Reads in GUT Inputs and computes metrics from them
-  if(file.exists(Bankfullpath)){
-    Bankfull=readOGR(Bankfullpath)
-    if(gIsValid(Bankfull)==F){
-      Bankfull=gBuffer(Bankfull, byid=TRUE, width=0)
-      print("geometry fixed")
-    }
-    BFArea=round(gArea(Bankfull),0)
+  # bankfull area
+  bf.file = unlist(list.files(path = visit.dir, pattern = "^Bankfull.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  if(file.exists(bf.file)){
+    bf.area.m2 = as.numeric(st_area(st_read(bf.file, quiet = TRUE)))
   }else{
-    BFArea=NA
+    bf.area.m2 = NA
   }
   
-  
-  if(file.exists(WaterExtentpath)){
-    WaterExtent=readOGR(WaterExtentpath)
-    if(gIsValid(WaterExtent)==F){
-      WaterExtent=gBuffer(WaterExtent, byid=TRUE, width=0)
-      print("geometry fixed")
-    }
-    WEArea=round(gArea(WaterExtent),0)
+  # wetted area
+  we.file = unlist(list.files(path = visit.dir, pattern = "^WaterExtent.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  if(file.exists(we.file)){
+    wet.area.m2 = as.numeric(st_area(st_read(we.file, quiet = TRUE)))
   }else{
-    WEArea=NA
+    wet.area.m2 = NA
   }
   
-  if(file.exists(ChampThalwegpath)){
-    ChampThalweg=readOGR(ChampThalwegpath)
-    if(gIsValid(ChampThalweg)==F){
-      ChampThalweg=gBuffer(ChampThalweg, byid=TRUE, width=0)
-      print("geometry fixed")
-    }
-    MainThalwegL=round(gLength(ChampThalweg),0)
-  } else{
-    MainThalwegL=NA
-  }
+  # thalweg length
+  # todo: check with Natalie - thalweg length (m) is sum of all lengths - is this waht she wanted?
+  #       also - should main thalweg be [Channel == "Main" & ThalwegTyp == "Main"] -- she only had the latter
+  thalwegs.file = unlist(list.files(path = visit.dir, pattern = "^Thalwegs.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  thalweg.file = unlist(list.files(path = visit.dir, pattern = "^Thalweg.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
   
-  if(file.exists(Thalwegspath)){
-    Thalwegs=readOGR(Thalwegspath)
-    if(gIsValid(Thalwegs)==F){
-      Thalwegs=gBuffer(Thalwegs, byid=TRUE, width=0)
-      print("geometry fixed")
-    }
-    MainThalwegL=round(max(gLength(Thalwegs,byid=T)),0)
-    ThalwegsL=round(gLength(Thalwegs),0)
-    #ThalwegsR=round(ThalwegsL/MainThalwegL,2)
+  # if multiple thalwegs shp exists and has 'ThalwegTyp' field, set thalweg.shp to that, otherwise use single thalweg shp
+  if(file.exists(thalwegs.file) & "ThalwegTyp" %in% names(st_read(thalwegs.file, quiet = TRUE))){
+    thalweg = st_read(thalwegs.file, quiet = TRUE)
+    main.thalweg = thalweg %>% dplyr::filter(ThalwegTyp == "Main")
+    main.thalweg.length.m = main.thalweg %>% st_length(.) %>% sum() %>% as.numeric() %>% round(3) 
+    thalweg.length.m = thalweg %>% st_length(.) %>% sum() %>% as.numeric() %>% round(3) 
+    thalweg.length.ratio = round(main.thalweg.length.m / thalweg.length.m, 3)
+  }else if(file.exists(thalweg.file)){
+    thalweg = st_read(thalweg.file, quiet = TRUE)
+    main.thalweg = thalweg
+    main.thalweg.length.m = thalweg %>% st_length(.) %>% as.numeric() %>% round(3)
+    thalweg.length.m = main.thalweg.length.m
+    thalweg.length.ratio = round(main.thalweg.length.m / thalweg.length.m, 3)
   }else{
-    ThalwegsL=NA
-    #ThalwegsR=NA
+    main.thalweg.length.m = NA
+    thalweg.length.m = NA
+    thalweg.length.ratio = NA
   }
   
-#Reads in Unit Polygon
-  if(file.exists(paste(GUTrunpath, layer ,sep="//"))){
-    Unit.poly=readOGR(paste(GUTrunpath, layer ,sep="//"))
-    if(gIsValid(Unit.poly)==F){
-      Unit.poly=gBuffer(Unit.poly, byid=TRUE, width=0)
-      print("geometry fixed")
-    }
-    
-    No.GU=length(Unit.poly)
-    
-    BordersbyArea=round(gLength(rmapshaper::ms_lines(Unit.poly))/gArea(Unit.poly),2)
-    
-    #Number of crossing of units along thalweg per 10m (Lcomplex) 1
-    #Using Champ Thalweg
-    GUTinputpath=paste(strsplit(GUTrunpath,paste("VISIT",visit, sep="_"))[[1]][1], "VISIT_",visit, "\\GUT\\Inputs", sep="")
-    
-    
-    if(file.exists(paste(GUTinputpath,"Thalweg.shp",sep="\\"))){
-      Champthalweg=readOGR(paste(GUTinputpath,"Thalweg.shp",sep="\\")) 
-      #fixes geometry if bad
-      if(gIsValid(Champthalweg)==F){
-        Champthalweg=gBuffer(Champthalweg, byid=TRUE, width=0)
-        print("geometry fixed")
-      }
-    }
-    
-    #Using Manual Thalweg. Throws error sometimes on gIntersection But it still works I think 1
-    if(MultiThalweg==T){
-      if(file.exists(paste(GUTinputpath,thalweglayer,sep="\\"))){
-        thalweg=readOGR(paste(GUTinputpath,thalweglayer,sep="\\")) 
-        #fixes geometry if bad
-        if(gIsValid(thalweg)==F){
-          thalweg=gBuffer(thalweg, byid=TRUE, width=0)
-          print("geometry fixed")
-        }
-        
-        mainT=thalweg[which(thalweg$ThalwegTyp=="Main"),]
-        
-        if(exists("mainT")){
-          intersects=gIntersection(mainT,Unit.poly, byid=T)
-          if(exists("intersects")){
-           interpts=intersectpts(intersects, Unit.poly,paste(visit, "Main Thalweg" , sep=" ") )
-            if(exists("interpts")){
-              EdgeDensMainT=round(length(interpts[,1])/gLength(mainT),2)
-              EdgeDensAllT=NA
-            }else{EdgeDensMainT=NA}
-          }else{EdgeDensMainT=NA}
-        } else{EdgeDensMainT=NA}
-        
-        #gIntersection doesn't always work and I can't figure out how to keep going....not good for batch processing right now.
-        if(exists("thalweg")){
-          intersects=gIntersection(thalweg, Unit.poly, byid=T)
-          if(exists("intersects")){
-            interpts=intersectpts(intersects, Unit.poly,paste(visit, "All Thalwegs" , sep=" ") )
-            if(exists("interpts")){
-              EdgeDensAllT=round(length(interpts[,1])/gLength(thalweg),2)
-            }else{EdgeDensAllT=NA}
-          }else{EdgeDensAllT=NA}
-        } else{EdgeDensAllT=NA}
-        
-      }else{
-        if(exists("Champthalweg")){
-          print("calculating mainT from Champ because multiple thalweg layer did not exist")
-          intersects=gIntersection(Champthalweg,Unit.poly,byid=T)
-          if(exists("intersects")){
-            interpts=intersectpts(intersects, Unit.poly,paste(visit, "Champ Thalweg" , sep=" ") )
-            if(exists("interpts")){
-              EdgeDensMainT=round(length(interpts[,1])/gLength(Champthalweg),2)
-            }else{EdgeDensMainT=NA}
-          }else{EdgeDensMainT=NA}
-        } else{EdgeDensMainT=NA}
-      }
-      
-    } else {
-      EdgeDensAllT=NA
-      if(exists("Champthalweg")){
-        intersects=gIntersection(Champthalweg,Unit.poly,byid=T)
-        if(exists("intersects")){
-          interpts=intersectpts(intersects, Unit.poly,paste(visit, "Champ Thalweg" , sep=" ") )
-          if(exists("interpts")){
-            EdgeDensMainT=round(length(interpts[,1])/gLength(Champthalweg),2)
-          }else{EdgeDensMainT=NA}
-        }else{EdgeDensMainT=NA}
-      } else{EdgeDensMainT=NA}
-    }
-    print("done calculating thalweg crossing metrics")
-    ####There may be a faster way if I gIntersect twice,  first with poly and cross sections,
-    ###then with the result of that and the poly.  I may be able to then select from the list eviorment 
-    ###the object of class "points".  In my current code I am missing some of the intersections.this other 
-    ###methods doesn't miss any of them.
-    
-    #Average number of unit crossings from cross-sections 10m
-    if(file.exists(paste(GUTinputpath,"\\BankfullXS.shp",sep=""))){
-      xs=readOGR(paste(GUTinputpath,"\\BankfullXS.shp",sep=""))
-      #fixes geometry if needed
-      if(gIsValid(xs)==F){
-        xs=gBuffer(xs, byid=TRUE, width=0)
-      }
-      xssubset=xs[seq(1, length(xs), floor(length(xs)/20)),] 
-      proj4string(xssubset)=crs(Unit.poly)
-      if(exists("xssubset")){
-        intersects=gIntersection(xssubset,Unit.poly,byid=T)
-        if(exists("intersects") & is.null(intersects)==F){
-          interpts=intersectpts(intersects, Unit.poly,paste(visit, "Cross Sections" , sep=" ") )
-          if(exists("interpts")){
-            EdgeDensXS=round(length(interpts[,1])/gLength(xssubset),2)
-          }else{EdgeDensXS=NA}
-        }else{EdgeDensXS=NA}
-      } else{EdgeDensXS=NA}
-    } else {
-      EdgeDensXS=NA
-      print("BankfullXS.shp does not exist")
-    }
-    print("done calculating cross section crossing metrics")
-    
-  } else {
-    No.GU=NA
-    BordersbyArea=NA
-    EdgeDensMainT=NA
-    EdgeDensAllT=NA
-    EdgeDensXS=NA
-    print(paste(layer, "does not exist", sep=" "))
+  # read in gut layer
+  unit.files = unlist(list.files(path = visit.dir, pattern = paste("^", layer, ".shp$", sep = ""), full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  unit.file = grep(run.dir, unit.files, value = TRUE)
+  
+  # calculate unit edge length to area ratio
+  if(file.exists(unit.file)){
+    units = st_read(unit.file, quiet = TRUE) 
+    n.units = units %>% nrow()
+    area = units %>% st_area(.) %>% sum() %>% as.numeric()
+    # commented out but saving -- approach preserves attributes
+    # edges = st_cast(forms, "LINESTRING") %>% st_difference(.)
+    edges = st_cast(units, "MULTILINESTRING") %>% st_union() %>% st_line_merge(.) %>% st_cast(., "LINESTRING") %>% st_sf(.)
+    edge.length = edges %>% st_length(.) %>% sum() %>% as.numeric()
+    edge.length.area.ratio = round(edge.length / area, 3)
+   }else{
+    n.units = NA
+    edge.length.area.ratio = NA
+  }
+  
+  # calculate edge density (for main thalweg and all thalwegs)
+  if(exists("main.thalweg") & exists("units")){
+    int.edge.main = st_intersection(main.thalweg, edges) %>% st_union(.) %>% st_cast(., "POINT") %>% st_sf(.) %>% nrow()
+    edge.dens.main.thalweg = round(int.edge.main / main.thalweg.length.m, 3)
+  }else{
+    edge.dens.main.thalweg = NA
+  }
+  
+
+  if(exists("thalweg") & exists("units")){
+    int.edge.thalwegs = st_intersection(thalweg, edges) %>% st_union(.) %>% st_cast(., "POINT") %>% st_sf(.) %>% nrow()
+    edge.dens.thalwegs = round(int.edge.thalwegs / thalweg.length.m, 3)
+  }else{
+    edge.dens.thalwegs = NA
   }
 
+  # average number of unit and cross-section intersections
+  # subset to every 10th cross-sections
+  
+  xs.file = unlist(list.files(path = visit.dir, pattern = "^BankfullXS.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  if(file.exists(xs.file) & exists("units")){
+    xs = st_read(xs.file, quiet = TRUE) %>% filter(IsValid == 1)
+    xs.sub = xs %>% filter(row_number() %% 10 == 1)
+    int.edge.xs = st_intersection(xs.sub, edges) %>% st_union(.) %>% st_cast(., "POINT") %>% st_sf(.) %>% nrow()
+    xs.length = xs.sub %>% st_length(.) %>% sum() %>% as.numeric()
+    edge.dens.xs = round(int.edge.xs / xs.length, 3)
+  }else{
+    edge.dens.xs = NA
+  }
+  
+  # create tb of calculated metrics
+  metrics = tibble(layer, visit.id, bf.area.m2, wet.area.m2, main.thalweg.length.m, thalweg.length.m, thalweg.length.ratio, 
+                   edge.length.area.ratio, edge.dens.main.thalweg, edge.dens.thalwegs, edge.dens.xs)
 
-    metrics=c("VisitID"=visit,
-              "BFArea"=BFArea,
-              "WEArea"=WEArea,
-              "MainThalwegL"=MainThalwegL,
-              "ThalwegsL"=ThalwegsL,
-              "ThalwegR"=MainThalwegL/ThalwegsL,
-              "BordersbyArea"=BordersbyArea,
-              "No.GU"=No.GU,
-              "EdgeDensMainT"=EdgeDensMainT,
-              #"EdgeDensAllT"=EdgeDensAllT,
-              "EdgeDensXS"=EdgeDensXS
-              #"GUTrunpath"=GUTrunpath
-    )
-  
-  
-return(metrics)
+  return(metrics)
 }
    
