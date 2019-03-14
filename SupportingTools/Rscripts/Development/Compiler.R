@@ -26,7 +26,6 @@ source(file.path(script.path, "create_delft_poly.R"))
 source(file.path(script.path, "create_figures.R"))
 source(file.path(script.path, "make_gut_overlay_maps.R"))
 source(file.path(script.path, "make_site_gut_metrics.R"))
-source(file.path(script.path, "intersect_pts.R"))
 source(file.path(script.path, "make_site_fish_metrics.R"))
 source(file.path(script.path, "make_unit_fish_metrics.R"))
 
@@ -126,7 +125,6 @@ by_row(visit.summary, check.delft.poly)
 
 # Site GUT metrics ---------------------------
 #data = visit.summary %>% slice(1)
-# todo: include check where subset dataframe first by if tier2 units exist or not
 # Tier 2 (hardcoded for transitions)
 map_dfr(visit.summary$visit.dir, calc.site.gut.metrics, run.dir = gut.run, layer = "Tier2_InChannel_Transition") %>% 
   bind_rows() %>%
@@ -136,41 +134,6 @@ map_dfr(visit.summary$visit.dir, calc.site.gut.metrics, run.dir = gut.run, layer
 map_dfr(visit.summary$visit.dir, calc.site.gut.metrics, run.dir = gut.run, layer = "Tier3_InChannel_GU") %>% 
   bind_rows() %>%
   write_csv(file.path(metric.path, "Site_GUTMetrics_Tier3_InChannel_GU.csv"), col_names = TRUE)
-
-
-
-#Datacleanup and check
-
-#Fixing and checking stuff
-
-
-#i=1
-#for (i in c(1:length(GUTrunlist))){
-#  visit=extractvisitfrompath(GUTrunlist[i])
-#  if(i==1){visitlist=visit}else{visitlist=c(visitlist, visit)}
-#}
-
-#site=read.csv(paste(metric.path, "\\GUTMetrics\\GUT2.1Run01\\siteGUTmetrics_", layer, ".csv" ,sep=""))
-#write.csv(metrics, paste(metric.path, "\\GUTMetrics\\GUT2.1Run01\\siteGUTmetrics_", layer, ".csv" ,sep=""))
-
-
-#match(visitlist, site$VisitID)
-#match(site$VisitID, visitlist)
-#length(site$VisitID)
-#length(visitlist)
-
-#runlist=which(is.na(metrics1$No.GU))
-#GUTrunlist[runlist]
-#runvisits=metrics1[runlist,]$VisitID
-
-#metrics=site[-runlist,-1]#removes visits with no Bankfull XS stats
-
-#names(site)[2]="VisitID"
-#site=site[,-1]
-#site[9,]=v
-
-#list.dirs(data.path)
-#GUTrunlist[9]           
 
 # Site GUT unit metrics ---------------------------
 
