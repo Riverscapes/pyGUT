@@ -8,6 +8,7 @@ library(purrr)
 library(purrrlyr)
 library(raster)
 library(sf)
+library(lwgeom)
 
 # Set required paths ---------------------------
 
@@ -15,6 +16,7 @@ data.path = "C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data"
 metric.path = "C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data/00_Projectwide/Metrics"
 script.path = "C:/etal/LocalCode/pyGUT/SupportingTools/RScripts/Development"
 fig.path = "C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data/00_Projectwide/Figs"
+gut.run = "GUT_2.1/Run_01"
 
 # Load required scripts ---------------------------
 source(file.path(script.path, "check_visit_data.R"))
@@ -38,7 +40,7 @@ dirs = list.dirs(data.path, recursive = FALSE)
 visit.dirs = tibble(visit.dir = grep(pattern = "VISIT", dirs, value = TRUE))
 
 # subset just for some testing
-visit.dirs = visit.dirs %>% slice(2:2)
+visit.dirs = visit.dirs %>% slice(1:2)
 
 # create summary of which data exist for each visit
 visit.summary = map_dfr(visit.dirs$visit.dir, check.visit.data)
@@ -123,27 +125,19 @@ by_row(visit.summary, check.delft.poly)
 #2014,2019,2021,2028 spatial points are off
 
 # Site GUT metrics ---------------------------
+#data = visit.summary %>% slice(1)
+# todo: include check where subset dataframe first by if tier2 units exist or not
+# Tier 2 (hardcoded for transitions)
+map_dfr(visit.summary$visit.dir, calc.site.gut.metrics, run.dir = gut.run, layer = "Tier2_InChannel_Transition") %>% 
+  bind_rows() %>%
+  write_csv(file.path(metric.path, "Site_GUTMetrics_Tier2_InChannel_Transition.csv"), col_names = TRUE)
+
+# Tier 3 
+map_dfr(visit.summary$visit.dir, calc.site.gut.metrics, run.dir = gut.run, layer = "Tier3_InChannel_GU") %>% 
+  bind_rows() %>%
+  write_csv(file.path(metric.path, "Site_GUTMetrics_Tier3_InChannel_GU.csv"), col_names = TRUE)
 
 
-#you have to be connected to the internet for this to work
-for (i in c(1:length(GUTrunlist))){
-#for (i in runlist){
-  print(i)
-  v=makesiteGUTmetrics(GUTrunlist[i], layer=paste(layer, ".shp",sep=""))
-  if (i==1){metrics=v} else {metrics=rbind(metrics,v)} 
-} 
-
-rownames(metrics)=seq(1,length(GUTrunlist))
-
-#metrics1=as.data.frame(metrics)[-c(10,12)]#getsridof EdgeDensAllT runpathfromtable
-metrics1=as.data.frame(metrics)
-metrics1$ThalwegR=round(1/as.numeric(as.character(metrics1$ThalwegR)),2)
-
-layer="Tier2_InChannel_Transition"
-write.csv(metrics1, paste(metric.path, "\\GUTMetrics\\GUT2.1Run01\\siteGUTmetrics_", layer, ".csv" ,sep=""))
-
-layer="Tier3_InChannel_GU"
-write.csv(metrics1, paste(metric.path, "\\GUTMetrics\\GUT2.1Run01\\siteGUTmetrics_Tier3GU.csv", sep=""))
 
 #Datacleanup and check
 
