@@ -1,307 +1,514 @@
-#This script summarizes response by individual geomorphic units.   I need to add Average values from Rasters for NREI and HSI to output.
+# Ask NK: in scripts I'm calculating suitable (layer = 1) and best (layer = 2) separately.  also calculating values for entire reach.
+#         should suitable be entire suitable polygon (i.e., layer = 1 AND layer = 2)
 
-library(raster)
-library(sp)
-library(dplyr)
-library(rgeos)
-library(rgdal)
 
-makeUnitFishmetrics=function(GUTrunpath, layer, figdir="NA", Model="NREI", species="", ModelMedians=T){
-  
-  units=paste(GUTrunpath, paste(layer, ".shp", sep=""), sep="/")
-  visit=extractvisitfrompath(GUTrunpath)
-  
-  VISITpath=strsplit(GUTrunpath, "GUT")[[1]][1]
-  
-  HSIpath=paste(strsplit(GUTrunpath, visit)[[1]][1], visit,"/HSI",sep="")
-  GUTpath=paste(strsplit(GUTrunpath, visit)[[1]][1], visit,"/GUT",sep="")
-  NREIpath=paste(strsplit(GUTrunpath, visit)[[1]][1], visit,"/NREI",sep="")
-  
-  # reads in GUT  -------------------------------------------------------
-  
-  
-  print("reading in GUT spatial data")
-  # read in units as spatial polygons dataframe
-  if (file.exists(units)){
-    units.poly = readOGR(units)
-    if(gIsValid(units.poly)==F){
-      units.poly=gBuffer(units.poly, byid=TRUE, width=0)
-      print("geometry fixed")
-    }
-    
-    #which(names(unit.poly))
-    
-    #cropping GUT t
-    
-    Delftpath=paste(NREIpath, "\\DelftExtent.shp", sep="")
-    if(file.exists(Delftpath)){
-      Extent=readOGR(Delftpath)
-      if(gIsValid(Extent)==F){
-        Extent=gBuffer(Extent, byid=TRUE, width=0)
-        print("geometry fixed")
-      }
-      proj4string(Extent)=crs(proj4string(units.poly))
-    }
-    
-    print("cropping to Delft Extent")
-    if(exists("Extent")){
-      units.spdf=raster::crop(units.poly, Extent)
-      
-      if(is.null(units.spdf)==F){
-        # Re-calc Area field.
-        units.spdf@data = units.spdf@data%>%
-          mutate(AreainDelft = gArea(units.spdf,byid=T))
-        
-        #function that computes the summaries by unit.
-        habsumfunc=function(habpath, fishpath, Model=Model, species=species){
-          
-          #reads in habitat polygons of best and suitable area if exists
-          if(file.exists(habpath)){
-            hab.spdf = readOGR(habpath)
-            proj4string(hab.spdf)=crs(proj4string(units.spdf))
-            if(gIsValid(hab.spdf)==F){
-              hab.spdf=gBuffer(hab.spdf, byid=TRUE, width=0)
-              print("geometry fixed")
-            }
-            
-            #intersects hab data with unit data
-            hab=raster::intersect(units.spdf, hab.spdf)
-            
-            
-            if(exists("hab")==T){
-            # Re-calc Area field.
-            hab@data=mutate(hab@data, HabArea=gArea(hab,byid=T), 
-                            HSIID = rownames(hab@data)) #[,-c(1,2,3,5)]
-            
-            
-            a=hab@data%>%
-              group_by(UnitID)%>%
-              summarize(SuitArea=sum(HabArea))
-            
-            b=hab@data%>%
-              filter(layer==2)%>%
-              group_by(UnitID)%>%
-              summarize(BestArea=sum(HabArea))
-            
-            hab.sum=a%>%
-              full_join(b, by="UnitID")
-            } else {hab.sum=tibble(UnitID=units.spdf@data$UnitID, SuitArea=NA, BestArea=NA )}
-          } else {hab.sum=tibble(UnitID=units.spdf@data$UnitID, SuitArea=NA, BestArea=NA )}
-          
-          #Summarizes predicted fish by Unit ID
-          if(file.exists(predfishpath)){
-            fishlocs= read.csv(predfishpath, header=T, stringsAsFactors=F)
-            
-            #Reads in fishlocation points into spatial dataframe and combines it with geomorphic attribute
-            if(exists("fishlocs")){
-              if(dim(fishlocs)[1]>0){
-                
-                fish.spdf = fishlocs %>%
-                  mutate(fish.loc = 1)%>%
-                  #SpatialPointsDataFrame(coords = cbind(.$x, .$y), data = ., proj4string = CRS(proj4string(units.spdf)))
-                  SpatialPointsDataFrame(coords = cbind(.$X, .$Y), data = ., proj4string = CRS(proj4string(units.spdf)))
-                  
-                
-                fish.units = cbind(over(fish.spdf, units.spdf),fish.loc= fish.spdf@data$fish.loc)#[,-c(1,2,3,5)]
-                
-                a=fish.units%>%
-                  group_by(UnitID)%>%
-                  summarize(No.Fish=sum(fish.loc, na.rm=T))
-           
-                #print("dimensions of hab with best before smmary")
-                #print(dim(hab[which(hab$layer==2),]))
-                
-                if(exists("hab")){
-              if(dim(hab[which(hab$layer==2),])[1]>0){
-                  
-                
-                print("dimensions of hab with best")
-                print(dim(hab[which(hab$layer==2),]))
-                                                        
-                #plot(hab[which(hab$layer==2),])
-                #points(fish.spdf, col="yellow")
-                
-                besthab=hab[which(hab$layer==2),]
-                #plot(besthab)
-                #print("besthab")
-                #head(besthab)
-                
-                #proj4string(hab)=crs(proj4string(fish.spdf))
-                bestfish.units0=cbind(over(fish.spdf, besthab), fish.loc= fish.spdf@data$fish.loc) 
-                
-                 #  print("cbind selected fish over best hab")
-                #  print(bestfish.units0)
-                  
-                  bestfish.units = bestfish.units0[-which(is.na(bestfish.units0$UnitID)),]
-                  
-                  #print("length of bestfish.units=")
-                  #print(bestfish.units)
-                  
-                  b=bestfish.units%>%
-                    group_by(UnitID)%>%
-                    summarize(No.FishBest=sum(fish.loc))
-                  
-              }else {b=tibble(UnitID=a$UnitID, No.FishBest=NA)}
-                } else {b=tibble(UnitID=a$UnitID, No.FishBest=NA)}
-                
-                predfish.sum=a%>%
-                  full_join(b, by="UnitID")
-              } else {predfish.sum=tibble(UnitID=units.spdf@data$UnitID, No.Fish=0, No.FishBest=NA )}
-            } else {predfish.sum=tibble(UnitID=units.spdf@data$UnitID, No.Fish=NA, No.FishBest=NA )} 
-          }else {predfish.sum=tibble(UnitID=units.spdf@data$UnitID, No.Fish=NA, No.FishBest=NA )} 
-          
-            print("head(predfish.sum)")
-            print(head(predfish.sum))
-            #print(predfish.sum$No.FishBest)
-            #print("tail(fish.sum)")
-            #print(tail(fish.sum))
-          
-          if(ModelMedians==T){
-          if(Model=="NREI"){
-            print("computing NREI Medians")
-            if(file.exists(paste(NREIpath,"\\allNreiPts.csv", sep=""))){
-              nrei.pts=read.csv(paste(NREIpath, "\\allNreiPts.csv", sep=""), header=T, stringsAsFactors=F)}
-            if (exists("nrei.pts")){
-              if(dim(nrei.pts)[1]>0){
-                
-                nreipts.spdf = SpatialPointsDataFrame(data=nrei.pts, coords = cbind(nrei.pts$X, nrei.pts$Y), proj4string = CRS(proj4string(units.spdf)))
-                
-                #extracts and summarizes form and NREI for all points
-                nrei.units = cbind(over(nreipts.spdf, units.spdf),nrei_Jph= nreipts.spdf@data$nrei_Jph)#[,-c(1,2,3,5)]
-                
-                a=nrei.units%>%
-                  group_by(UnitID)%>%
-                  summarize(MedModelVal=median(nrei_Jph, na.rm=T))
-                
-                #extracts form and NREI for points overlain by best habitat polygon
-                if(exists("hab")==T){
-                if(dim(hab[which(hab$layer==2),])[1]>0){
-                  proj4string(hab) = CRS(proj4string(nreipts.spdf))
-                  best.units = cbind(over(nreipts.spdf, hab[which(hab$layer==2),]),nrei_Jph= nreipts.spdf@data$nrei_Jph)
-                  
-                  b=best.units%>%
-                    group_by(UnitID)%>%
-                    summarize(MedModelValBest=median(nrei_Jph, na.rm=T))
-                } else {b=tibble(UnitID=a$UnitID, MedModelValBest=NA)}
-                } else {b=tibble(UnitID=a$UnitID, MedModelValBest=NA)}
-                
-                medians.sum=a%>%
-                  full_join(b, by="UnitID")
-                
-              } else {medians.sum=tibble(UnitID=units.spdf@data$UnitID, MedModelVal=NA, MedModelValBest=NA )} 
-            }else {medians.sum=tibble(UnitID=units.spdf@data$UnitID, MedModelVal=NA, MedModelValBest=NA )} 
-            
-          }
-          
-          if(Model=="HSI"){
-            print("computing HSI Medians")
-            
-            if(species=="chnk"){rasterpath=paste(HSIpath,"\\Output\\FuzzyChinookSpawner_DVSC.tif", sep="")}
-            
-            if(species=="sthd"){rasterpath=paste(HSIpath,"\\Output\\FuzzySteelheadSpawner_DVSC.tif", sep="")}
-            
-            if(file.exists(rasterpath)){
-              hsi.raster=raster(rasterpath)
-              proj4string(hsi.raster)=CRS(proj4string(units.spdf))
-              
-              MHSI=raster::extract(hsi.raster, units.spdf, fun=median, na.rm=T, df=T)
-              names(MHSI)=c("ID", "MedModelVal")
-              medians.sum=cbind(units.spdf@data,MHSI)
-              medians.sum=medians.sum[,c(which(names(medians.sum)=="UnitID"),which(names(medians.sum)=="MedModelVal"))]
-              
-            } else {medians.sum=tibble(UnitID=units.spdf@data$UnitID, MedModelVal=NA )}
-            
-          } 
-            
-        } else {medians.sum=tibble(UnitID=units.spdf@data$UnitID, MedModelVal=NA )}
-            
-          
-          fish.sum=predfish.sum%>%
-            full_join(hab.sum, by="UnitID")%>%
-            full_join(medians.sum, by="UnitID")
-          
-          #print("head(fish.sum)")
-          #print(head(fish.sum))
-          #print("tail(fish.sum)")
-          #print(tail(fish.sum))
-          
-          if(exists("hab")){
-            if(is.na(figdir)==F){
-              print("plotting fish data")
-              pdf(paste(figdir,"\\VISIT_" ,visit,"_", Model, layer, species ,".pdf", sep=""), width=11, height=11)
-              par(mfrow=c(1,1))
-              
-              #plot(units.spdf, main=visit)
-              #plot(hab, col=c(5,3), add=T)
-              
-              if(exists("hab")==T){
-              plot(hab, col=c(5,4), main=visit)
-              if(exists("fish.spdf")==T){
-              points(fish.spdf, pch=16, col="yellow", cex=.7)
-              }}
-              dev.off()  
-            }
-          }
-   
-          return(fish.sum)
-        }
-        
-        
-        if(Model=="NREI") {
-          print("summarizing NREI data")
-          habpath=paste(NREIpath, "\\suitableNreiPoly.shp", sep="")
-          predfishpath=paste(NREIpath, "\\predFishLocations.csv", sep="")
-          
-        }
-        
-        if(Model=="HSI") { 
-          print("summarizing HSI data")
-          if(species=="chnk"){
-            habpath=paste(HSIpath, "\\Output\\suitableChnkPoly.shp", sep="")
-            predfishpath=paste(HSIpath, "\\reddPlacement\\chkPredReddLocs.csv", sep="")
-          }
-          if(species=="sthd"){
-            habpath=paste(HSIpath, "\\Output\\suitableSthdPoly.shp", sep="")
-            predfishpath=paste(HSIpath, "\\reddPlacement\\sthdPredReddLocs.csv", sep="")
-            
-          }
-        }
-        
-        fish.sum= habsumfunc(habpath, predfishpath, Model=Model, species=species)
-        
-        
-        #Plot figure to cross check validity of spatial reference and extraction
-        #print("head(fish.sum) after function return")
-        #print(head(fish.sum))
+# visit.dir = visit.summary %>% filter(visit.id == 1793) %>% dplyr::select(visit.dir) %>% as.character()
+# layer="Tier2_InChannel_Transition"
+# check = make.unit.fish.metrics(visit.dir)
 
-        #joins data with attributes from Unit shapefile  
-        form.units=units.spdf@data%>%
-          full_join(fish.sum, by="UnitID")
-        
-        #print("head(form.units) after full join with unitdata")
-        #print(head(form.units))
-        
-        #Sets fish and habitat values to zero where Model values exist
-        if(ModelMedians==T){
-        form.units$SuitArea[which(is.na(form.units$SuitArea) & is.na(form.units$MedModelVal)==F)]=0
-        form.units$BestArea[which(is.na(form.units$BestArea)& is.na(form.units$MedModelValBest)==F)]=0
-        form.units$No.Fish[which(is.na(form.units$No.Fish)& is.na(form.units$MedModelVal)==F)]=0
-        form.units$No.FishBest[which(is.na(form.units$No.FishBest)&is.na(form.units$MedModelValBest)==F)]=0
-        }
-        
-        #print("head(form.units)")
-        #print(head(form.units))
-        
-        #adds visit ID
-        form.units$VisitID=visit
-        
-        return(form.units)
-      } else {print("No results when cropping GUT by Delft extent")}
-     # } else {print("crop did not produce units.spdf")}
-    } else {print("unable to crop due to missing DELFT extent")}
-  } else {print("GUT output did not exist")}
+#' Title
+#'
+#' @param visit.dir 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+make.unit.fish.metrics = function(visit.dir, layer = "Tier2_InChannel_Transition"){
+  
+  # print visit dir for script progress tracking
+  print(visit.dir)
+  
+  # get visit id from visit directory
+  visit.id = as.numeric(unlist(str_split(visit.dir, "VISIT_"))[2])
+  
+  # extent ---------------------------
+  # used to clip gut units
+  
+  # if delft extent shp exists use that otherwise use fuzzy model extent shp
+  # if neither exist then extent is set to na
+  delft.extent.file = unlist(list.files(path = visit.dir, pattern = "^Delft_Extent.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  fuzzy.extent.file = unlist(list.files(path = visit.dir, pattern = "^Fuzzy_Chinook_Extent.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  
+  if(length(delft.extent.file > 0)){
+    extent.shp = st_read(delft.extent.file, quiet = TRUE)
+  }else if(length(fuzzy.extent.file > 0)){
+    extent.shp = st_read(fuzzy.extent.file, quiet = TRUE)
+  }else{
+    extent.shp = NA
+  }
+  
+  # gut units ---------------------------
+
+  # read in units shp
+  units.files = unlist(list.files(path = visit.dir, pattern = paste("^", layer, ".shp$", sep = ""), full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  units.file = grep(gut.run, units.files, value = TRUE)
+  units.shp = check.shp(units.file)
+  
+  # if gut units don't exist then return tibble with just visit.id
+  if(!"sf" %in% class(units.shp)){
+    out.metrics = tibble(visit.id = visit.id)
+    return(out.metrics)
+  }
+  
+  # clip units to extent shp and calculate new area field (Area.Delft)
+  if("sf" %in% class(extent.shp)){
+    units.shp = units.shp %>% 
+      st_crop(extent.shp) %>%
+      mutate(area.delft = st_area(.) %>% as.numeric() %>% round(3))
+  }
+  
+  # create tibble with just unit id and extent area to append metrics to
+  if("sf" %in% class(extent.shp)){
+    tb.metrics = units.shp %>%
+      st_drop_geometry() %>%
+      dplyr::select(UnitID, area.delft)
+  }else{
+    tb.metrics = units.shp %>%
+      st_drop_geometry() %>%
+      dplyr::select(UnitID) %>%
+      mutate(area.delft = NA)
+  }
+
+  # create reference tibbles with just unit ids and categories
+  tb.units = tb.metrics %>% dplyr::select("UnitID")
+  tb.cats = tibble(category = c("suitable", "best"))
+  tb.units.cats = crossing(tb.units, tb.cats)
+
+  
+  # nrei ---------------------------
+  
+  # read in suitable shp
+  nrei.suit.file = unlist(list.files(path = visit.dir, pattern = "^NREI_Suitable_Poly.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  nrei.suit.shp = check.shp(nrei.suit.file)
+  
+  # # convert from multipolygon to polygon
+  # if(!anyNA(nrei.suit.shp)){nrei.suit.shp = nrei.suit.shp %>% st_cast("POLYGON")}
+
+  # intersect suitable shp with clipped gut units (as long as both shps are sf objects) and calculate new area field (Area.Hab)
+  if("sf" %in% class(nrei.suit.shp)){
+    units.nrei.suit = units.shp %>%
+      st_intersection(nrei.suit.shp) 
+  }else{
+    units.nrei.suit = NA
+  }
+  
+  # read in predicted fish locations shp
+  nrei.locs.file = unlist(list.files(path = visit.dir, pattern = "^NREI_FishLocs.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  nrei.locs.shp = check.shp(nrei.locs.file)
+  
+  # join predicted fish locations shp with units and suitable shp (as long as shps are sf objects)
+  if("sf" %in% class(nrei.locs.shp)){
+    nrei.locs.shp = nrei.locs.shp %>%
+      st_join(units.shp, left = FALSE)}
+  
+  if(all("sf" %in% class(nrei.locs.shp), "sf" %in% class(nrei.suit.shp))){
+    nrei.locs.shp = nrei.locs.shp %>%
+      st_join(nrei.suit.shp)}
+  
+  # read in nrei all points shp
+  nrei.all.file = unlist(list.files(path = visit.dir, pattern = "^NREI_All_Pts.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  nrei.all.shp = check.shp(nrei.all.file)
+  
+  # join points shp with units and suitable shp (as long as shps are sf objects)
+  if("sf" %in% class(nrei.all.shp)){
+    nrei.all.shp = nrei.all.shp %>%
+      st_join(units.shp, left = FALSE)}
+  
+  if(all("sf" %in% class(nrei.all.shp), "sf" %in% class(nrei.suit.shp))){
+    nrei.all.shp = nrei.all.shp %>%
+      st_join(nrei.suit.shp)}
+  
+  # --calculate summary metrics--
+  
+  # if all points isn't an sf object (i.e., it doesn't exist) assume that nrei model run doesn't exist for visit populate metrics as NA
+  # otherwise calculate metrics
+  if(!"sf" %in% class(nrei.all.shp)){
+    nrei.metrics.wide = tb.metrics %>%
+      mutate(model = "nrei", species = "steelhead", lifestage = "juvenile",
+             hab.area.suitable = NA, hab.area.best = NA, pred.fish = NA, pred.fish.suitable = NA, pred.fish.best = NA, 
+             med = NA, mean = NA, sd = NA, med.suitable = NA, mean.suitable = NA, sd.suitable = NA, med.best = NA, mean.best = NA, sd.best = NA)
+  }else{
+    # create tibble to store metrics
+    nrei.metrics = tibble()
+    
+    # area for units and nrei suitable intersections
+    nrei.metrics = nrei.metrics %>% 
+      bind_rows(., calc.unit.area(units.nrei.suit, group.layer = TRUE) %>% mutate(var = "hab.area"))
+    
+    # capacity by unit id
+    nrei.metrics = nrei.metrics %>% 
+      bind_rows(., calc.unit.capacity(nrei.locs.shp, group.layer = FALSE) %>% mutate(var = "pred.fish"))
+    
+    # capacity by unit id and suitability category
+    nrei.metrics = nrei.metrics %>% 
+      bind_rows(., calc.unit.capacity(nrei.locs.shp, group.layer = TRUE) %>% mutate(var = "pred.fish"))
+    
+    # model values by unit id
+    nrei.metrics = nrei.metrics %>% 
+      bind_rows(., calc.unit.stats(nrei.all.shp, in.field = "nre_Jph", group.layer = FALSE))
+    
+    # model values by unit id and suitability category
+    nrei.metrics = nrei.metrics %>% 
+      bind_rows(., calc.unit.stats(nrei.all.shp, in.field = "nre_Jph", group.layer = TRUE))
+    
+    # convert to wide form tibble
+    nrei.metrics.wide = nrei.metrics %>%
+      unite("variable", c("var", "category"), sep = ".", remove = TRUE) %>%
+      mutate(variable = str_replace_all(variable, ".NA", "")) %>%
+      spread(variable, value) %>% 
+      mutate(model = "nrei", species = "steelhead", lifestage = "juvenile") %>%
+      left_join(tb.metrics, by = "UnitID")
+  }
+
+  
+  # fuzzy chinook spawner ---------------------------
+  
+  # read in suitable shp
+  ch.suit.file = unlist(list.files(path = visit.dir, pattern = "^Fuzzy_Suitable_Poly_Chinook.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  ch.suit.shp = check.shp(ch.suit.file)
+  
+  # intersect suitable shp with clipped gut units (as long as both shps are sf objects) and calculate new area field (Area.Hab)
+  if("sf" %in% class(ch.suit.shp)){
+    units.ch.suit = units.shp %>%
+      st_intersection(ch.suit.shp) 
+  }else{
+    units.ch.suit = NA
+  }
+  
+  # read in predicted redd locations shp
+  ch.redds.files = unlist(list.files(path = visit.dir, pattern = "^Fuzzy_ReddLocs_Chinook.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  ch.redds.file = grep("reddPlacement", ch.redds.files, value = TRUE)
+  ch.redds.shp = check.shp(ch.redds.file)
+  
+  # join predicted fish locations shp with units and suitable shp (as long as shps are sf objects)
+  if("sf" %in% class(ch.redds.shp)){
+    ch.redds.shp = ch.redds.shp %>%
+      st_join(units.shp, left = FALSE)}
+  
+  if(all("sf" %in% class(ch.redds.shp), "sf" %in% class(ch.suit.shp))){
+    ch.redds.shp = ch.redds.shp %>%
+      st_join(ch.suit.shp)}
+  
+  # read in fuzzy raster and convert to points
+  ch.raster.file = unlist(list.files(path = visit.dir, pattern = "^FuzzyChinookSpawner_DVSC.tif$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  if(length(ch.raster.file) > 0){
+    ch.raster = read_stars(ch.raster.file, quiet = TRUE) %>% st_transform(crs = (st_crs(units.shp)), partial = FALSE)
+    ch.all.shp = st_as_sf(ch.raster, as_points = TRUE) %>% st_transform(crs = (st_crs(units.shp)), partial = FALSE) %>%
+      rename(ras.value = FuzzyChinookSpawner_DVSC.tif)
+  }else{
+    ch.all.shp = NA
+  }
+  
+  # join points shp with units and suitable shp (as long as shps are sf objects)
+  if("sf" %in% class(ch.all.shp)){
+    ch.all.shp = ch.all.shp %>%
+      st_join(units.shp, left = FALSE)}
+  
+  if(all("sf" %in% class(ch.all.shp), "sf" %in% class(ch.suit.shp))){
+    ch.all.shp = ch.all.shp %>%
+      st_join(ch.suit.shp)}
+  
+  # --calculate summary metrics--
+  
+  # if all points isn't an sf object (i.e., it doesn't exist) assume that fuzzy model run doesn't exist for visit populate metrics as NA
+  # otherwise calculate metrics
+  if(!"sf" %in% class(ch.all.shp)){
+    ch.metrics.wide = tb.metrics %>%
+      mutate(model = "fuzzy", species = "chinook", lifestage = "spawner",
+             hab.area.suitable = NA, hab.area.best = NA, pred.fish = NA, pred.fish.suitable = NA, pred.fish.best = NA, 
+             med = NA, mean = NA, sd = NA, med.suitable = NA, mean.suitable = NA, sd.suitable = NA, med.best = NA, mean.best = NA, sd.best = NA)
+  }else{
+    # create tibble to store metrics
+    ch.metrics = tibble()
+    
+    # area for units and chinook suitable intersections
+    ch.metrics = ch.metrics %>% 
+      bind_rows(., calc.unit.area(units.ch.suit, group.layer = TRUE) %>% mutate(var = "hab.area"))
+    
+    # capacity by unit id
+    ch.metrics = ch.metrics %>% 
+      bind_rows(., calc.unit.capacity(ch.redds.shp, group.layer = FALSE) %>% mutate(var = "pred.fish"))
+    
+    # capacity by unit id and suitability category
+    ch.metrics = ch.metrics %>% 
+      bind_rows(., calc.unit.capacity(ch.redds.shp, group.layer = TRUE) %>% mutate(var = "pred.fish"))
+    
+    # model values by unit id
+    ch.metrics = ch.metrics %>% 
+      bind_rows(., calc.unit.stats(ch.all.shp, in.field = "ras.value", group.layer = FALSE))
+    
+    # model values by unit id and suitability category
+    ch.metrics = ch.metrics %>% 
+      bind_rows(., calc.unit.stats(ch.all.shp, in.field = "ras.value", group.layer = TRUE))
+    
+    # convert to wide form tibble
+    ch.metrics.wide = ch.metrics %>%
+      unite("variable", c("var", "category"), sep = ".", remove = TRUE) %>%
+      mutate(variable = str_replace_all(variable, ".NA", "")) %>%
+      spread(variable, value) %>% 
+      mutate(model = "fuzzy", species = "chinook", lifestage = "spawner") %>%
+      left_join(tb.metrics, by = "UnitID")
+  }
+  
+  # fuzzy steelhead spawner ---------------------------
+  
+  # read in suitable shp
+  st.suit.file = unlist(list.files(path = visit.dir, pattern = "^Fuzzy_Suitable_Poly_Steelhead.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  st.suit.shp = check.shp(st.suit.file)
+  
+  # intersect suitable shp with clipped gut units (as long as both shps are sf objects) and calculate new area field (Area.Hab)
+  if("sf" %in% class(st.suit.shp)){
+    units.st.suit = units.shp %>%
+      st_intersection(st.suit.shp) 
+  }else{
+    units.st.suit = NA
+  }
+  
+  # read in predicted redd locations shp
+  st.redds.files = unlist(list.files(path = visit.dir, pattern = "^Fuzzy_ReddLocs_Steelhead.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  st.redds.file = grep("reddPlacement", st.redds.files, value = TRUE)
+  st.redds.shp = check.shp(st.redds.file)
+  
+  # join predicted fish locations shp with units and suitable shp (as long as shps are sf objects)
+  if("sf" %in% class(st.redds.shp)){
+    st.redds.shp = st.redds.shp %>%
+      st_join(units.shp)}
+  
+  if(all("sf" %in% class(st.redds.shp), "sf" %in% class(st.suit.shp))){
+    st.redds.shp = st.redds.shp %>%
+      st_join(st.suit.shp)}
+  
+  # read in fuzzy raster and convert to points
+  st.raster.file = unlist(list.files(path = visit.dir, pattern = "^FuzzySteelheadSpawner_DVSC.tif$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  if(all(length(st.raster.file) > 0, "sf" %in% class(units.shp))){
+    st.raster = read_stars(st.raster.file, quiet = TRUE) %>% st_transform(crs = (st_crs(units.shp)), partial = FALSE)
+    st.all.shp = st_as_sf(st.raster, as_points = TRUE) %>% st_transform(crs = (st_crs(units.shp)), partial = FALSE) %>%
+      rename(ras.value = FuzzySteelheadSpawner_DVSC.tif)
+  }else{
+    st.all.shp = NA
+  }
+  
+  # join points shp with units and suitable shp (as long as shps are sf objects)
+  if("sf" %in% class(st.all.shp)){
+    st.all.shp = st.all.shp %>%
+      st_join(units.shp)}
+  
+  if(all("sf" %in% class(st.all.shp), "sf" %in% class(st.suit.shp))){
+    st.all.shp = st.all.shp %>%
+      st_join(st.suit.shp)}
+  
+  # --calculate summary metrics--
+  
+  # if all points isn't an sf object (i.e., it doesn't exist) assume that fuzzy model run doesn't exist for visit populate metrics as NA
+  # otherwise calculate metrics
+  if(!"sf" %in% class(st.all.shp)){
+    st.metrics.wide = tb.metrics %>%
+      mutate(model = "fuzzy", species = "steelhead", lifestage = "spawner",
+             hab.area.suitable = NA, hab.area.best = NA, pred.fish = NA, pred.fish.suitable = NA, pred.fish.best = NA, 
+             med = NA, mean = NA, sd = NA, med.suitable = NA, mean.suitable = NA, sd.suitable = NA, med.best = NA, mean.best = NA, sd.best = NA)
+  }else{
+    # create tibble to store metrics
+    st.metrics = tibble()
+    
+    # area for units and steelhead suitable intersections
+    st.metrics = st.metrics %>% 
+      bind_rows(., calc.unit.area(units.st.suit, group.layer = TRUE) %>% mutate(var = "hab.area"))
+    
+    # capacity by unit id
+    st.metrics = st.metrics %>% 
+      bind_rows(., calc.unit.capacity(st.redds.shp, group.layer = FALSE) %>% mutate(var = "pred.fish"))
+    
+    # capacity by unit id and suitability category
+    st.metrics = st.metrics %>% 
+      bind_rows(., calc.unit.capacity(st.redds.shp, group.layer = TRUE) %>% mutate(var = "pred.fish"))
+    
+    # model values by unit id
+    st.metrics = st.metrics %>% 
+      bind_rows(., calc.unit.stats(st.all.shp, in.field = "ras.value", group.layer = FALSE))
+    
+    # model values by unit id and suitability category
+    st.metrics = st.metrics %>% 
+      bind_rows(., calc.unit.stats(st.all.shp, in.field = "ras.value", group.layer = TRUE))
+    
+    # convert to wide form tibble
+    st.metrics.wide = st.metrics %>%
+      unite("variable", c("var", "category"), sep = ".", remove = TRUE) %>%
+      mutate(variable = str_replace_all(variable, ".NA", "")) %>%
+      spread(variable, value) %>% 
+      mutate(model = "fuzzy", species = "steelhead", lifestage = "spawner") %>%
+      left_join(tb.metrics, by = "UnitID")
+  }
+  
+  # join and re-order columns ---------------------------
+  
+  out.metrics = bind_rows(nrei.metrics.wide, ch.metrics.wide, st.metrics.wide) %>%
+    mutate(visit.id = visit.id) %>%
+    dplyr::select(visit.id, UnitID, model, species, lifestage, area.delft, hab.area.suitable, hab.area.best, pred.fish, pred.fish.suitable, pred.fish.best, med, mean, sd, med.suitable, mean.suitable, sd.suitable, med.best, mean.best, sd.best)
+  
+  return(out.metrics)
+  
 }
 
 
+#' Check and read in shapefile
+#'
+#' @param in.shp Input shapefile filepath
+#'
+#' @return If shapefile exists will return input shapefile otherwise returns NA
+#' @export
+#'
+#' @examples
+#' check.shp("C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data/VISIT_1029/HSI/reddPlacement/Fuzzy_ReddLocs_Steelhead.shp")
+check.shp = function(in.shp){
+  if(length(in.shp) > 0){
+    out.shp = st_read(in.shp, quiet = TRUE) %>% st_make_valid()
+  }else{
+    out.shp = NA
+  }
+  return(out.shp)
+}
 
-#
+#' Calculate unit polygon area
+#'
+#' @param in.shp Input shapefile (sf object)
+#' @param group.layer If TRUE area is calculated for each 'layer' field otherwise area is calculated by 'UnitID' field.  Default is set to FALSE.
+#'
+#' @return Returns tibble of areas
+#' @export
+#'
+#' @examples
+calc.unit.area = function(in.shp, group.layer = FALSE){
+  
+  # if shp isn't an sf object or has 0 rows set the output to 0
+  if(any(!"sf" %in% class(in.shp), nrow(in.shp) == 0)){
+    if(group.layer == TRUE){
+      tb = tb.units.cats %>% mutate(value = 0.0)
+    }else{
+      tb = tb.units %>% mutate(value = 0.0)
+    }
+    # otherwise calculate shp area
+  }else{
+    # calculate area and convert to tibble
+    shp.tb = in.shp %>%
+      mutate(area = st_area(.) %>% as.numeric() %>% round(3)) %>%
+      st_drop_geometry()
+    # if group.layer is set to TRUE then sum areas by unit id and suitability category
+    if(group.layer == TRUE){
+      shp.tb = shp.tb %>%
+        group_by(UnitID, layer) %>%
+        summarise(value = sum(area)) %>%
+        mutate(category = ifelse(layer == 1, "suitable", ifelse(layer == 2, "best", NA))) %>%
+        dplyr::select(-layer)
+      tb = tibble(category = c('suitable', 'best')) %>% left_join(shp.tb, by = "category") %>%
+        mutate(value = replace_na(value, 0))
+      # if group.layer is set to FALSE then sum all areas
+    }else{
+      tb = shp.tb %>%
+        group_by(UnitID) %>%
+        summarise(value = sum(area))
+    }
+  }
+  
+  return(tb)
+  
+}
+
+
+#' Calculate unit capacity (raw counts)
+#'
+#' @param in.shp Input shapefile (sf object)
+#' @param group.layer If TRUE capacity is calculated for each 'layer' field (joined from suitable polygon) otherwise capacity by UnitID.  Default is set to FALSE.
+#'
+#' @return Returns tibble of capacity (counts)
+#' @export
+#'
+#' @examples
+calc.unit.capacity = function(in.shp, group.layer = FALSE){
+  
+  # if shp isn't an sf object or has 0 rows set the output to 0
+  if(any(!"sf" %in% class(in.shp), nrow(in.shp) == 0)){
+    if(group.layer == TRUE){
+      tb = tb.units.cats %>% mutate(value = 0.0)
+    }else{
+      tb = tb.units %>% mutate(value = 0.0)
+    }
+    # if layer (field for suitable and best polygons) isn't in input shp set output value to 0
+  }else if(all(group.layer == TRUE, !("layer" %in% names(in.shp)))){
+    tb = tb.units.cats %>% mutate(value = 0.0)
+    # otherwise calculate capacity as count
+  }else{
+    # convert shp to tibble
+    shp.tb = in.shp %>% st_drop_geometry()
+    # if group.layer is set to TRUE then count rows (i.e., input points) by UnitID and suitability category
+    if(group.layer == TRUE){
+      shp.tb = shp.tb %>%
+        group_by(UnitID, layer) %>%
+        summarize(value = n()) %>%
+        mutate(category = ifelse(layer == 1, "suitable", ifelse(layer == 2, "best", NA))) %>%
+        dplyr::select(-layer)
+      tb = tibble(category = c('suitable', 'best')) %>% left_join(shp.tb, by = "category") %>%
+        mutate(value = replace_na(value, 0)) 
+      # if group.layer is set to FALSE then count all rows by UnitID
+    }else{
+      tb = shp.tb %>% 
+        group_by(UnitID) %>%
+        summarize(value = n())
+    }
+  }
+  return(tb)
+}
+
+#' Calculate unit model value summary statistics
+#'
+#' @param in.shp Input shapefile (sf object)
+#' @param in.field Name of field (i.e., column) used to calculate summary statistics
+#' @param group.layer If TRUE summary stats are calculated for each 'layer' field (joined from suitable polygon) otherwise capacity by UnitID.  Default is set to FALSE.
+#'
+#' @return Returns tibble of capacity (counts)
+#' @export
+#'
+#' @examples
+calc.unit.stats = function(in.shp, in.field, group.layer = FALSE){
+  
+  tb.stat = tibble(var = c("med", "mean", "sd"))
+  
+  # if shp isn't an sf object or has 0 rows set the output to NA
+  if(any(!"sf" %in% class(in.shp), nrow(in.shp) == 0)){
+    if(group.layer == TRUE){
+      tb = tb.units.cats %>% crossing(tb.stat) %>% mutate(value = NA)
+    }else{
+      tb = tb.units %>% mutate(value = NA)
+    }
+    # if layer (field for suitable and best polygons) isn't in input shp set output value to NA
+  }else if(all(group.layer == TRUE, !("layer" %in% names(in.shp)))){
+    tb = tb.units.cats %>% crossing(tb.stat) %>% mutate(value = NA)
+    # otherwise calculate capacity as count
+  }else{
+    # convert shp to tibble
+    shp.tb = in.shp %>% st_drop_geometry()
+    # if group.layer is set to TRUE then count rows (i.e., input points) by UnitID and suitability category
+    if(group.layer == TRUE){
+      shp.tb = shp.tb %>%
+        filter(!is.na(layer)) %>%
+        group_by(UnitID, layer) %>%
+        summarize(med = median(!!as.name(in.field), na.rm = TRUE) %>% round(3),
+                  mean = mean(!!as.name(in.field), na.rm = TRUE) %>% round(3),
+                  sd = sd(!!as.name(in.field), na.rm = TRUE) %>% round(3)) %>%
+        mutate(category = ifelse(layer == 1, "suitable", ifelse(layer == 2, "best", NA))) %>%
+        dplyr::select(-layer)
+      tb = tibble(category = c('suitable', 'best')) %>% left_join(shp.tb, by = "category") %>%
+        gather(key = "var", value = "value", med, mean, sd) %>%
+        mutate(value = replace_na(value, 0))
+      # if group.layer is set to FALSE then count all rows by UnitID
+    }else{
+      tb = shp.tb %>% 
+        group_by(UnitID) %>%
+        summarize(med = median(!!as.name(in.field), na.rm = TRUE) %>% round(3),
+                  mean = mean(!!as.name(in.field), na.rm = TRUE) %>% round(3),
+                  sd = sd(!!as.name(in.field), na.rm = TRUE) %>% round(3)) %>%
+        gather(key = "var", value = "value", med, mean, sd)
+    }
+  }
+  return(tb)
+}

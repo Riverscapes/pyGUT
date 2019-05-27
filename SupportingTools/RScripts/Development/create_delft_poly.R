@@ -13,7 +13,7 @@
 #'
 #' @examples
 #' #' create.habitat.poly("C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data/VISIT_1027", 
-#' "^Thalweg.shp$", "delftDepth.tif$", "delftExtent")
+#' "^Thalweg.shp$", "delftDepth.tif$", "Delft_Extent.shp")
 create.delft.poly = function(visit.dir, ref.shp, file.name, out.name){
   
   # get path to raster file
@@ -23,7 +23,7 @@ create.delft.poly = function(visit.dir, ref.shp, file.name, out.name){
   ras.agg = aggregate(raster(ras.path))
   
   # relcassify all raster values to 1
-  ras.rc = reclassify(ras.agg, c(-Inf, Inf, 1))
+  ras.rc = reclassify(ras, c(-Inf, Inf, 1))
   
   # convert to polygon and transform to correct coordinate system for visit
   poly.rc = rasterToPolygons(ras.rc, dissolve = TRUE) %>% st_as_sf() %>% st_transform(crs = (st_crs(ref.shp)), partial = FALSE)
@@ -50,7 +50,7 @@ check.delft.poly = function(data){
     ref.shp.path = unlist(list.files(path = data$visit.dir, pattern = "^Thalweg.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
     ref.shp = st_read(ref.shp.path, quiet = TRUE)
     
-    create.delft.poly(data$visit.dir, ref.shp, "delftDepth.tif$", "delftExtent.shp")
+    create.delft.poly(data$visit.dir, ref.shp, "delftDepth.tif$", "Delft_Extent.shp")
   }
 }
 

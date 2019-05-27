@@ -4,11 +4,15 @@
 
 library(tidyverse)
 library(ggplot2)
+library(ggspatial)
+library(ggpubr)
 library(purrr)
 library(purrrlyr)
 library(raster)
 library(sf)
+library(stars)
 library(lwgeom)
+
 
 # Set required paths ---------------------------
 
@@ -18,19 +22,10 @@ script.path = "C:/etal/LocalCode/pyGUT/SupportingTools/RScripts/Development"
 fig.path = "C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data/00_Projectwide/Figs"
 gut.run = "GUT_2.1/Run_01"
 
-# Load required scripts ---------------------------
+# Create summary of which data exist for each visit  ---------------------------
+
+# load required script
 source(file.path(script.path, "check_visit_data.R"))
-source(file.path(script.path, "create_fish_pts.R"))
-source(file.path(script.path, "create_habitat_poly.R"))
-source(file.path(script.path, "create_delft_poly.R"))
-source(file.path(script.path, "create_figures.R"))
-source(file.path(script.path, "make_gut_overlay_maps.R"))
-source(file.path(script.path, "make_site_gut_metrics.R"))
-source(file.path(script.path, "make_site_fish_metrics.R"))
-source(file.path(script.path, "make_unit_fish_metrics.R"))
-
-
-# Create tibble of data for each visit  ---------------------------
 
 # get list of all directories
 dirs = list.dirs(data.path, recursive = FALSE)
@@ -38,29 +33,31 @@ dirs = list.dirs(data.path, recursive = FALSE)
 # create tibble of visit directories
 visit.dirs = tibble(visit.dir = grep(pattern = "VISIT", dirs, value = TRUE))
 
-# subset just for some testing
-visit.dirs = visit.dirs %>% slice(1:2)
+# run summary on all visit directories
+visit.summary = map_dfr(visit.dirs$visit.dir, check.visit.data, gut.run = gut.run)
 
-# create summary of which data exist for each visit
-visit.summary = map_dfr(visit.dirs$visit.dir, check.visit.data)
 
-# Make spatial data of fish points and habitat polygons from NREI and HSI output ---------------------------
+# Make spatial data of fish points and habitat polygons from NREI and Fuzzy HSI output ---------------------------
 
-#2014(i=23),2019(i=24),2021(i=25),2028 (i=28) spatial points are off
+# NKs Note: 2014(i=23),2019(i=24),2021(i=25),2028 (i=28) spatial points are off
 
-# Create predicted fish locations
+# load required scripts
+source(file.path(script.path, "create_fish_pts.R"))
+source(file.path(script.path, "create_habitat_poly.R"))
+source(file.path(script.path, "create_delft_poly.R"))
+
+# create predicted fish and redd location shapefiles
 # todo: change plot.nrei parameter back to 'FALSE' after testing
 by_row(visit.summary, check.fish.pts, zrank = "max", plot.nrei = TRUE)
 
-# Re-run visit summary to update whether the suitable NREI raster now exists on file
-visit.summary = map_dfr(visit.dirs$visit.dir, check.visit.data)
+# re-run visit summary to update whether the suitable NREI raster now exists on file
+visit.summary = map_dfr(visit.dirs$visit.dir, check.visit.data, gut.run = gut.run)
 
-# Create habitat polygons
+# create habitat polygons
 by_row(visit.summary, check.habitat.poly)
 
-# Create delft extent polygons
+# create delft extent polygons
 by_row(visit.summary, check.delft.poly)
-
 
 
 # Data clean-up and QA/QC ---------------------------
@@ -92,13 +89,12 @@ by_row(visit.summary, check.delft.poly)
 
 # Create maps of fish output overlain on GUT output ---------------------------
 
+# load required script
+source(file.path(script.path, "make_gut_maps.R"))
 
-# 
-# for (i in c(1:length(GUTrunlist))){
-#   MakeGUTmaps(GUTrunlist[i],fig.path, form.colors=form.colors, GU.colors=GU.colors,
-#               shape.colors=shape.colors, plotfish=T, plotcontour=F, plotthalweg=F)
-# } 
-# 
+by_row(visit.summary, make.gut.maps, gut.run = gut.run, fig.path = fig.path)
+
+
 # # for this map crop gut the NREI extent...after fixing projection for a couple of sites. -- ?? Not sure what this refers to ??
 # 
 # for (i in c(1:length(GUTrunlist))){
@@ -124,131 +120,56 @@ by_row(visit.summary, check.delft.poly)
 #2014,2019,2021,2028 spatial points are off
 
 # Site GUT metrics ---------------------------
-#data = visit.summary %>% slice(1)
+
+# load required script
+source(file.path(script.path, "make_site_gut_metrics.R"))
+
 # Tier 2 (hardcoded for transitions)
-map_dfr(visit.summary$visit.dir, calc.site.gut.metrics, run.dir = gut.run, layer = "Tier2_InChannel_Transition") %>% 
+site.t2.metrics = map_dfr(visit.summary$visit.dir, calc.site.gut.metrics, run.dir = gut.run, gut.layer = "Tier2_InChannel_Transition") %>% 
   bind_rows() %>%
   write_csv(file.path(metric.path, "Site_GUTMetrics_Tier2_InChannel_Transition.csv"), col_names = TRUE)
 
 # Tier 3 
-map_dfr(visit.summary$visit.dir, calc.site.gut.metrics, run.dir = gut.run, layer = "Tier3_InChannel_GU") %>% 
+site.t3.metrics = map_dfr(visit.summary$visit.dir, calc.site.gut.metrics, run.dir = gut.run, gut.layer = "Tier3_InChannel_GU") %>% 
   bind_rows() %>%
   write_csv(file.path(metric.path, "Site_GUTMetrics_Tier3_InChannel_GU.csv"), col_names = TRUE)
 
-# Site GUT unit metrics ---------------------------
+# Unit GUT metrics ---------------------------
+# todo: NK had set sd to zero for items with only one value but this is misleading since really should be NAs
 
+# load required script
+source(file.path(script.path, "make_unit_gut_metrics.R"))
 
+# Tier 2 (hardcoded for transitions)
+unit.t2.metrics = map_dfr(visit.summary$visit.dir, make.gut.unit.metrics, run.dir = gut.run, gut.layer = "Tier2_InChannel_Transition") %>% 
+  bind_rows() %>%
+  write_csv(file.path(metric.path, "Unit_GUTMetrics_Tier2_InChannel_Transition.csv"), col_names = TRUE)
 
-for (i in c(1:length(GUTrunlist))){
-  v=makesiteGUTunitmetrics(GUTrunlist[i], layer=paste(layer, ".shp",sep=""), attribute=attribute, unitcats=unitcats)
-  if (i==1){metrics=v} else {metrics=rbind(metrics,v)} 
-} 
-
-metrics1=as.data.frame(metrics)[-c(14)]#getsridof runpathfromtable
-if((length(grep("exist", metrics1$Unit))>0)==T){metrics1[-grep("exist", metrics1$Unit),]} #cleans out lines printing that they didn't exist
-metrics1[which(metrics1$n==1),]$sdArea=0 #sets sd to zero for items with only one value
-metrics1[which(metrics1$n==1),]$sdPerim=0 #sets sd to zero for items with only one value
-
-layer="Tier2_InChannel_Transition"
-attribute="UnitForm"
-unitcats=formcats
-write.csv(metrics1, paste(metric.path, "\\GUTMetrics\\GUT2.1Run01\\siteGUTunitmetrics_", layer, ".csv" ,sep=""))
-
-layer="Tier3_InChannel_GU"  
-unitcats=GUcats
-attribute="GU"
-write.csv(metrics1, paste(metric.path, "\\GUTMetrics\\GUT2.1Run01\\siteGUTunitmetrics_", layer, ".csv", sep=""))
+# Tier 3 
+unit.t3.metrics = map_dfr(visit.summary$visit.dir, make.gut.unit.metrics, run.dir = gut.run, gut.layer = "Tier3_InChannel_GU") %>% 
+  bind_rows() %>%
+  write_csv(file.path(metric.path, "Unit_GUTMetrics_Tier3_InChannel_GU.csv"), col_names = TRUE)
 
 # Site fish metrics ---------------------------
 
+# load required script
+source(file.path(script.path, "make_site_fish_metrics.R"))
 
-#re-run after HSI hab polys are run.
-i=1
-for (i in c(42:length(Fishrunlist))){
-  print(paste("i=",i))
-  v=makesiteFISHmetrics(Fishrunlist[i])
-  if (i==1){metrics=v} else {metrics=rbind(metrics,v)} 
-}
+site.fish.metrics = map_dfr(visit.summary$visit.dir, calc.site.fish.metrics) %>% 
+  bind_rows() %>%
+  write_csv(file.path(metric.path, "Site_Fish_Metrics.csv"), col_names = TRUE)
 
-metrics4=metrics
-rownames(metrics4)=seq(1,length(metrics4[,1]))
-metrics4=as.data.frame(metrics4)
-write.csv(metrics4, paste(metric.path, "\\ReachMetrics\\reachmetrics_fishresponse.csv", sep=""))
-str(metrics4)
+fish.metrics.visit = site.fish.metrics %>%
+  unite("variable", c("layer", "var", "category", "species", "lifestage"), sep = ".", remove = TRUE) %>%
+  mutate(variable = str_replace_all(variable, ".NA", "")) %>%
+  spread(variable, value) %>%
+  write_csv(file.path(metric.path, "Site_Fish_Metrics_byVisit.csv"), col_names = TRUE)
+  
+# Unit fish metrics ---------------------------
 
-# By GUT FISH by UNIT ---------------------------
-# THIS IS THE ONE I AM MOST INTERSTED IN QA QC
+# load required script
+source(file.path(script.path, "make_unit_fish_metrics.R"))
 
-rm(list=ls())
-
-
-
-i=1
-#ilist=seq(1,100,1)[-c(16,20, 42, 45,54,73,109,112)] Trouble sites
-#ilist=c(NA,4,12,19,20,22,32,39)
-for (i in c(1:length(GUTrunlist))){
-#for (i in c(1:length(ilist))){
-  print(paste("i=",i))
-  #v=makeUnitFishmetrics(GUTrunlist[ilist[i]], layer=paste(layer, ".shp", sep="") , Model=Model, species=species)
-  v=makeUnitFishmetrics(GUTrunlist[i], layer=layer , 
-            fig.path=paste(fig.path,"\\Maps\\Fish\\", Model, "\\Tier3GU\\", species, sep=""), Model=Model, species=species, ModelMedians=T)
-  if(length(grep("Forc",names(v)))>0){  v1=v[,-grep("Forc",names(v))]}  # Not sure what this does
-  if(length(grep("SubGU",names(v1)))>0){v2=v1[,-grep("SubGU",names(v1))]} # Not sure what this does
-  if (i==1){metrics=v2} else {metrics=rbind(metrics,v2)} 
-}
-
-#cleanup=function(metrics){ 
-#  metrics1=metrics[-grep("exist", metrics$UnitID),] #cleans out lines printing that they didn't exist
-#  metrics2=metrics1[-grep("extent", metrics$UnitID),] #cleans out lines printing that delft extent was missing
-#  metrics1=metrics[which(is.na(metrics1$UnitID)),] #cleans out lines with UnitID=NA
-#}
-#cleanup(metrics2)
-
-# NREI ---------------------------
-
-Model="NREI"
-species=""
-
-#layer="Tier2_InChannel_Transition"
-#UnitIDT2=cleanup(metrics)
-#write.csv(UnitIDT2, paste(metric.path, "\\GUTMetrics\\GUT2.1Run01\\UnitID_Juvmetrics_", layer, ".csv" ,sep=""))
-#str(metrics)
-
-layer="Tier3_InChannel_GU" #48-104,106 hab not found then pred fsh not found
-metrics1=metrics[,-c(4:13,15:20)]
-metrics2=metrics1[-c(which(is.na(metrics1$GU)& is.na(metrics1$No.Fish)& metrics1$No.FishBest==0) ),]
-metrics3=metrics2[-c(which(is.na(metrics2$GU)& metrics2$No.Fish==0) ),]
-metrics4=metrics3[-(which(is.na(metrics3$GU) & metrics3$UnitID==1)),] #gets rid of sliver of unidentified GU with no fish. Visit 547
-metrics5=metrics4[-c(which(is.na(metrics4$GU))[c(4:6,13,22:23)]),]#gets rid of repeated entries for NA Unit IDs with no Delft exnt
-badspatial=c(which(metrics5$VisitID==2014 | metrics5$VisitID==2019 |metrics5$VisitID==2021|metrics5$VisitID==2026|metrics5$VisitID==2028 ))
-metrics6=metrics5
-metrics6[badspatial,5:11]=NA #gets rid of visits with bad spatial alignment
-
-write.csv(metrics6, paste(metric.path, "\\GUTMetrics\\GUT2.1Run01\\UnitID_NREImetrics_", layer, ".csv" ,sep=""), row.names=F)
-
-dim(metrics5)
-
-# HSI STHD, GU ---------------------------
-
-layer="Tier3_InChannel_GU"
-Model="HSI"
-species="chnk"
-
-#metrics1=metrics #does not include i 14 (different T3 Fields, rbind failed)
-#metrics0=metrics[-grep("exist", metrics$UnitID),] #cleans out lines printing that they didn't exist
-metrics0=metrics0[-which(is.na(metrics0$UnitID)),] #cleans out lines with GU=NA
-
-write.csv(metrics1, paste(metric.path, "\\GUTMetrics\\GUT2.1Run01\\UnitID_",Model, species, "metrics_", layer, ".csv" ,sep=""))
-str(metrics)
-
-layer="Tier3_InChannel_GU"
-Model="HSI"
-species="chnk"
-
-#metrics1=metrics #does not include i 14 (different T3 Fields, rbind failed)
-#metrics0=metrics[-grep("exist", metrics$UnitID),] #cleans out lines printing that they didn't exist
-metrics0=metrics0[-which(is.na(metrics0$UnitID)),] #cleans out lines with GU=NA
-
-write.csv(metrics1, paste(metric.path, "\\GUTMetrics\\GUT2.1Run01\\UnitID_",Model, species, "metrics_", layer, ".csv" ,sep=""))
-str(metrics)
-
+unit.fish.metrics = map_dfr(visit.summary$visit.dir, make.unit.fish.metrics) %>% 
+  bind_rows() %>%
+  write_csv(file.path(metric.path, "Unit_Fish_Metrics_Tier2_InChannel_Transition.csv"), col_names = TRUE)

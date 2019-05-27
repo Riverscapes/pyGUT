@@ -1,5 +1,10 @@
 # ask NK: had filter to select rows with rad.step.gte.user.pval > 0, but aren't any rows that meet this condition
-#         there are rows with NA values.  should those be removed?  no sure what this field pertains to
+#         there are rows with NA values.  should those be removed?  not sure what this field pertains to. also...
+#         not all visits have this field (e.g., visit 1587 NREI all pts doesn't have pval fields)
+
+# note: some of the redd locs csvs produced by eric are empty.  i still read them in, but it the nrow for csv is 0
+#       then shp is no longer written (no point in creating a empty shapefile).  however, a warning is produced 
+#       e.g., "In min(x[[coords[1]]], na.rm = TRUE) : no non-missing arguments, returning NA"
 
 #' Create points shapefile from csv
 #'
@@ -13,21 +18,28 @@
 #'
 #' @examples
 #' create.pts("C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data/VISIT_1027", 
-#' "+proj=utm +zone=12 +datum=NAD83 +units=m +no_defs +ellps=GRS80 +towgs84=0,0,0",
-#' "predFishLocations.csv", "predFishLocations")
+#' "^Thalweg.shp$", "predFishLocations.csv", "NREI_FishLocs.shp")
 create.pts = function(visit.dir, ref.shp, file.name, out.name){
   
   # get path to pts csv
   pts.csv = unlist(list.files(path = visit.dir, pattern = file.name, full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
   
   # read in pts csv and convert to shp
-  pts = read_csv(pts.csv) %>%
-    rename_at(vars(matches("^x$")), funs(str_replace(., "x", "X"))) %>%
-    rename_at(vars(matches("^y$")), funs(str_replace(., "y", "Y"))) %>% 
-    st_as_sf(coords = c("X", "Y"), crs = (st_crs(ref.shp)), remove = FALSE)
-  
-  # save output shp 
-  st_write(pts, file.path(dirname(pts.csv), out.name), delete_layer = TRUE)
+  # note: need separate parsing call for NREI All Points bc read_csv only looks at first 1000 rows (if all NA column read as logical which don't want)
+  if(out.name == "NREI_All_Pts.shp"){
+    pts = read_csv(pts.csv, col_types = cols(.default = col_double())) %>%
+      rename_at(vars(matches("^x$")), funs(str_replace(., "x", "X"))) %>%
+      rename_at(vars(matches("^y$")), funs(str_replace(., "y", "Y"))) %>% 
+      st_as_sf(coords = c("X", "Y"), crs = (st_crs(ref.shp)), remove = FALSE)
+  }else{
+    pts = read_csv(pts.csv) %>%
+      rename_at(vars(matches("^x$")), funs(str_replace(., "x", "X"))) %>%
+      rename_at(vars(matches("^y$")), funs(str_replace(., "y", "Y"))) %>% 
+      st_as_sf(coords = c("X", "Y"), crs = (st_crs(ref.shp)), remove = FALSE)
+  }
+
+  # save output shp
+  if(nrow(pts) > 0){st_write(pts, file.path(dirname(pts.csv), out.name), delete_layer = TRUE)}
   
 }
 
@@ -40,18 +52,18 @@ create.pts = function(visit.dir, ref.shp, file.name, out.name){
 #'
 #' @return
 #' Returns following if shapefiles if they don't exist on file:
-#' predFishLocations.shp: ESRI shapefile of predicted fish points from predFishLocations.csv
-#' chkPredReddLocs.shp: ESRI Shapefile of predicted Chinook redd locations from chkPredReddLocs.csv
-#' sthdPredReddLocss.shp: ESRI Shapefile of predicted steelhead redd locations from sthdPredReddLocs.csv
-#' allNreiPts.shp: ESRI Shapefile of all NREI pts from allNreiPts.csv
+#' NREI_FishLocs.shp: ESRI shapefile of predicted fish points from predFishLocations.csv
+#' Fuzzy_ReddLocs_Chinook.shp: ESRI Shapefile of predicted Chinook redd locations from chkPredReddLocs.csv
+#' Fuzzy_ReddLocs_Steelhead.shp: ESRI Shapefile of predicted steelhead redd locations from sthdPredReddLocs.csv
+#' NREI_All_Pts.shp: ESRI Shapefile of all NREI pts from allNreiPts.csv
 #' 
 #' Returns folloiwng if files don't exist and 'plot.nrei' argument set to TRUE
-#' SuitableNreiPts.shp: ESRI Shapefile of NREI pts > 0 and above 40% pval threshold. 
+#' NREI_Suitable_Pts.shp: ESRI Shapefile of NREI pts > 0 and above 40% pval threshold. 
 #'                      These are the pool of points that the predicted fish locs were chosen from
 #'                      Only one point per x,y is chosen based on optional argument zrank
 #'                      zrank="max" which takes the maximum NREI from the water column at each location
 #'                      zrank="XX" takes a number specifying the water column placement. 1 = bed of stream.
-#' suitableNreiRaster.tiff: GeoTiff created from SuitableNreiPts.shp. Used to create habitat polygons. 
+#' NREI_Suitable_Ras.tif: GeoTiff created from SuitableNreiPts.shp. Used to create habitat polygons. 
 #' @export
 #'
 #' @examples
@@ -68,37 +80,37 @@ check.fish.pts = function(data, zrank = "max", plot.nrei = FALSE){
   # if shapefile doesn't exist but there's csv point data then create and output points shapefile:
   
   # - for nrei predicted fish locations
-  if(data$nrei.locs.shp == 'No' & data$nrei.locs.csv == 'Yes'){
-    create.pts(data$visit.dir, ref.shp, "predFishLocations.csv$", "predFishLocations.shp")
+  if(all(data$nrei.locs.shp == 'No' & data$nrei.locs.csv == 'Yes')){
+    create.pts(data$visit.dir, ref.shp, "^predFishLocations.csv$", "NREI_FishLocs.shp")
   }
 
   # - for chinook predicted redd locations
-  if(data$ch.redd.locs.shp == 'No' & data$ch.redd.locs.csv == 'Yes'){
-    create.pts(data$visit.dir, ref.shp, "chkPredReddLocs.csv$", "chkPredReddLocs.shp")
+  if(all(data$ch.redd.locs.shp == 'No' & data$ch.redd.locs.csv == 'Yes')){
+    create.pts(data$visit.dir, ref.shp, "^chkPredReddLocs.csv$", "Fuzzy_ReddLocs_Chinook.shp")
   }
   
   # - for steelhead predicted redd locations
-  if(data$st.redd.locs.shp == 'No' & data$st.redd.locs.csv == 'Yes'){
-    create.pts(data$visit.dir, ref.shp, "sthdPredReddLocs.csv$", "sthdPredReddLocs.shp")
+  if(all(data$st.redd.locs.shp == 'No' & data$st.redd.locs.csv == 'Yes')){
+    create.pts(data$visit.dir, ref.shp, "^sthdPredReddLocs.csv$", "Fuzzy_ReddLocs_Steelhead.shp")
   }  
   
   # - for nrei all points
-  if(plot.nrei == TRUE & data$all.nrei.pts.csv == 'No'){
-    print('Cannot create points because all NREI points csv does not exist for visit ' + str(visit.id))
+  if(all(plot.nrei == TRUE & data$all.nrei.pts.csv == 'No')){
+    print(paste('Cannot create points because all NREI points csv does not exist for visit', as.character(visit.id)))
   }
   
-  if(plot.nrei == TRUE & data$all.nrei.pts.csv == 'Yes'){
-    create.pts(data$visit.dir, ref.shp, "allNreiPts.csv$", "allNreiPts.shp")
+  if(all(plot.nrei == TRUE & data$all.nrei.pts.csv == 'Yes' & data$all.nrei.pts.shp == 'No')){
+    create.pts(data$visit.dir, ref.shp, "^allNreiPts.csv$", "NREI_All_Pts.shp")
   }
   
   # create nrei suitable points shp and nrei raster
-  if(plot.nrei == TRUE & data$all.nrei.pts.csv == 'Yes'){
+  if(all(plot.nrei == TRUE & data$all.nrei.pts.csv == 'Yes')){
     
     # get path to pts csv
-    pts.csv = unlist(list.files(path = data$visit.dir, pattern = "allNreiPts.csv$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+    pts.csv = unlist(list.files(path = data$visit.dir, pattern = "^allNreiPts.csv$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
     
     # read in pts csv and convert to shp
-    pts = read_csv(pts.csv) %>%
+    pts = read_csv(pts.csv, col_types = cols(.default = col_double())) %>%
       rename_at(vars(matches("^x$")), funs(str_replace(., "x", "X"))) %>%
       rename_at(vars(matches("^y$")), funs(str_replace(., "y", "Y"))) %>% 
       st_as_sf(coords = c("X", "Y"), crs = (st_crs(ref.shp)), remove = FALSE)
@@ -110,11 +122,11 @@ check.fish.pts = function(data, zrank = "max", plot.nrei = FALSE){
         group_by(X, Y) %>%
         mutate(max.nrei_Jph = max(nrei_Jph, na.rm = TRUE)) %>%
         dplyr::filter(nrei_Jph == max.nrei_Jph) %>%
-        mutate(max.nrei_Jph = replace(max.nrei_Jph, nrei_Jph <= 0, NA)) %>%
         dplyr::select(idx, X, Y, Z, zrank, rad.step.gte.user.pval, nrei_Jph, max.nrei_Jph)
     }else if(is.numeric(zrank) == TRUE){
       my.zrank = zrank
       pts.zrank %>%
+        mutate(max.nrei_Jph = nrei_Jph)
         dplyr::filter(zrank == my.zrank)
     }else{
       "Warning: zrank parameter must either be set to 'max' or a numeric value"
@@ -125,17 +137,17 @@ check.fish.pts = function(data, zrank = "max", plot.nrei = FALSE){
     n.rows = pts.zrank %>% filter(nrei_Jph > 0) %>% nrow()
     
     # create nrei suitable points shapefile and raster it don't already exist
-    if(data$suit.nrei.pts.shp == 'No' & n.rows > 0){
+    if(n.rows > 0){
       
       # write out just points that have nrei_Jph > 0
-      pts.zrank %>% dplyr::filter(nrei_Jph > 0) %>% dplyr::select(-max.nrei_Jph) %>% st_write(file.path(dirname(pts.csv), "suitableNreiPts.shp"), delete_layer = TRUE)
+      pts.zrank %>% dplyr::filter(max.nrei_Jph > 0) %>% st_write(file.path(dirname(pts.csv), "NREI_Suitable_Pts.shp"), delete_layer = TRUE)
       
-      # write out raster
-      # note: convert to sp object but once sf is further integrated with raster package handle solely as sf objects
-      pts.zrank.sp = pts.zrank %>% dplyr::select(X, Y, max.nrei_Jph) %>% as(., Class = "Spatial")
-      zrank.pixels = SpatialPixelsDataFrame(points = pts.zrank.sp@data[c("X", "Y")], data = pts.zrank.sp@data, proj4string = crs(pts.zrank.sp))
-      zrank.raster = raster(zrank.pixels[,'max.nrei_Jph'])
-      raster::writeRaster(zrank.raster, file.path(dirname(pts.csv), "suitableNreiRaster"), format = "GTiff", overwrite = TRUE)
+      # write out zrank raster
+      # pts.zrank.df = pts.zrank %>% dplyr::select(X, Y, max.nrei_Jph) %>% as.data.frame() %>% dplyr::select(-geometry)
+      # zrank.raster = rasterFromXYZ(pts.zrank.df, res = c(0.1, 0.1), crs = crs(pts.zrank))
+      zrank.raster = pts.zrank %>% dplyr::filter(max.nrei_Jph > 0) %>% dplyr::select(X, Y, max.nrei_Jph) %>% as.data.frame() %>% dplyr::select(-geometry) %>% rasterFromXYZ(res = c(0.1, 0.1), crs = crs(pts.zrank))
+      raster::writeRaster(zrank.raster, file.path(dirname(pts.csv), "NREI_Suitable_Ras"), format = "GTiff", overwrite = TRUE)
+      
     }
   }
 }

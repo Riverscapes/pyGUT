@@ -1,241 +1,337 @@
-
-#Creates A table of data from GUT and Habitat inputs.  You need to specify the VISIT path that houses the GUT, NREI and HSI folders.
-#Natalie Kramer (n.kramer.andersonn@gmail.com)
-#updated Aug 30, 2017
-
-#It will generate 
-#DelftArea: Area of Fish Modelling extent
-#NreiSuitArea:  Area within NREI useable habitat
-#NreiBestArea: Area within best NREI useable habitat
-#HSIPredRedd: Total Predicted Reds from HSI model 
-#HSIBestPredRedd: Total PRedicted Reds within Best HSI regions.
-#HSISuitArea_ch: Area within Chinook Spawner useable habitat
-#HSIBestArea_ch:  Area within best Chinook Spawner useable habitat
-#HSISuitArea_st:  Area within useable Steelhead habitat
-#HSIBestArea_st: Area within best Steelhead Spawner useable habitat
-
-#if present will compute using:
-#NREIExtent.shp
-#Thalwegs.shp
-#goodNreiPoly.shp
-#ChinookSpawnerpoly.shp
-#SteelheadSpawnerpoly.shp
-
-#library dependencies: 
-library(rgdal)
-library(rgeos)
+# todo: check with Natalie - thalweg length (m) is sum of all lengths - is this waht she wanted?
+#       also - should main thalweg be [Channel == "Main" & ThalwegTyp == "Main"] -- she only had the latter
+# todo: ask NK why she was setting nrei area to 0 if capacity is <= 1 (no longer doing...)
+# if(nrei.pred.fish <= 1){
+#   nrei.suit.area.m2 = 0.0
+#   nrei.best.area.m2 = 0.0
+# }
 
 
-#example input
-#VISITpath="E:\\Box Sync\\ET_AL\\Projects\\USA\\ISEMP\\GeomorphicUnits\\FifteenStartingSites\\Data\\VisitData\\VISIT_1029"
-
-#you also need this little code.
-#source("E:\\Box Sync\\CRB_GU\\wrk_Scripts\\Functions\\extractvisitfrompath.R")
-
-makesiteFISHmetrics=function(Fishrunpath){
+#' Calculate site-level fish metrics
+#'
+#' @param visit.dir Full filepath to visit folder
+#'
+#' @return A tibble with following summary:
+#' deflt extent area
+#' main thalweg length (clipped to delft shapefile extent)
+#' total thalweg(s) length (clipped to deflt shapefile extent)
+#' nrei suitable area
+#' nrei best area
+#' nrei fish capacity entire reach
+#' nrei fish capacity best area
+#' fuzzy chinook spawner area
+#' fuzzy chinook spawner best area
+#' fuzzy chinook spawner redd capacity entire reach
+#' fuzzy chinook spawner redd capacity best area
+#' fuzzy steelhead spawner area
+#' fuzzy steelhead spawner best area
+#' fuzzy steelhead spawner redd capacity entire reach
+#' fuzzy steelhead spawner redd capacity best area
+#' @export
+#'
+#' @examples
+calc.site.fish.metrics = function(visit.dir){
   
-  visit=extractvisitfrompath(Fishrunpath)
+  # print visit dir for script progress tracking
+  print(visit.dir)
   
-  NREIpath=Fishrunpath
-  HSIpath=paste(strsplit(Fishrunpath, visit)[[1]][1], visit,"/HSI",sep="")
-  GUTpath=paste(strsplit(Fishrunpath, visit)[[1]][1], visit,"/GUT",sep="")
+  # get visit id from visit directory
+  visit.id = as.numeric(unlist(str_split(visit.dir, "VISIT_"))[2])
   
-  Delftpath=paste(NREIpath, "\\DelftExtent.shp", sep="")
-  ChampThalwegpath=paste(GUTpath, "\\Inputs\\Thalweg.shp", sep="")
-  Thalwegspath=paste(GUTpath, "\\Inputs\\Thalwegs.shp", sep="")
-  nreipolypath=paste(NREIpath, "\\SuitableNreiPoly.shp", sep="")
-  nreifishpath=paste(NREIpath, "\\predFishLocations.shp", sep="")
-  chkpolypath=paste(HSIpath, "\\Output\\suitableChnkPoly.shp", sep="")
-  sthdpolypath=paste(HSIpath, "\\Output\\suitableSthdPoly.shp", sep="")
-  chkfishpath=paste(HSIpath, "\\reddPlacement\\chkpredReddLocs.shp", sep="")
-  sthdfishpath=paste(HSIpath, "\\reddPlacement\\sthdpredReddLocs.shp", sep="")
+  # create tibble to append metrics to
+  tb.meas = tibble()
   
-  if(file.exists(Delftpath)){
-    Extent=readOGR(Delftpath)
-    if(gIsValid(Extent)==F){
-      Extent=gBuffer(Extent, byid=TRUE, width=0)
-      print("geometry fixed")
-    }
-    DelftArea=round(gArea(Extent),0)
-    
-    if(file.exists(ChampThalwegpath)){
-      ChampThalweg=readOGR(ChampThalwegpath)
-      if(gIsValid(ChampThalweg)==F){
-        ChampThalweg=gBuffer(ChampThalweg, byid=TRUE, width=0)
-        print("geometry fixed")
-      }
-      
-      ChampThalweg1=raster::crop(ChampThalweg, Extent)
-      
-      if(exists("ChampThalweg1")){
-        MainThalwegL=round(gLength(ChampThalweg1),0)
-      } else{ MainThalwegL=NA}
-    } else{ MainThalwegL=NA
-    }
-    
-    if(file.exists(Thalwegspath)){
-      Thalwegs=readOGR(Thalwegspath)
-      if(gIsValid(Thalwegs)==F){
-        Thalwegs=gBuffer(Thalwegs, byid=TRUE, width=0)
-        print("geometry fixed")
-      }
-      
-      Thalwegs1=raster::crop(Thalwegs, Extent)
-      
-      if(exists("Thalwegs1")){
-        if(dim(Thalwegs1)[1]>0){
-        MainThalwegL=round(max(gLength(Thalwegs1,byid=T)),0)
-        ThalwegsL=round(gLength(Thalwegs1),0)
-        #ThalwegsR=round(ThalwegsL/MainThalwegL,2)
-        }else{ThalwegsL=NA}
-        }else{ThalwegsL=NA}
-    }else{ThalwegsL=NA
-    #ThalwegsR=NA
-    }
-    
+  # extent ---------------------------
+  # used to clip thalweg
+  
+  # if delft extent shp exists use that otherwise use fuzzy model extent shp
+  # if neither exist then extent is set to na
+  delft.extent.file = unlist(list.files(path = visit.dir, pattern = "^Delft_Extent.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  fuzzy.extent.file = unlist(list.files(path = visit.dir, pattern = "^Fuzzy_Chinook_Extent.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  
+  if(length(delft.extent.file > 0)){
+    extent.shp = st_read(delft.extent.file, quiet = TRUE)
+  }else if(length(fuzzy.extent.file > 0)){
+    extent.shp = st_read(fuzzy.extent.file, quiet = TRUE)
   }else{
-    DelftArea=NA
-    ThalwegsL=NA
-    MainThalwegL=NA
+    extent.shp = NA
   }
   
+  # thalwegs (clipped to model extent) ---------------------------
+
+  # if multiple thalwegs shp exists and has 'ThalwegTyp' field use that otherwise use single thalweg shp
+  # if neither exist and/or extent doesn't exist then thalweg is set to na
+  thalwegs.file = unlist(list.files(path = visit.dir, pattern = "^Thalwegs.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  thalweg.file = unlist(list.files(path = visit.dir, pattern = "^Thalweg.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
   
-  if(file.exists(nreipolypath)){
-    #Reads in Shapefiles and fixes geometry if needed
-    hab.poly=readOGR(nreipolypath)
-    if(gIsValid(hab.poly)==F){
-      hab.poly=gBuffer(hab.poly, byid=TRUE, width=0)
-      print("geometry fixed")
+  if(all(length(thalwegs.file) > 0 & !is.na(extent.shp) & "ThalwegTyp" %in% names(st_read(thalwegs.file, quiet = TRUE)))){
+    thalweg.shp = st_read(thalwegs.file, quiet = TRUE) %>% st_crop(extent.shp)
+    thalweg.main.shp = thalweg.shp %>% dplyr::filter(ThalwegTyp == "Main")
+  }else if(length(thalweg.file) > 0 & !is.na(extent.shp)){
+    thalweg.shp = st_read(thalweg.file, quiet = TRUE) %>% st_crop(extent.shp)
+    thalweg.main.shp = thalweg.shp
+  }else{
+    thalweg.shp = NA
+    thalweg.main.shp = NA
+  }
+  
+  # calculate length of all thalwegs
+  tb.meas = tb.meas %>% bind_rows(., calc.length(thalweg.shp) %>% mutate(layer = "thalweg", var = "length", category = "reach"))
+  
+  # calculate length of main thalwegs
+  tb.meas = tb.meas %>% bind_rows(., calc.length(thalweg.main.shp) %>% mutate(layer = "thalweg", var = "length", category = "main"))
+  
+  # nrei ---------------------------
+  
+  # read in extent shp
+  nrei.ext.file = unlist(list.files(path = visit.dir, pattern = "^Delft_Extent.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  nrei.ext.shp = check.shp(nrei.ext.file)
+  
+  # calculate extent area
+  tb.meas = tb.meas %>% 
+    bind_rows(., calc.area(nrei.ext.shp, group.layer = FALSE) %>% mutate(category = "reach", layer = "nrei", var = "area", species = "steelhead", lifestage = "juvenile"))
+  
+  # read in suitable shp
+  nrei.suit.file = unlist(list.files(path = visit.dir, pattern = "^NREI_Suitable_Poly.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  nrei.suit.shp = check.shp(nrei.suit.file)
+  
+  # calculate area by suitable category (1 = suitable, 2 = best)
+  tb.meas = tb.meas %>% 
+    bind_rows(., calc.area(nrei.suit.shp, group.layer = TRUE) %>% mutate(layer = "nrei", var = "area", species = "steelhead", lifestage = "juvenile"))
+
+  # read in predicted fish locations shp
+  nrei.locs.file = unlist(list.files(path = visit.dir, pattern = "^NREI_FishLocs.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  nrei.locs.shp = check.shp(nrei.locs.file)
+  
+  # join with suitable polygon (as long as both shps aren't na)
+  if(all(!is.na(nrei.suit.shp), !is.na(nrei.locs.shp))){nrei.locs.shp = nrei.locs.shp %>% st_join(nrei.suit.shp)}
+  
+  # calculate fish capacity by suitable category (1 = suitable, 2 = best)
+  tb.meas = tb.meas %>% 
+    bind_rows(., calc.capacity(nrei.locs.shp, group.layer = TRUE) %>% mutate(layer = "nrei", var = "pred.fish", species = "steelhead", lifestage = "juvenile"))
+  
+  # calculate fish capacity for entire reach
+  tb.meas = tb.meas %>% 
+    bind_rows(., calc.capacity(nrei.locs.shp, group.layer = FALSE) %>% mutate(category = "reach", layer = "nrei", var = "pred.fish", species = "steelhead", lifestage = "juvenile"))
+  
+  # fuzzy chinook spawner ---------------------------
+  
+  # read in extent shp
+  ch.ext.file = unlist(list.files(path = visit.dir, pattern = "^Fuzzy_Chinook_Extent.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  ch.ext.shp = check.shp(ch.ext.file)
+  
+  # calculate extent area
+  tb.meas = tb.meas %>% 
+    bind_rows(., calc.area(ch.ext.shp, group.layer = FALSE) %>% mutate(category = "reach", layer = "fuzzy", var = "area", species = "chinook", lifestage = "spawner"))
+  
+  # read in suitable shp
+  ch.suit.file = unlist(list.files(path = visit.dir, pattern = "^Fuzzy_Suitable_Poly_Chinook.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  ch.suit.shp = check.shp(ch.suit.file)
+  
+  # calculate area by suitable category (1 = suitable, 2 = best)
+  tb.meas = tb.meas %>% 
+    bind_rows(., calc.area(ch.suit.shp, group.layer = TRUE) %>% mutate(layer = "fuzzy", var = "area", species = "chinook", lifestage = "spawner"))
+  
+  # read in predicted redd locations shp
+  ch.redds.files = unlist(list.files(path = visit.dir, pattern = "^Fuzzy_ReddLocs_Chinook.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  ch.redds.file = grep("reddPlacement", ch.redds.files, value = TRUE)
+  ch.redds.shp = check.shp(ch.redds.file)
+  
+  # join with suitable polygon (as long as both shps aren't na)
+  if(all(!is.na(ch.suit.shp), !is.na(ch.redds.shp))){ch.redds.shp = ch.redds.shp %>% st_join(ch.suit.shp)}
+  
+  # calculate redd capacity by suitable category (1 = suitable, 2 = best)
+  tb.meas = tb.meas %>% 
+    bind_rows(., calc.capacity(ch.redds.shp, group.layer = TRUE) %>% mutate(layer = "fuzzy", var = "pred.fish", species = "chinook", lifestage = "spawner"))
+  
+  # calculate redd capacity for entire reach
+  tb.meas = tb.meas %>% 
+    bind_rows(., calc.capacity(ch.redds.shp, group.layer = FALSE) %>% mutate(category = "reach", layer = "fuzzy", var = "pred.fish", species = "chinook", lifestage = "spawner"))
+  
+  # fuzzy steelhead spawner ---------------------------
+  
+  # read in extent shp
+  st.ext.file = unlist(list.files(path = visit.dir, pattern = "^Fuzzy_Steelhead_Extent.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  st.ext.shp = check.shp(st.ext.file)
+  
+  # calculate extent area
+  tb.meas = tb.meas %>% 
+    bind_rows(., calc.area(st.ext.shp, group.layer = FALSE) %>% mutate(category = "reach", layer = "fuzzy", var = "area", species = "steelhead", lifestage = "spawner"))
+  
+  # read in suitable shp
+  st.suit.file = unlist(list.files(path = visit.dir, pattern = "^Fuzzy_Suitable_Poly_Steelhead.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  st.suit.shp = check.shp(st.suit.file)
+  
+  # calculate area by suitable category (1 = suitable, 2 = best)
+  tb.meas = tb.meas %>% 
+    bind_rows(., calc.area(st.suit.shp, group.layer = TRUE) %>% mutate(layer = "fuzzy", var = "area", species = "steelhead", lifestage = "spawner"))
+  
+  # read in predicted redd locations shp
+  st.redds.files = unlist(list.files(path = visit.dir, pattern = "^Fuzzy_ReddLocs_Steelhead.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  st.redds.file = grep("reddPlacement", st.redds.files, value = TRUE)
+  st.redds.shp = check.shp(st.redds.file)
+  
+  # join with suitable polygon (as long as both shps aren't na)
+  if(all(!is.na(st.suit.shp), !is.na(st.redds.shp))){st.redds.shp = st.redds.shp %>% st_join(st.suit.shp)}
+  
+  # calculate redd capacity by suitable category (1 = suitable, 2 = best)
+  tb.meas = tb.meas %>% 
+    bind_rows(., calc.capacity(st.redds.shp, group.layer = TRUE) %>% mutate(layer = "fuzzy", var = "pred.fish", species = "steelhead", lifestage = "spawner"))
+  
+  # calculate redd capacity for entire reach
+  tb.meas = tb.meas %>% 
+    bind_rows(., calc.capacity(st.redds.shp, group.layer = FALSE) %>% mutate(category = "reach", layer = "fuzzy", var = "pred.fish", species = "steelhead", lifestage = "spawner"))
+  
+  # clean-up and save output ---------------------------
+  
+  # add visit id and re-order columns
+  tb.meas = tb.meas %>% mutate(visit.id = visit.id) %>% dplyr::select(visit.id, layer, var, category, value, species, lifestage)
+  
+  # export calculated metrics
+  return(tb.meas)
+  
+}
+
+
+#' Check and read in shapefile
+#'
+#' @param in.shp Input shapefile filepath
+#'
+#' @return If shapefile exists will return input shapefile otherwise returns NA
+#' @export
+#'
+#' @examples
+#' check.shp("C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data/VISIT_1029/HSI/reddPlacement/Fuzzy_ReddLocs_Steelhead.shp")
+check.shp = function(in.shp){
+  if(length(in.shp) > 0){
+    out.shp = st_read(in.shp, quiet = TRUE)
+  }else{
+    out.shp = NA
+  }
+  return(out.shp)
+}
+
+
+#' Calculate polyline length
+#'
+#' @param in.shp Input shapefile (sf object)
+#'
+#' @return Returns tibble of summed lengths
+#' @export
+#'
+#' @examples
+calc.length = function(in.shp){
+  
+  # if input shape isn't a sf object, then set output to NA
+  if(!"sf" %in% class(in.shp)){
+    tb = tibble(value = NA)
+  # if shp has 0 rows set the output value to 0
+  }else if(nrow(in.shp) == 0){
+    tb = tibble(value = 0)
+  # otherwise calculate and sum lengths
+  }else{
+    value = as.numeric(st_length(in.shp)) %>% sum() %>% as.numeric() %>% round(3)
+    tb = tibble(value)
+  }
+  return(tb)
+}
+
+
+#' Calculate polygon area
+#'
+#' @param in.shp Input shapefile (sf object)
+#' @param group.layer If TRUE area is calculated for each 'layer' field otherwise area is calculated for entire polygon.  Default is set to FALSE.
+#'
+#' @return Returns tibble of areas
+#' @export
+#'
+#' @examples
+calc.area = function(in.shp, group.layer = FALSE){
+  
+  # if input shape isn't a sf object, then set output to NA
+  if(!"sf" %in% class(in.shp)){
+    if(group.layer == TRUE){
+      tb = tibble(value = NA, category = "suitable")
+    }else{
+      tb = tibble(value = NA)
     }
-    NreiArea=gArea(hab.poly)
-    
-    if(length(which(hab.poly$layer==2))>0){
-      NreiBestArea=gArea(hab.poly[which(hab.poly$layer==2),])
-    } else {NREIBestArea=0}
-    
-  } else {
-    NreiArea=NA
-    NreiBestArea=NA
-  }
-  
-  if(file.exists(nreifishpath)){
-    fish=readOGR(nreifishpath)
-    capacity=length(fish)
-    NreiPredFish=capacity
-    if(capacity==0 | capacity==1){
-      NreiArea=0
-      NreiBestArea=0
+  # if shp has 0 rows set the output value to 0
+  }else if(nrow(in.shp) == 0){
+    if(group.layer == TRUE){
+      tb = tibble(value = 0, category = "suitable")
+    }else{
+      tb = tibble(value = 0)
     }
-    if(is.na(NreiBestArea)==F){
-      if(NreiBestArea!=0 & length(which(hab.poly$layer==2))>0 ){
-        NreiBestPredFish=length(gIntersection(fish, hab.poly[which(hab.poly$layer==2),]))
-      } else {NreiBestPredFish=0}
-    } else {NreiBestPredFish=NA}
-  } else {
-    NreiPredFish=NA
-    NreiBestPredFish=NA
-  }
-  
-  
-  
-  
-  if(file.exists(gsub("suitableChnkPoly.shp", "FuzzyChinookSpawner_DVSC.tif", chkpolypath))){
-    if(file.exists(chkpolypath)){
-      #Reads in Shapefiles and fixes geometry if needed
-      hab.poly=readOGR(chkpolypath)
-      if(gIsValid(hab.poly)==F){
-        hab.poly=gBuffer(hab.poly, byid=TRUE, width=0)
-        print("geometry fixed")
-      }
-      chkArea=gArea(hab.poly)
-      
-      if(length(which(hab.poly$layer==2))>0){
-        chkBestArea=gArea(hab.poly[which(hab.poly$layer==2),])
-      } else {chkBestArea=0}
-    } else {
-      chkArea=0
-      chkBestArea=0
+  # otherwise calculate shp area
+  }else{
+    # calculate area and convert to tibble
+    shp.tb = in.shp %>%
+      mutate(area = st_area(.) %>% as.numeric() %>% round(3)) %>%
+      st_drop_geometry()
+    # if group.layer is set to TRUE then sum areas by suitability category
+    if(group.layer == TRUE){
+      shp.tb = shp.tb %>%
+        group_by(layer) %>%
+        summarise(value = sum(area)) %>%
+        mutate(category = ifelse(layer == 1, "suitable", ifelse(layer == 2, "best", NA))) %>%
+        dplyr::select(-layer)
+      tb = tibble(category = c('suitable', 'best')) %>% left_join(shp.tb, by = "category") %>%
+        mutate(value = replace_na(value, 0))
+    # if group.layer is set to FALSE then sum all areas
+    }else{
+      tb = shp.tb %>%
+        summarise(value = sum(area))
     }
-  } else {
-    chkArea=NA
-    chkBestArea=NA
   }
   
-  
-  
-  if(file.exists(gsub("suitableSthdPoly.shp", "FuzzySteelheadSpawner_DVSC.tif", sthdpolypath))){
-    if(file.exists(sthdpolypath)){
-      #Reads in Shapefiles and fixes geometry if needed
-      hab.poly=readOGR(sthdpolypath)
-      if(gIsValid(hab.poly)==F){
-        hab.poly=gBuffer(hab.poly, byid=TRUE, width=0)
-        print("geometry fixed")
-      }
-      sthdArea=gArea(hab.poly)
-      
-      if(length(which(hab.poly$layer==2))>0){
-        sthdBestArea=gArea(hab.poly[which(hab.poly$layer==2),])
-      } else {sthdBestArea=0}
-      
-    } else {
-      sthdArea=0
-      sthdBestArea=0
-    }
-  } else {
-    sthdArea=NA
-    sthdBestArea=NA
-  }
-  
-  if(file.exists(chkfishpath)){
-    redds=readOGR(chkfishpath)
-    capacity=length(redds)
-    HSIPredRedd_ch=capacity
-    if(capacity==0 | capacity==1){
-      chkArea=0
-      chkBestArea=0
-    }
-    if(is.na(chkBestArea)==F){
-      if(chkBestArea!=0 & length(which(redds@data$hsi_cat=="best"))>0){
-        HSIBestPredRedd_ch=length(which(redds@data$hsi_cat=="best"))
-      } else {HSIBestPredRedd_ch=0}
-    }else {HSIBestPredRedd_ch=NA}
-  } else {
-    HSIPredRedd_ch=NA
-    HSIBestPredRedd_ch=NA
-  }
-  
-  if(file.exists(sthdfishpath)){
-    redds=readOGR(sthdfishpath)
-    capacity=length(redds)
-    HSIPredRedd_st=capacity
-    if(capacity==0 | capacity==1){
-      sthdArea=0
-      sthdBestArea=0
-    }
-    if(is.na(sthdBestArea)==F){
-      if(sthdBestArea!=0 & length(which(redds@data$hsi_cat=="best"))>0){
-        HSIBestPredRedd_st=length(which(redds@data$hsi_cat=="best"))
-      } else {HSIBestPredRedd_st=0}
-    }else {HSIBestPredRedd_st=NA}
-  } else {
-    HSIPredRedd_st=NA
-    HSIBestPredRedd_st=NA
-  }
-  
-  sitemetrics=c("Visit"=visit,
-                "DelftArea"=as.numeric(DelftArea), 
-                "MainThalwegL"=MainThalwegL,"ThalwegsL"=ThalwegsL, 
-                "NreiPredFish"=NreiPredFish, "NreiBestPredFish"=NreiBestPredFish,  
-                "NreiSuitArea"=NreiArea, "NreiBestArea"=NreiBestArea,
-                "HSIPredRedd_ch"=HSIPredRedd_ch, "HSIBestPredRedd_ch"=HSIBestPredRedd_ch,
-                "HSIPredRedd_st"=HSIPredRedd_st, "HSIBestPredRedd_st"=HSIBestPredRedd_st,
-                "HSISuitArea_ch"=chkArea,  "HSIBestArea_ch"=chkBestArea,
-                "HSISuitArea_st"=sthdArea, "HSIBestArea_st"=sthdBestArea
-  )
-  #,"ThalwegR"=ThalwegsR)
-  return(sitemetrics)
+  return(tb)
   
 }
 
 
 
+#' Calculate capacity (raw counts)
+#'
+#' @param in.shp Input shapefile (sf object)
+#' @param group.layer If TRUE capacity is calculated for each 'layer' field (joined from suitable polygon) otherwise capacity using all points.  Default is set to FALSE.
+#'
+#' @return Returns tibble of capacity (counts)
+#' @export
+#'
+#' @examples
+calc.capacity = function(in.shp, group.layer = FALSE){
+  
+  # if input shape isn't a sf object, then set output to NA
+  if(!"sf" %in% class(in.shp)){
+    if(group.layer == TRUE){
+      tb = tibble(value = NA, category = "suitable")
+    }else{
+      tb = tibble(value = NA)
+    }
+  # if shp has 0 rows set the output value to 0
+  }else if(nrow(in.shp) == 0){
+    if(group.layer == TRUE){
+      tb = tibble(value = 0, category = "suitable")
+    }else{
+      tb = tibble(value = 0)
+    }
+  # otherwise calculate capacity as count
+  }else{
+    # convert shp to tibble
+    shp.tb = in.shp %>% st_drop_geometry()
+    # if group.layer is set to TRUE then count rows (i.e., input points) by suitability category
+    if(group.layer == TRUE){
+      shp.tb = shp.tb %>%
+        group_by(layer) %>%
+        summarize(value = n()) %>%
+        mutate(category = ifelse(layer == 1, "suitable", ifelse(layer == 2, "best", NA))) %>%
+        dplyr::select(-layer)
+      tb = tibble(category = c('suitable', 'best')) %>% left_join(shp.tb, by = "category") %>%
+        mutate(value = replace_na(value, 0))
+    # if group.layer is set to FALSE then count all rows
+    }else{
+      tb = shp.tb %>% summarize(value = n())
+    }
+  }
+  return(tb)
+}

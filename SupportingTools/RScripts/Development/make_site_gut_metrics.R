@@ -1,33 +1,37 @@
 #' Calculates site-level GUT metrics
 #'
-#' @param data 
-#'
+#' @param visit.dir
+#' @param run.dir
+#' @param gut.layer
+#' 
 #' @return
-#BFArea: Bankfull Area in sq meters
-#WEArea: Wetted Area in sq meters
-#mainThalwegL:  Length in meters of the main Thalweg.
-#ThalwegsL: Sum of all Lengths from multiple thalwegs, including the main and any secondary ones
-#ThalwegsR: ThalwegsL/mainThalwegL 
+#' BFArea: Bankfull Area in sq meters
+#' WEArea: Wetted Area in sq meters
+#' mainThalwegL:  Length in meters of the main Thalweg.
+#' ThalwegsL: Sum of all Lengths from multiple thalwegs, including the main and any secondary ones
+#' ThalwegsR: ThalwegsL/mainThalwegL 
 #' @export
 #'
 #' @examples
-calc.site.gut.metrics = function(visit.dir, run.dir, layer){
+calc.site.gut.metrics = function(visit.dir, run.dir, gut.layer){
+  
+  print(visit.dir)
   
   # get visit id from visit directory
   visit.id = as.numeric(unlist(str_split(visit.dir, "VISIT_"))[2])
   
   # bankfull area
   bf.file = unlist(list.files(path = visit.dir, pattern = "^Bankfull.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
-  if(file.exists(bf.file)){
-    bf.area.m2 = as.numeric(st_area(st_read(bf.file, quiet = TRUE)))
+  if(length(bf.file) > 0){
+    bf.area.m2 = st_read(bf.file, quiet = TRUE) %>% st_area(.) %>% sum() %>% as.numeric() %>% round(3) 
   }else{
     bf.area.m2 = NA
   }
   
   # wetted area
   we.file = unlist(list.files(path = visit.dir, pattern = "^WaterExtent.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
-  if(file.exists(we.file)){
-    wet.area.m2 = as.numeric(st_area(st_read(we.file, quiet = TRUE)))
+  if(length(we.file) > 0){
+    wet.area.m2 = st_read(we.file, quiet = TRUE) %>% st_area(.) %>% sum() %>% as.numeric() %>% round(3) 
   }else{
     wet.area.m2 = NA
   }
@@ -39,13 +43,13 @@ calc.site.gut.metrics = function(visit.dir, run.dir, layer){
   thalweg.file = unlist(list.files(path = visit.dir, pattern = "^Thalweg.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
   
   # if multiple thalwegs shp exists and has 'ThalwegTyp' field, set thalweg.shp to that, otherwise use single thalweg shp
-  if(file.exists(thalwegs.file) & "ThalwegTyp" %in% names(st_read(thalwegs.file, quiet = TRUE))){
+  if(length(thalwegs.file) > 0 & "ThalwegTyp" %in% names(st_read(thalwegs.file, quiet = TRUE))){
     thalweg = st_read(thalwegs.file, quiet = TRUE)
     main.thalweg = thalweg %>% dplyr::filter(ThalwegTyp == "Main")
     main.thalweg.length.m = main.thalweg %>% st_length(.) %>% sum() %>% as.numeric() %>% round(3) 
     thalweg.length.m = thalweg %>% st_length(.) %>% sum() %>% as.numeric() %>% round(3) 
     thalweg.length.ratio = round(main.thalweg.length.m / thalweg.length.m, 3)
-  }else if(file.exists(thalweg.file)){
+  }else if(length(thalweg.file) > 0){
     thalweg = st_read(thalweg.file, quiet = TRUE)
     main.thalweg = thalweg
     main.thalweg.length.m = thalweg %>% st_length(.) %>% as.numeric() %>% round(3)
@@ -58,17 +62,17 @@ calc.site.gut.metrics = function(visit.dir, run.dir, layer){
   }
   
   # read in gut layer
-  unit.files = unlist(list.files(path = visit.dir, pattern = paste("^", layer, ".shp$", sep = ""), full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  unit.files = unlist(list.files(path = visit.dir, pattern = paste("^", gut.layer, ".shp$", sep = ""), full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
   unit.file = grep(run.dir, unit.files, value = TRUE)
   
   # calculate unit edge length to area ratio
-  if(file.exists(unit.file)){
-    units = st_read(unit.file, quiet = TRUE) 
-    n.units = units %>% nrow()
-    area = units %>% st_area(.) %>% sum() %>% as.numeric()
+  if(length(unit.file) > 0){
+    units.gut = st_read(unit.file, quiet = TRUE) 
+    n.units = units.gut %>% nrow()
+    area = units.gut %>% st_area(.) %>% sum() %>% as.numeric()
     # commented out but saving -- approach preserves attributes
     # edges = st_cast(forms, "LINESTRING") %>% st_difference(.)
-    edges = st_cast(units, "MULTILINESTRING") %>% st_union() %>% st_line_merge(.) %>% st_cast(., "LINESTRING") %>% st_sf(.)
+    edges = st_cast(units.gut, "MULTILINESTRING") %>% st_union() %>% st_line_merge(.) %>% st_cast(., "LINESTRING") %>% st_sf(.)
     edge.length = edges %>% st_length(.) %>% sum() %>% as.numeric()
     edge.length.area.ratio = round(edge.length / area, 3)
    }else{
@@ -77,37 +81,41 @@ calc.site.gut.metrics = function(visit.dir, run.dir, layer){
   }
   
   # calculate edge density (for main thalweg and all thalwegs)
-  if(exists("main.thalweg") & exists("units")){
-    int.edge.main = st_intersection(main.thalweg, edges) %>% st_union(.) %>% st_cast(., "POINT") %>% st_sf(.) %>% nrow()
+  if(all("sf" %in% class(main.thalweg), "sf" %in% class(units.gut))){
+    int.edge.main = st_intersection(st_geometry(main.thalweg), st_geometry(edges)) %>% st_union(.) %>% st_cast(., "POINT") %>% st_sf(.) %>% nrow()
     edge.dens.main.thalweg = round(int.edge.main / main.thalweg.length.m, 3)
   }else{
     edge.dens.main.thalweg = NA
   }
   
 
-  if(exists("thalweg") & exists("units")){
-    int.edge.thalwegs = st_intersection(thalweg, edges) %>% st_union(.) %>% st_cast(., "POINT") %>% st_sf(.) %>% nrow()
+  if(all("sf" %in% class(thalweg), "sf" %in% class(units.gut))){
+    int.edge.thalwegs = st_intersection(st_geometry(thalweg), st_geometry(edges)) %>% st_union(.) %>% st_cast(., "POINT") %>% st_sf(.) %>% nrow()
     edge.dens.thalwegs = round(int.edge.thalwegs / thalweg.length.m, 3)
   }else{
     edge.dens.thalwegs = NA
   }
 
   # average number of unit and cross-section intersections
-  # subset to every 10th cross-sections
+  # only use valid cross-sections and then subset to every 10th cross-section
   
   xs.file = unlist(list.files(path = visit.dir, pattern = "^BankfullXS.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
-  if(file.exists(xs.file) & exists("units")){
+  if(all(length(xs.file) > 0,  "sf" %in% class(units.gut))){
     xs = st_read(xs.file, quiet = TRUE) %>% filter(IsValid == 1)
-    xs.sub = xs %>% filter(row_number() %% 10 == 1)
-    int.edge.xs = st_intersection(xs.sub, edges) %>% st_union(.) %>% st_cast(., "POINT") %>% st_sf(.) %>% nrow()
-    xs.length = xs.sub %>% st_length(.) %>% sum() %>% as.numeric()
-    edge.dens.xs = round(int.edge.xs / xs.length, 3)
+    if(nrow(xs) > 0){
+      xs.sub = xs %>% filter(row_number() %% 10 == 1)
+      int.edge.xs = st_intersection(st_geometry(xs.sub), st_geometry(edges)) %>% st_union(.) %>% st_cast(., "POINT") %>% st_sf(.) %>% nrow()
+      xs.length = xs.sub %>% st_length(.) %>% sum() %>% as.numeric()
+      edge.dens.xs = round(int.edge.xs / xs.length, 3)
+    }else{
+      edge.dens.xs = NA
+    }
   }else{
     edge.dens.xs = NA
   }
   
   # create tb of calculated metrics
-  metrics = tibble(layer, visit.id, bf.area.m2, wet.area.m2, main.thalweg.length.m, thalweg.length.m, thalweg.length.ratio, 
+  metrics = tibble(gut.layer, visit.id, bf.area.m2, wet.area.m2, main.thalweg.length.m, thalweg.length.m, thalweg.length.ratio, 
                    edge.length.area.ratio, edge.dens.main.thalweg, edge.dens.thalwegs, edge.dens.xs)
 
   return(metrics)

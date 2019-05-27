@@ -1,221 +1,170 @@
 #This script Makes map of GUT output whith fish pts plotted on top"
+# data = visit.summary %>% slice(1)
+# visit.dir = visit.summary %>% slice(1) %>% dplyr::select(visit.dir) %>% as.character()
+# run.dir = "GUT_2.1/Run_01"
+# layer = "Tier2_InChannel_Transition"
 
-#Natalie Kramer (n.kramer.andersonn@gmail.com)
-#updated Aug 30, 2017
 
-
-library(rgdal)
-library(rgeos)
-
-#Inputs
-#GUTrunpath: path to GUT run folder
-GUTrunpath= "E:\\Box Sync\\ET_AL\\Projects\\USA\\ISEMP\\GeomorphicUnits\\Data\\VisitData/VISIT_1027/GUT/Output/GUT_2.1/Run_01"
-#optional- specify colors for attribute classes in a vector 
-#for example: shape.colors=c(Planar="khaki1", Convexity="orange2", Concavity="royalblue")
-
-#spits out figure in specified directory as VISIT_####.pdf
-
-MakeGUTmaps=function(GUTrunpath, figdir, shape.colors=NA, form.colors=NA, GU.colors=NA,
-                     plotfish=F, plotthalweg=T, plotcontour=T){
+make.gut.maps = function(data, gut.run, fig.path){
   
-  rm(fish)
-  rm(thalwegs)
-  rm(contours)
-  rm(GU.poly)
-  rm(WE.poly)
-  rm(form.poly)
-  rm(nrei.poly)
+  # get visit id from visit directory
+  visit.dir = data %>% dplyr::select(visit.dir) %>% as.character()
+  visit.id = as.numeric(unlist(str_split(data$visit.dir, "VISIT_"))[2])
   
-  visit=extractvisitfrompath(GUTrunpath)
+  # set gut form and gu colors
+  form.fill = c('Bowl' = '#004DA8', 'Bowl Transition' = '#00A9E6', 'Trough' = '#73DFFF', 'Plane' = '#E6E600', 
+    'Mound Transition' = '#FF7F7F', 'Saddle' = '#E69800', 'Mound' = '#A80000', 'Wall' = '#000000')
   
-  #Creates path to NREI data based on GUT path
-  NREIpath=paste(strsplit(GUTrunpath, visit)[[1]][1], visit,"/NREI",sep="")
-  #Creates path to general GUT folder
-  GUTpath=paste(strsplit(GUTrunpath, visit)[[1]][1], visit,"/GUT",sep="")
+  gu.fill = c('Bank' = '#000000', 'Pool' = '#004DA8', 'Pond' = '#0070FF', 'Pocket Pool' = '#73B2FF', 'Chute' = '#73FFDF', 
+             'Rapid' = '#66CDAB', 'Cascade' = '#448970', 'Glide-Run' = '#E6E600', 'Riffle' = '#E69800', 'Step' = '#D7B09E', 
+             'Mid Channel Bar' = '#895A44', 'Margin Attached Bar' = '#A80000', 'Transition' = '#CCCCCC')
   
+  # read in contour polylines
+  contours.file = unlist(list.files(path = visit.dir, pattern = "DEM_Contours.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  if(length(contours.file) > 0){contours = st_read(contours.file, quiet = TRUE, stringsAsFactors = FALSE)}
   
-  #reads in polygon of just submerged flow from Tier1
-  if(file.exists(paste(GUTrunpath, "Tier1.shp",sep="\\"))){
-    WE.poly=readOGR(paste(GUTrunpath, "Tier1.shp",sep="\\"))
-    if(gIsValid(WE.poly)==F){
-      WE.poly=gBuffer(WE.poly, byid=TRUE, width=0)
-      print("geometry fixed")
-    }
-  } else {print("Tier1.shp does not exist")}
-  
-  
-  #reads in contour file from evidence folder
-  if(plotcontour==T){
-    if(file.exists(paste(GUTpath,"EvidenceLayers", "DEM_Contours.shp", sep="\\"))){
-      contours=readOGR(paste(GUTpath,"EvidenceLayers", "DEM_Contours.shp", sep="\\"))
-      #   if(gIsValid(contour)==F){
-      #     contours=gBuffer(contours, byid=TRUE, width=0)
-      #     print("geometry fixed")
-      #   }
-    } else {print("DEM_Contours.shp does not exist")}
+  # read in thalweg polylines
+  thalwegs.file = unlist(list.files(path = visit.dir, pattern = "^Thalwegs.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  thalweg.file = unlist(list.files(path = visit.dir, pattern = "^Thalweg.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  if(length(thalwegs.file) > 0){
+    thalwegs = st_read(thalwegs.file, quiet = TRUE, stringsAsFactors = FALSE)
+  }else{
+    thalwegs = st_read(thalweg.file, quiet = TRUE, stringsAsFactors = FALSE)
   }
+
+  # read in tier 2 form polygons !! todo: change to include run
+  t2.files = unlist(list.files(path = visit.dir, pattern = "^Tier2_InChannel_Transition.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))[1]
+  t2.file = grep(gut.run, t2.files, value = TRUE)
+  if(length(t2.file) > 0){forms = st_read(t2.file, quiet = TRUE, stringsAsFactors = FALSE)}  
   
+  # read in tier 3 gu polygons !! todo: change to include run
+  t3.files = unlist(list.files(path = visit.dir, pattern = "^Tier3_InChannel_GU.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))[1]
+  t3.file = grep(gut.run, t3.files, value = TRUE)
+  if(length(t3.file) > 0){gus = st_read(t3.file, quiet = TRUE, stringsAsFactors = FALSE)}  
   
-  #reads in polygon of Tier2 forms
-  if(file.exists(paste(GUTrunpath, "Tier2_InChannel_Transition.shp",sep="\\"))){
-    form.poly=readOGR(paste(GUTrunpath, "Tier2_InChannel_Transition.shp",sep="\\"))
-    if(gIsValid(form.poly)==F){
-      form.poly=gBuffer(form.poly, byid=TRUE, width=0)
-      print("geometry fixed")
-    }
-  } else {print("Tier2_InChannel.shp does not exist")}
+  # read in nrei fish points
+  nrei.locs.file = unlist(list.files(path = visit.dir, pattern = "^NREI_FishLocs.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  if(length(nrei.locs.file) > 0){nrei.fish = st_read(nrei.locs.file, quiet = TRUE, stringsAsFactors = FALSE)}
   
-  #reads in polygon of Tier3 GUs
-  if(file.exists(paste(GUTrunpath, "Tier3_InChannel_GU.shp",sep="\\"))){
-    GU.poly=readOGR(paste(GUTrunpath, "Tier3_InChannel_GU.shp",sep="\\"))
-    if(gIsValid(GU.poly)==F){
-      GU.poly=gBuffer(GU.poly, byid=TRUE, width=0)
-      print("geometry fixed")
-    }
-  } else {print("Tier3_InChannel_GU.shp does not exist")}
+  # read in nrei extent (todo: check is okay to read in delft extent since have on hand)
+  nrei.extent.file = unlist(list.files(path = visit.dir, pattern = "^Delft_Extent.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  if(length(nrei.extent.file) > 0){nrei.extent = st_read(nrei.extent.file, quiet = TRUE, stringsAsFactors = FALSE)}
   
+  # # check if nrei points and extent exist
+  # if(exists("nrei.extent") & exists("nrei.fish"))
   
-  #reads in fish locations and creates spatial points data frame
-  if(plotfish==T){
-    if(file.exists(paste(NREIpath,"predFishLocations.shp", sep="\\"))){
-      fish=readOGR(paste(NREIpath,"predFishLocations.shp", sep="\\"))
-    }
-    if(file.exists(paste(NREIpath,"NREIextent.shp", sep="\\"))){
-      nrei.poly=readOGR(paste(NREIpath,"NREIextent.shp", sep="\\"))
-    }
-  }
-  
-  #if(file.exists(paste(GUTpath,"Inputs", "Bankfull.shp", sep="\\"))){
-  #  bankfull=readOGR(paste(GUTpath,"Inputs", "Bankfull.shp", sep="\\"))
-  #  }
-  
-  if(plotthalweg==T){
-    if(file.exists(paste(GUTpath,"Inputs", "Thalwegs.shp", sep="\\"))){
-      thalwegs=readOGR(paste(GUTpath,"Inputs", "Thalwegs.shp", sep="\\"))
-    } 
-  }
-  
-  
-  
-  #sets colors for tier 2 output
-  if(exists("form.poly")){
-    if(is.na(shape.colors)==T){
-      shape.colors=c(Planar="khaki1", Convexity="orange2", Concavity="royalblue")
+  # plot tier 2 form maps
+  if("sf" %in% class(forms)){
+    
+    # determine plotting orientation
+    xy.ratio = (as.numeric(st_bbox(forms)$xmax) - as.numeric(st_bbox(forms)$xmin)) / (as.numeric(st_bbox(forms)$ymax) - as.numeric(st_bbox(forms)$ymin))
+    if(xy.ratio < 1){
+      plot.ncol = 2
+      plot.nrow = 1
+      plot.align = "v"
+    }else{
+      plot.ncol = 1
+      plot.nrow = 2
+      plot.align = "h"
     }
     
-    if(is.na(shape.colors)==T){
-      form.colors=c(Bowl="royalblue",Mound="darkred",Plane="khaki1",Saddle="orange2",Trough="lightblue",Wall= "darkgrey",
-                    `Bowl Transition`="aquamarine", `Mound Transition`="pink")
-    }
-    form.poly@data$formcolor=form.colors[match(as.character(form.poly@data$UnitForm), names(form.colors))]
-    form.poly@data$shapecolor=shape.colors[match(as.character(form.poly@data$UnitShape), names(shape.colors))]
-  }
-  
-  if(exists("GU.poly")){
-    if(is.na(shape.colors)==T){
-      GU.colors=c(`Pocket Pool`="light blue", Pool="royalblue", Pond="dark green", `Margin Attached Bar`="dark red", `Mid Channel Bar`="brown" , 
-                  Riffle="orange2", Cascade="white", Rapid="turquoise", Chute="aquamarine" ,
-                  `Glide-Run`="khaki1", Transition="grey", Bank="dark grey")
-    }
-    GU.poly@data$GUcolor=GU.colors[match(as.character(GU.poly@data$GU), names(GU.colors))]
-  }
-  
-  
-  
-  
-  print("creating summary plot")
-  pdf(paste(figdir,"\\Maps\\VISIT_" ,visit,".pdf", sep=""), width=24, height=11)
-  par(mfrow=c(1,3))
-  
-  if(exists("form.poly")){
-    plot(form.poly, col=form.poly@data$shapecolor)
-    title(paste("VISIT_", visit," Tier2 Shape", sep=""), cex.sub=3)
-    if(exists("fish")){
-      plot(fish, add=T, pch=16, cex=.7, col="white")}
-    if(exists("contours")){
-      plot(contours, add=T, cex=.7, col="black")}
-    if(exists("thalwegs")){
-      plot(thalwegs, add=T, cex=.7, lty=2, col="black")}
-    if(exists("nrei.poly")){
-      plot(nrei.poly, add=T, cex=.7, lty=1, lwd=3)}
-    legend("bottomright",
-           legend=c(names(shape.colors)), horiz=T,
-           col=c(shape.colors),  pch=rep(15,6), cex=1.2, pt.cex=2)
+    map.forms = ggplot() +
+      geom_sf(data = contours, aes(color = "A"), show.legend = "line") +
+      geom_sf(data = forms, aes(fill = forms$UnitForm), color = NA, alpha = 0.5) +
+      geom_sf(data = thalwegs, aes(colour = "B"), linetype = 2, size = 0.6, show.legend = "line") +
+      scale_fill_manual(name = "Unit Form", values = form.fill,
+                        guide = guide_legend(override.aes = list(linetype = "blank", shape = NA))) +
+      scale_colour_manual(values = c("A" = "darkgrey", "B" = "blue"),
+                          labels = c("Contours", "Thalweg"),
+                          name = NULL,
+                          guide = guide_legend(override.aes = list(linetype = c("solid", "dashed"), shape = c(NA, NA)))) +
+      # xlab("Longitude") + ylab("Latitude") +
+      # annotation_scale(width_hint = 0.5) +
+      # theme_light()
+      # annotation_north_arrow(location = "bl", style = north_arrow_fancy_orienteering) +
+      annotation_scale(location = "bl", width_hint = 0.5, bar_cols = c("grey37", "white"), line_col = "grey37", text_col = "grey37") +
+      theme_void()
     
+    if(all("sf" %in% class(nrei.fish), "sf" %in% class(nrei.extent))){
+      map.forms.nrei = ggplot() +
+        geom_sf(data = contours, aes(color = "A"), show.legend = "line") +
+        geom_sf(data = forms, aes(fill = forms$UnitForm), color = NA, alpha = 0.5) +
+        geom_sf(data = nrei.fish, aes(colour = "B"), shape = 1, show.legend = "point") +
+        geom_sf(data = nrei.extent, aes(colour = "C", fill = NA), linetype = 2, show.legend = "line") +
+        scale_fill_manual(name = "Unit Form", values = form.fill,
+                          guide = guide_legend(override.aes = list(linetype = "blank", shape = NA))) +
+        scale_colour_manual(values = c("A" = "darkgrey", "B" = "magenta4", "C" = "magenta4"),
+                            labels = c("Contours", "NREI Predicted Fish", "NREI Extent"),
+                            name = NULL,
+                            guide = guide_legend(override.aes = list(linetype = c("solid", "blank", "dashed"), shape = c(NA, 1, NA)))) +
+        annotation_scale(location = "bl", width_hint = 0.5, bar_cols = c("grey37", "white"), line_col = "grey37", text_col = "grey37") +
+        theme_void()
+    }else{
+      map.forms.nrei = map.forms
+    }
     
-    plot(form.poly, col=form.poly@data$formcolor)
-    title(paste("VISIT_", visit," Tier2 Form", sep=""), cex.sub=3)
-    if(exists("fish")){
-      points(fish,  pch=16, cex=.7, col="black")}
-    if(exists("contours")){
-      plot(contours, add=T, cex=.7, col="black")}
-    if(exists("thalwegs")){
-      plot(thalwegs, add=T, cex=.7, lty=2, col="black")}
-    if(exists("nrei.poly")){
-      plot(nrei.poly, add=T, cex=.7, lty=1, lwd=3)}
-    legend("bottomright",
-           legend=c(names(form.colors)),  ncol=2,
-           col=c(form.colors),  pch=rep(15,6), pt.cex=2, cex=1.2)
+    # arrange and save plot output
+    forms.title = paste("Visit", as.character(visit.id), "Tier 2 Unit Form", sep = " ")
+    out.name = paste("Visit_", as.character(visit.id), "_Tier2_UnitForm_Map.png", sep = "")
+    ggarrange(map.forms, map.forms.nrei, ncol = plot.ncol, nrow = plot.nrow, align = plot.align) %>% 
+      ggexport(filename = file.path(fig.path, out.name), width = 6000, height = 6000, res = 500)
+    
+    # map.forms.out = ggarrange(map.forms, map.forms.nrei, ncol = plot.ncol, nrow = plot.nrow, align = plot.align) %>% 
+    #   annotate_figure(fig.lab = forms.title, fig.lab.face = "bold")
   }
   
-  if(exists("GU.poly")){
-    plot(GU.poly, col=GU.poly@data$GUcolor)
-    title(paste("VISIT_", visit," Tier3 GU", sep=""), cex.sub=3)
-    if(exists("fish")){
-      points(fish,  pch=16, cex=.7, col="black")}
-    if(exists("contours")){
-      plot(contours, add=T, cex=.7, col="black")}
-    if(exists("thalwegs")){
-      plot(thalwegs, add=T, cex=.7, lty=2, col="black")}
-    if(exists("nrei.poly")){
-      plot(nrei.poly, add=T, cex=.7, lty=1, lwd=3)}
-    legend("bottomright",
-           legend=c(names(GU.colors)),  ncol=2,
-           col=c(GU.colors),  pch=rep(15,6), pt.cex=2, cex=1.2)
+
+  if("sf" %in% class(gus)){
+    
+    # determine plotting orientation
+    xy.ratio = (as.numeric(st_bbox(gus)$xmax) - as.numeric(st_bbox(gus)$xmin)) / (as.numeric(st_bbox(gus)$ymax) - as.numeric(st_bbox(gus)$ymin))
+    if(xy.ratio < 1){
+      plot.ncol = 2
+      plot.nrow = 1
+      plot.align = "v"
+    }else{
+      plot.ncol = 1
+      plot.nrow = 2
+      plot.align = "h"
+    }
+    
+    # plot tier 3 maps GU maps
+    map.gus = ggplot() +
+      geom_sf(data = contours, aes(color = "A"), show.legend = "line") +
+      geom_sf(data = gus, aes(fill = gus$GU), color = NA, alpha = 0.5) +
+      geom_sf(data = thalwegs, aes(colour = "B"), linetype = 2, size = 0.6, show.legend = "line") +
+      scale_fill_manual(name = "GU", values = gu.fill,
+                        guide = guide_legend(override.aes = list(linetype = "blank", shape = NA))) +
+      scale_colour_manual(values = c("A" = "darkgrey", "B" = "blue"),
+                          labels = c("Contours", "Thalweg"),
+                          name = NULL,
+                          guide = guide_legend(override.aes = list(linetype = c("solid", "dashed"), shape = c(NA, NA)))) +
+      annotation_scale(location = "bl", width_hint = 0.5, bar_cols = c("grey37", "white"), line_col = "grey37", text_col = "grey37") +
+      theme_void()
+    
+    if(all("sf" %in% class(nrei.fish), "sf" %in% class(nrei.extent))){
+      map.gus.nrei = ggplot() +
+        geom_sf(data = contours, aes(color = "A"), show.legend = "line") +
+        geom_sf(data = gus, aes(fill = gus$GU), color = NA, alpha = 0.5) +
+        geom_sf(data = nrei.fish, aes(colour = "B"), shape = 1, show.legend = "point") +
+        geom_sf(data = nrei.extent, aes(colour = "C", fill = NA), linetype = 2, show.legend = "line") +
+        scale_fill_manual(name = "GU", values = gu.fill,
+                          guide = guide_legend(override.aes = list(linetype = "blank", shape = NA))) +
+        scale_colour_manual(values = c("A" = "darkgrey", "B" = "magenta4", "C" = "magenta4"),
+                            labels = c("Contours", "NREI Predicted Fish", "NREI Extent"),
+                            name = NULL,
+                            guide = guide_legend(override.aes = list(linetype = c("solid", "blank", "dashed"), shape = c(NA, 1, NA)))) +
+        annotation_scale(location = "bl", width_hint = 0.5, bar_cols = c("grey37", "white"), line_col = "grey37", text_col = "grey37") +
+        theme_void()
+    }else{
+      map.gus.nrei = map.gus
+    }
+    
+    # arrange and save plot output
+    gu.title = paste("Visit", as.character(visit.id), "Tier 3 GU", sep = " ")
+    out.name = paste("Visit_", as.character(visit.id), "_Tier3_GU_Map.png", sep = "")
+    ggarrange(map.gus, map.gus.nrei, ncol = plot.ncol, nrow = plot.nrow, align = plot.align) %>% 
+      ggexport(filename = file.path(fig.path, out.name), width = 6000, height = 6000, res = 500)
   }
-  
-  dev.off()
-  
   
 }
-
-
-MakeUNITIDboxplots=function(datapath, colors=GU.colors, datatyp="GU", extent="suitable"){
-  
-  data=read.csv(datapath, )
-  
-  s.data=filter(data, Extent=="Suitable")
-  b.data=filter(data, Extent=="Best")
-  w.data=filter(data, Extent=="Water")
-  
-  attributecol=which(names(data)==attribute)
-  
-  if(attribute=="UnitForm"){
-    unit.colors=c(Bowl="royalblue",Mound="darkred",Plane="khaki1",Saddle="orange2",
-                  Trough="lightblue",Wall= "dark grey", `Bowl-Trough`="turquoise", `Plane-Mound`="pink", 
-                  `Trough-Plane`="green", Transition="beige", `Bowl Transition`="turquoise", 
-                  `Mound Transition`="pink", `Bed Transition`="green", 'NA'="white")}
-  
-  if(attribute=="GU"){
-    unit.colors=c(`Pocket Pool`="blue", Pool="dark blue", Pond="green", `Margin Attached Bar`="darkred", `Mid Channel Bar`="brown" , 
-                  Riffle="orange2", Step="pink", Cascade="dark green", Rapid="turquoise", `Glide-Run`="yellow", Chute="lightblue", Transition="grey", Bank="dark grey")}
-  
-  
-  
-  pdf(paste(figdir, "NoFishpsqm.pdf", sep="//"))
-  par(mfrow=c(1,3), mar=c(8,4,2,1))
-  
-  #    boxplot(w.data$No.Fish/w.data$Area~w.data[,attributecol], las=2, col=as.character(w.data$formcolor), ylab="No.Fish/sq.m", main="Wetted Extent")
-  boxplot(w.data$No.Fish/w.data$Area~w.data[,attributecol], las=2, col=unit.colors[match(as.factor(w.data$formcolor), names(form.colors))], ylab="No.Fish/sq.m", main="Wetted Extent")
-  outliers=w.data[which(w.data$No.Fish/w.data$Area>0.6),]
-  if(dim(outliers)[1]>0){text(outliers[,attributecol], outliers$No.Fish/outliers$Area, outliers$visit)}
-  
-  boxplot(s.data$No.Fish/s.data$Area~s.data[,attributecol], las=2, col=as.character(s.data$formcolor), ylab="No.Fish/sq.m", main="Suitable Area")
-  outliers=s.data[which(s.data$No.Fish/s.data$Area>2),]
-  if(dim(outliers)[1]>0){text(outliers[,attributecol], outliers$No.Fish/outliers$Area, outliers$visit)}
-  
-  boxplot(b.data$No.Fish/b.data$Area~b.data[,attributecol], las=2, col=as.character(b.data$formcolor), ylab="No.Fish/sq.m", main="Best Area")
-  outliers=b.data[which(b.data$No.Fish/b.data$Area>2),]
-  if(dim(outliers)[1]>0){text(outliers[,attributecol], outliers$No.Fish/outliers$Area, outliers$visit)}
-  dev.off()
-  
