@@ -225,7 +225,7 @@ calc.site.fish.metrics = function(visit.dir){
 #' check.shp("C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data/VISIT_1029/HSI/reddPlacement/Fuzzy_ReddLocs_Steelhead.shp")
 check.shp = function(in.shp){
   if(length(in.shp) > 0){
-    out.shp = st_read(in.shp, quiet = TRUE)
+    out.shp = st_read(in.shp, quiet = TRUE) %>% st_make_valid()
   }else{
     out.shp = NA
   }
