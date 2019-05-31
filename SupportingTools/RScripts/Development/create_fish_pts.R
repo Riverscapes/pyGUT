@@ -1,3 +1,5 @@
+# todo: filter nrei points by rad.step.gte.user.pval > 0.4
+
 # ask NK: had filter to select rows with rad.step.gte.user.pval > 0, but aren't any rows that meet this condition
 #         there are rows with NA values.  should those be removed?  not sure what this field pertains to. also...
 #         not all visits have this field (e.g., visit 1587 NREI all pts doesn't have pval fields)
@@ -132,20 +134,20 @@ check.fish.pts = function(data, zrank = "max", plot.nrei = FALSE){
       "Warning: zrank parameter must either be set to 'max' or a numeric value"
     }
     
-    # get count of number of rows in zrank points with suitable values (nrei_Jph > 0)
+    # get count of number of rows in zrank points with suitable values (nrei_Jph > 0 and rad.step.gte.user.pval > 0.4)
     # ...may be instances where reach has no 'suitable' nrei values
-    n.rows = pts.zrank %>% filter(nrei_Jph > 0) %>% nrow()
+    n.rows = pts.zrank %>% dplyr::filter(nrei_Jph > 0 & rad.step.gte.user.pval > 0.4) %>% nrow()
     
     # create nrei suitable points shapefile and raster it don't already exist
     if(n.rows > 0){
       
       # write out just points that have nrei_Jph > 0
-      pts.zrank %>% dplyr::filter(max.nrei_Jph > 0) %>% st_write(file.path(dirname(pts.csv), "NREI_Suitable_Pts.shp"), delete_layer = TRUE)
+      pts.zrank %>% dplyr::filter(max.nrei_Jph > 0 & rad.step.gte.user.pval > 0.4) %>% st_write(file.path(dirname(pts.csv), "NREI_Suitable_Pts.shp"), delete_layer = TRUE)
       
       # write out zrank raster
       # pts.zrank.df = pts.zrank %>% dplyr::select(X, Y, max.nrei_Jph) %>% as.data.frame() %>% dplyr::select(-geometry)
       # zrank.raster = rasterFromXYZ(pts.zrank.df, res = c(0.1, 0.1), crs = crs(pts.zrank))
-      zrank.raster = pts.zrank %>% dplyr::filter(max.nrei_Jph > 0) %>% dplyr::select(X, Y, max.nrei_Jph) %>% as.data.frame() %>% dplyr::select(-geometry) %>% rasterFromXYZ(res = c(0.1, 0.1), crs = crs(pts.zrank))
+      zrank.raster = pts.zrank %>% dplyr::filter(max.nrei_Jph > 0 & rad.step.gte.user.pval > 0.4) %>% dplyr::select(X, Y, max.nrei_Jph) %>% as.data.frame() %>% dplyr::select(-geometry) %>% rasterFromXYZ(res = c(0.1, 0.1), crs = crs(pts.zrank))
       raster::writeRaster(zrank.raster, file.path(dirname(pts.csv), "NREI_Suitable_Ras"), format = "GTiff", overwrite = TRUE)
       
     }
