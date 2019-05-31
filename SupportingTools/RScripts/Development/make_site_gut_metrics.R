@@ -48,13 +48,13 @@ calc.site.gut.metrics = function(visit.dir, run.dir, gut.layer){
     main.thalweg = thalweg %>% dplyr::filter(ThalwegTyp == "Main")
     main.thalweg.length.m = main.thalweg %>% st_length(.) %>% sum() %>% as.numeric() %>% round(3) 
     thalweg.length.m = thalweg %>% st_length(.) %>% sum() %>% as.numeric() %>% round(3) 
-    thalweg.length.ratio = round(main.thalweg.length.m / thalweg.length.m, 3)
+    thalweg.length.ratio = round(thalweg.length.m / main.thalweg.length.m, 3)
   }else if(length(thalweg.file) > 0){
     thalweg = st_read(thalweg.file, quiet = TRUE)
     main.thalweg = thalweg
     main.thalweg.length.m = thalweg %>% st_length(.) %>% as.numeric() %>% round(3)
     thalweg.length.m = main.thalweg.length.m
-    thalweg.length.ratio = round(main.thalweg.length.m / thalweg.length.m, 3)
+    thalweg.length.ratio = round(thalweg.length.m / main.thalweg.length.m, 3)
   }else{
     main.thalweg.length.m = NA
     thalweg.length.m = NA
