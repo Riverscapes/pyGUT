@@ -5,6 +5,7 @@
 #   nrei.best.area.m2 = 0.0
 # }
 
+visit.dir = "C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data/VISIT_1029"
 
 #' Calculate site-level fish metrics
 #'
@@ -293,7 +294,8 @@ calc.area = function(in.shp, group.layer = FALSE){
       shp.tb = shp.tb %>%
         group_by(layer) %>%
         summarise(value = sum(area)) %>%
-        mutate(category = ifelse(layer == 1, "suitable", ifelse(layer == 2, "best", NA))) %>%
+        mutate(value = ifelse(layer == 1, sum(value), value),
+               category = ifelse(layer == 1, "suitable", ifelse(layer == 2, "best", NA))) %>%
         dplyr::select(-layer)
       tb = tibble(category = c('suitable', 'best')) %>% left_join(shp.tb, by = "category") %>%
         mutate(value = replace_na(value, 0))
@@ -344,7 +346,8 @@ calc.capacity = function(in.shp, group.layer = FALSE){
       shp.tb = shp.tb %>%
         group_by(layer) %>%
         summarize(value = n()) %>%
-        mutate(category = ifelse(layer == 1, "suitable", ifelse(layer == 2, "best", NA))) %>%
+        mutate(value = ifelse(layer == 1, sum(value), value),
+               category = ifelse(layer == 1, "suitable", ifelse(layer == 2, "best", NA))) %>%
         dplyr::select(-layer)
       tb = tibble(category = c('suitable', 'best')) %>% left_join(shp.tb, by = "category") %>%
         mutate(value = replace_na(value, 0))
