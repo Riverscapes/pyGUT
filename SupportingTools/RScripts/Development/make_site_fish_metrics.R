@@ -105,6 +105,11 @@ calc.site.fish.metrics = function(visit.dir){
   # join with suitable polygon (as long as both shps aren't na)
   if(all(!is.na(nrei.suit.shp), !is.na(nrei.locs.shp))){nrei.locs.shp = nrei.locs.shp %>% st_join(nrei.suit.shp)}
   
+  # remove duplicate points created in join (sorting layer by descending so 2 = best is selected over 1 = suitable)
+  nrei.locs.shp = nrei.locs.shp %>%
+    arrange(idx, desc(layer)) %>%
+    distinct(idx, .keep_all = TRUE)
+  
   # calculate fish capacity by suitable category (1 = suitable, 2 = best)
   tb.meas = tb.meas %>% 
     bind_rows(., calc.capacity(nrei.locs.shp, group.layer = TRUE) %>% mutate(layer = "nrei", var = "pred.fish", species = "steelhead", lifestage = "juvenile"))
@@ -136,8 +141,16 @@ calc.site.fish.metrics = function(visit.dir){
   ch.redds.file = grep("reddPlacement", ch.redds.files, value = TRUE)
   ch.redds.shp = check.shp(ch.redds.file)
   
+  # if point id (idx) field doesn't exist, create it
+  if(!"idx" %in% names(ch.redds.shp)){ch.redds.shp = ch.redds.shp %>% mutate(idx = row_number())}
+  
   # join with suitable polygon (as long as both shps aren't na)
   if(all(!is.na(ch.suit.shp), !is.na(ch.redds.shp))){ch.redds.shp = ch.redds.shp %>% st_join(ch.suit.shp)}
+  
+  # remove duplicate points created in join (sorting layer by descending so 2 = best is selected over 1 = suitable)
+  ch.redds.shp = ch.redds.shp %>%
+    arrange(idx, desc(layer)) %>%
+    distinct(idx, .keep_all = TRUE)
   
   # calculate redd capacity by suitable category (1 = suitable, 2 = best)
   tb.meas = tb.meas %>% 
@@ -170,8 +183,16 @@ calc.site.fish.metrics = function(visit.dir){
   st.redds.file = grep("reddPlacement", st.redds.files, value = TRUE)
   st.redds.shp = check.shp(st.redds.file)
   
+  # if point id (idx) field doesn't exist, create it
+  if(!"idx" %in% names(st.redds.shp)){st.redds.shp = st.redds.shp %>% mutate(idx = row_number())}
+  
   # join with suitable polygon (as long as both shps aren't na)
   if(all(!is.na(st.suit.shp), !is.na(st.redds.shp))){st.redds.shp = st.redds.shp %>% st_join(st.suit.shp)}
+  
+  # remove duplicate points created in join (sorting layer by descending so 2 = best is selected over 1 = suitable)
+  st.redds.shp = st.redds.shp %>%
+    arrange(idx, desc(layer)) %>%
+    distinct(idx, .keep_all = TRUE)
   
   # calculate redd capacity by suitable category (1 = suitable, 2 = best)
   tb.meas = tb.meas %>% 
