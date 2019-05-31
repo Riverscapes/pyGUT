@@ -1,5 +1,3 @@
-# Ask NK:
-# - why using aggregate function.  it reads raster in at lower cell resolution
 
 #' Create polygon of raster extent
 #'

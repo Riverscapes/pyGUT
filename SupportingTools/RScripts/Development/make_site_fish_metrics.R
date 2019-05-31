@@ -1,6 +1,5 @@
 # todo: check with Natalie - thalweg length (m) is sum of all lengths - is this waht she wanted?
 #       also - should main thalweg be [Channel == "Main" & ThalwegTyp == "Main"] -- she only had the latter
-# todo: ask NK why she was setting nrei area to 0 if capacity is <= 1 (no longer doing...)
 # if(nrei.pred.fish <= 1){
 #   nrei.suit.area.m2 = 0.0
 #   nrei.best.area.m2 = 0.0

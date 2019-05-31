@@ -1,6 +1,3 @@
-# Ask NK:
-# - why using aggregate function.  it reads raster in at lower cell resolution
-
 #' Create suitable habitat polygon from raster using breaks in data
 #'
 #' @param visit.dir Full filepath to visit folder 
