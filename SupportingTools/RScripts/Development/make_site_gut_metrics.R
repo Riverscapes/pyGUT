@@ -115,7 +115,7 @@ calc.site.gut.metrics = function(visit.dir, run.dir, gut.layer){
   }
   
   # create tb of calculated metrics
-  metrics = tibble(gut.layer, visit.id, bf.area.m2, wet.area.m2, main.thalweg.length.m, thalweg.length.m, thalweg.length.ratio, 
+  metrics = tibble(gut.layer, visit.id, n.units, bf.area.m2, wet.area.m2, main.thalweg.length.m, thalweg.length.m, thalweg.length.ratio, 
                    edge.length.area.ratio, edge.dens.main.thalweg, edge.dens.thalwegs, edge.dens.xs)
 
   return(metrics)
