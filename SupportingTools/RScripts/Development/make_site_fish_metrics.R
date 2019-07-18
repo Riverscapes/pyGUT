@@ -104,7 +104,9 @@ calc.site.fish.metrics = function(visit.dir){
   nrei.locs.shp = check.shp(nrei.locs.file)
   
   # join with suitable polygon (as long as both shps aren't na)
-  if(all(!is.na(nrei.suit.shp), !is.na(nrei.locs.shp))){nrei.locs.shp = nrei.locs.shp %>% st_join(nrei.suit.shp)}
+  if(all("sf" %in% class(nrei.locs.shp), "sf" %in% class(nrei.suit.shp))){
+    nrei.locs.shp = nrei.locs.shp %>% 
+      st_join(nrei.suit.shp)}
   
   # remove duplicate points created in join (sorting layer by descending so 2 = best is selected over 1 = suitable)
   nrei.locs.shp = nrei.locs.shp %>%
@@ -146,7 +148,9 @@ calc.site.fish.metrics = function(visit.dir){
   if(!"idx" %in% names(ch.redds.shp)){ch.redds.shp = ch.redds.shp %>% mutate(idx = row_number())}
   
   # join with suitable polygon (as long as both shps aren't na)
-  if(all(!is.na(ch.suit.shp), !is.na(ch.redds.shp))){ch.redds.shp = ch.redds.shp %>% st_join(ch.suit.shp)}
+  if(all("sf" %in% class(ch.suit.shp), "sf" %in% class(ch.redds.shp))){
+    ch.redds.shp = ch.redds.shp %>% 
+      st_join(ch.suit.shp)}
   
   # remove duplicate points created in join (sorting layer by descending so 2 = best is selected over 1 = suitable)
   ch.redds.shp = ch.redds.shp %>%
@@ -188,7 +192,9 @@ calc.site.fish.metrics = function(visit.dir){
   if(!"idx" %in% names(st.redds.shp)){st.redds.shp = st.redds.shp %>% mutate(idx = row_number())}
   
   # join with suitable polygon (as long as both shps aren't na)
-  if(all(!is.na(st.suit.shp), !is.na(st.redds.shp))){st.redds.shp = st.redds.shp %>% st_join(st.suit.shp)}
+  if(all("sf" %in% class(st.suit.shp), "sf" %in% class(st.redds.shp))){
+    st.redds.shp = st.redds.shp %>% 
+      st_join(st.suit.shp)}
   
   # remove duplicate points created in join (sorting layer by descending so 2 = best is selected over 1 = suitable)
   st.redds.shp = st.redds.shp %>%
