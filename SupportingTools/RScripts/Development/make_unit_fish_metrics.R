@@ -98,26 +98,14 @@ make.unit.fish.metrics = function(visit.dir, layer = "Tier2_InChannel_Transition
   nrei.locs.shp = check.shp(nrei.locs.file)
   
   # join predicted fish locations shp with units and suitable shp (as long as shps are sf objects)
-  if("sf" %in% class(nrei.locs.shp)){
-    nrei.locs.shp = nrei.locs.shp %>%
-      st_join(units.shp, left = FALSE)}
-  
-  if(all("sf" %in% class(nrei.locs.shp), "sf" %in% class(nrei.suit.shp))){
-    nrei.locs.shp = nrei.locs.shp %>%
-      st_join(nrei.suit.shp)}
+  nrei.locs.shp = join.shp(nrei.locs.shp, nrei.suit.shp, in.units = unit.shp)
   
   # read in nrei all points shp
   nrei.all.file = unlist(list.files(path = visit.dir, pattern = "^NREI_All_Pts.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
   nrei.all.shp = check.shp(nrei.all.file)
   
   # join points shp with units and suitable shp (as long as shps are sf objects)
-  if("sf" %in% class(nrei.all.shp)){
-    nrei.all.shp = nrei.all.shp %>%
-      st_join(units.shp, left = FALSE)}
-  
-  if(all("sf" %in% class(nrei.all.shp), "sf" %in% class(nrei.suit.shp))){
-    nrei.all.shp = nrei.all.shp %>%
-      st_join(nrei.suit.shp)}
+  nrei.all.shp = join.shp(nrei.all.shp, nrei.suit.shp, in.units = unit.shp)
   
   # --calculate summary metrics--
   
@@ -182,13 +170,7 @@ make.unit.fish.metrics = function(visit.dir, layer = "Tier2_InChannel_Transition
   ch.redds.shp = check.shp(ch.redds.file)
   
   # join predicted fish locations shp with units and suitable shp (as long as shps are sf objects)
-  if("sf" %in% class(ch.redds.shp)){
-    ch.redds.shp = ch.redds.shp %>%
-      st_join(units.shp, left = FALSE)}
-  
-  if(all("sf" %in% class(ch.redds.shp), "sf" %in% class(ch.suit.shp))){
-    ch.redds.shp = ch.redds.shp %>%
-      st_join(ch.suit.shp)}
+  ch.redds.shp = join.shp(ch.redds.shp, ch.suit.shp, in.units = unit.shp)
   
   # read in fuzzy raster and convert to points
   ch.raster.file = unlist(list.files(path = visit.dir, pattern = "^FuzzyChinookSpawner_DVSC.tif$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
@@ -201,13 +183,7 @@ make.unit.fish.metrics = function(visit.dir, layer = "Tier2_InChannel_Transition
   }
   
   # join points shp with units and suitable shp (as long as shps are sf objects)
-  if("sf" %in% class(ch.all.shp)){
-    ch.all.shp = ch.all.shp %>%
-      st_join(units.shp, left = FALSE)}
-  
-  if(all("sf" %in% class(ch.all.shp), "sf" %in% class(ch.suit.shp))){
-    ch.all.shp = ch.all.shp %>%
-      st_join(ch.suit.shp)}
+  ch.all.shp = join.shp(ch.all.shp, ch.suit.shp, in.units = unit.shp)
   
   # --calculate summary metrics--
   
@@ -271,13 +247,7 @@ make.unit.fish.metrics = function(visit.dir, layer = "Tier2_InChannel_Transition
   st.redds.shp = check.shp(st.redds.file)
   
   # join predicted fish locations shp with units and suitable shp (as long as shps are sf objects)
-  if("sf" %in% class(st.redds.shp)){
-    st.redds.shp = st.redds.shp %>%
-      st_join(units.shp)}
-  
-  if(all("sf" %in% class(st.redds.shp), "sf" %in% class(st.suit.shp))){
-    st.redds.shp = st.redds.shp %>%
-      st_join(st.suit.shp)}
+  st.redds.shp = join.shp(st.redds.shp, st.suit.shp, in.units = unit.shp)
   
   # read in fuzzy raster and convert to points
   st.raster.file = unlist(list.files(path = visit.dir, pattern = "^FuzzySteelheadSpawner_DVSC.tif$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
@@ -290,13 +260,7 @@ make.unit.fish.metrics = function(visit.dir, layer = "Tier2_InChannel_Transition
   }
   
   # join points shp with units and suitable shp (as long as shps are sf objects)
-  if("sf" %in% class(st.all.shp)){
-    st.all.shp = st.all.shp %>%
-      st_join(units.shp)}
-  
-  if(all("sf" %in% class(st.all.shp), "sf" %in% class(st.suit.shp))){
-    st.all.shp = st.all.shp %>%
-      st_join(st.suit.shp)}
+  st.all.shp = join.shp(st.all.shp, st.suit.shp, in.units = unit.shp)
   
   # --calculate summary metrics--
   
@@ -368,6 +332,36 @@ check.shp = function(in.shp){
   }
   return(out.shp)
 }
+
+
+#' Join shapefile with units and suitability polygon
+#'
+#' @param in.shp Input shapefile
+#' @param in.suit Input suitability polygon shapefile
+#' @param in.units Input units polygon shapefile
+#'
+#' @return If shapefile with units and suitability category appended
+#' @export
+#'
+#' @examples
+#' check.shp("C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data/VISIT_1029/HSI/reddPlacement/Fuzzy_ReddLocs_Steelhead.shp")
+join.shp = function(in.shp, in.suit, in.units = unit.shp){
+  
+  if("sf" %in% class(in.shp)){
+    in.shp = in.shp %>%
+      st_join(in.units, left = FALSE)}
+  
+  if(all("sf" %in% class(in.shp), "sf" %in% class(in.suit))){
+    in.shp = in.shp %>%
+      st_join(in.suit)}
+  
+  return(in.shp)
+}
+
+# join points shp with units and suitable shp (as long as shps are sf objects)
+
+
+
 
 #' Calculate unit polygon area
 #'
