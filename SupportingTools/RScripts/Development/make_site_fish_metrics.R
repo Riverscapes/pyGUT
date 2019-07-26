@@ -89,15 +89,15 @@ calc.site.fish.metrics = function(visit.dir){
   
   # calculate extent area
   tb.meas = tb.meas %>% 
-    bind_rows(., calc.area(nrei.ext.shp, group.layer = FALSE) %>% mutate(category = "reach", layer = "nrei", var = "area", species = "steelhead", lifestage = "juvenile"))
+    bind_rows(., calc.area(nrei.ext.shp) %>% mutate(category = "reach", layer = "nrei", var = "area", species = "steelhead", lifestage = "juvenile"))
   
   # read in suitable shp
   nrei.suit.file = unlist(list.files(path = visit.dir, pattern = "^NREI_Suitable_Poly.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
   nrei.suit.shp = check.shp(nrei.suit.file)
   
-  # calculate area by suitable category (1 = suitable, 2 = best)
+  # calculate area for suitable polygon
   tb.meas = tb.meas %>% 
-    bind_rows(., calc.area(nrei.suit.shp, group.layer = TRUE) %>% mutate(layer = "nrei", var = "area", species = "steelhead", lifestage = "juvenile"))
+    bind_rows(., calc.area(nrei.suit.shp) %>% mutate(category = "suitable", layer = "nrei", var = "area", species = "steelhead", lifestage = "juvenile"))
 
   # read in predicted fish locations shp
   nrei.locs.file = unlist(list.files(path = visit.dir, pattern = "^NREI_FishLocs.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
@@ -113,13 +113,13 @@ calc.site.fish.metrics = function(visit.dir){
     arrange(idx, desc(layer)) %>%
     distinct(idx, .keep_all = TRUE)
   
-  # calculate fish capacity by suitable category (1 = suitable, 2 = best)
+  # calculate fish capacity for suitable polygon
   tb.meas = tb.meas %>% 
-    bind_rows(., calc.capacity(nrei.locs.shp, group.layer = TRUE) %>% mutate(layer = "nrei", var = "pred.fish", species = "steelhead", lifestage = "juvenile"))
+    bind_rows(., calc.capacity(nrei.locs.shp) %>% mutate(category = "suitable", layer = "nrei", var = "pred.fish", species = "steelhead", lifestage = "juvenile"))
   
   # calculate fish capacity for entire reach
   tb.meas = tb.meas %>% 
-    bind_rows(., calc.capacity(nrei.locs.shp, group.layer = FALSE) %>% mutate(category = "reach", layer = "nrei", var = "pred.fish", species = "steelhead", lifestage = "juvenile"))
+    bind_rows(., calc.capacity(nrei.locs.shp) %>% mutate(category = "reach", layer = "nrei", var = "pred.fish", species = "steelhead", lifestage = "juvenile"))
   
   # fuzzy chinook spawner ---------------------------
   
@@ -129,19 +129,18 @@ calc.site.fish.metrics = function(visit.dir){
   
   # calculate extent area
   tb.meas = tb.meas %>% 
-    bind_rows(., calc.area(ch.ext.shp, group.layer = FALSE) %>% mutate(category = "reach", layer = "fuzzy", var = "area", species = "chinook", lifestage = "spawner"))
+    bind_rows(., calc.area(ch.ext.shp) %>% mutate(category = "reach", layer = "fuzzy", var = "area", species = "chinook", lifestage = "spawner"))
   
   # read in suitable shp
   ch.suit.file = unlist(list.files(path = visit.dir, pattern = "^Fuzzy_Suitable_Poly_Chinook.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
   ch.suit.shp = check.shp(ch.suit.file)
   
-  # calculate area by suitable category (1 = suitable, 2 = best)
+  # calculate area for suitable polygon
   tb.meas = tb.meas %>% 
-    bind_rows(., calc.area(ch.suit.shp, group.layer = TRUE) %>% mutate(layer = "fuzzy", var = "area", species = "chinook", lifestage = "spawner"))
+    bind_rows(., calc.area(ch.suit.shp) %>% mutate(category = "suitable", layer = "fuzzy", var = "area", species = "chinook", lifestage = "spawner"))
   
   # read in predicted redd locations shp
   ch.redds.files = unlist(list.files(path = visit.dir, pattern = "^Fuzzy_ReddLocs_Chinook.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
-  ch.redds.file = grep("reddPlacement", ch.redds.files, value = TRUE)
   ch.redds.shp = check.shp(ch.redds.file)
   
   # if point id (idx) field doesn't exist, create it
@@ -157,13 +156,13 @@ calc.site.fish.metrics = function(visit.dir){
     arrange(idx, desc(layer)) %>%
     distinct(idx, .keep_all = TRUE)
   
-  # calculate redd capacity by suitable category (1 = suitable, 2 = best)
+  # calculate redd capacity for suitable polygon
   tb.meas = tb.meas %>% 
-    bind_rows(., calc.capacity(ch.redds.shp, group.layer = TRUE) %>% mutate(layer = "fuzzy", var = "pred.fish", species = "chinook", lifestage = "spawner"))
+    bind_rows(., calc.capacity(ch.redds.shp) %>% mutate(category = "suitable", layer = "fuzzy", var = "pred.fish", species = "chinook", lifestage = "spawner"))
   
   # calculate redd capacity for entire reach
   tb.meas = tb.meas %>% 
-    bind_rows(., calc.capacity(ch.redds.shp, group.layer = FALSE) %>% mutate(category = "reach", layer = "fuzzy", var = "pred.fish", species = "chinook", lifestage = "spawner"))
+    bind_rows(., calc.capacity(ch.redds.shp) %>% mutate(category = "reach", layer = "fuzzy", var = "pred.fish", species = "chinook", lifestage = "spawner"))
   
   # fuzzy steelhead spawner ---------------------------
   
@@ -173,19 +172,18 @@ calc.site.fish.metrics = function(visit.dir){
   
   # calculate extent area
   tb.meas = tb.meas %>% 
-    bind_rows(., calc.area(st.ext.shp, group.layer = FALSE) %>% mutate(category = "reach", layer = "fuzzy", var = "area", species = "steelhead", lifestage = "spawner"))
+    bind_rows(., calc.area(st.ext.shp) %>% mutate(category = "reach", layer = "fuzzy", var = "area", species = "steelhead", lifestage = "spawner"))
   
   # read in suitable shp
   st.suit.file = unlist(list.files(path = visit.dir, pattern = "^Fuzzy_Suitable_Poly_Steelhead.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
   st.suit.shp = check.shp(st.suit.file)
   
-  # calculate area by suitable category (1 = suitable, 2 = best)
+  # calculate area for suitable polygon
   tb.meas = tb.meas %>% 
-    bind_rows(., calc.area(st.suit.shp, group.layer = TRUE) %>% mutate(layer = "fuzzy", var = "area", species = "steelhead", lifestage = "spawner"))
+    bind_rows(., calc.area(st.suit.shp) %>% mutate(category = "suitable", layer = "fuzzy", var = "area", species = "steelhead", lifestage = "spawner"))
   
   # read in predicted redd locations shp
   st.redds.files = unlist(list.files(path = visit.dir, pattern = "^Fuzzy_ReddLocs_Steelhead.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
-  st.redds.file = grep("reddPlacement", st.redds.files, value = TRUE)
   st.redds.shp = check.shp(st.redds.file)
   
   # if point id (idx) field doesn't exist, create it
@@ -196,18 +194,63 @@ calc.site.fish.metrics = function(visit.dir){
     st.redds.shp = st.redds.shp %>% 
       st_join(st.suit.shp)}
   
-  # remove duplicate points created in join (sorting layer by descending so 2 = best is selected over 1 = suitable)
+  # remove duplicate points created in join
   st.redds.shp = st.redds.shp %>%
     arrange(idx, desc(layer)) %>%
     distinct(idx, .keep_all = TRUE)
   
-  # calculate redd capacity by suitable category (1 = suitable, 2 = best)
+  # calculate redd capacity for suitable polygon
   tb.meas = tb.meas %>% 
-    bind_rows(., calc.capacity(st.redds.shp, group.layer = TRUE) %>% mutate(layer = "fuzzy", var = "pred.fish", species = "steelhead", lifestage = "spawner"))
+    bind_rows(., calc.capacity(st.redds.shp) %>% mutate(category = "suitable", layer = "fuzzy", var = "pred.fish", species = "steelhead", lifestage = "spawner"))
   
   # calculate redd capacity for entire reach
   tb.meas = tb.meas %>% 
-    bind_rows(., calc.capacity(st.redds.shp, group.layer = FALSE) %>% mutate(category = "reach", layer = "fuzzy", var = "pred.fish", species = "steelhead", lifestage = "spawner"))
+    bind_rows(., calc.capacity(st.redds.shp) %>% mutate(category = "reach", layer = "fuzzy", var = "pred.fish", species = "steelhead", lifestage = "spawner"))
+  
+  
+  # fuzzy chinook juvenile ---------------------------
+  
+  # read in extent shp
+  ch.juv.ext.file = unlist(list.files(path = visit.dir, pattern = "^Fuzzy_Chinook_Juvenile_Extent.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  ch.juv.ext.shp = check.shp(ch.juv.ext.file)
+  
+  # calculate extent area
+  tb.meas = tb.meas %>% 
+    bind_rows(., calc.area(ch.juv.ext.shp) %>% mutate(category = "reach", layer = "fuzzy", var = "area", species = "chinook", lifestage = "juvenile"))
+  
+  # read in suitable shp
+  ch.juv.suit.file = unlist(list.files(path = visit.dir, pattern = "^Fuzzy_Suitable_Poly_ChinookJuvenile.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  ch.juv.suit.shp = check.shp(ch.juv.suit.file)
+  
+  # calculate area for suitable polygon
+  tb.meas = tb.meas %>% 
+    bind_rows(., calc.area(ch.juv.suit.shp) %>% mutate(category = "suitable", layer = "fuzzy", var = "area", species = "chinook", lifestage = "juvenile"))
+  
+  # read in predicted fish locations shp
+  ch.locs.files = unlist(list.files(path = visit.dir, pattern = "^Fuzzy_JuvenileLocs_Chinook.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  ch.locs.shp = check.shp(ch.locs.file)
+  
+  # if point id (idx) field doesn't exist, create it
+  if(!"idx" %in% names(ch.locs.shp)){ch.locs.shp = ch.locs.shp %>% mutate(idx = row_number())}
+  
+  # join with suitable polygon (as long as both shps aren't na)
+  if(all("sf" %in% class(ch.juv.suit.shp), "sf" %in% class(ch.locs.shp))){
+    ch.locs.shp = ch.locs.shp %>% 
+      st_join(ch.juv.suit.shp)}
+  
+  # remove duplicate points created in join (sorting layer by descending so 2 = best is selected over 1 = suitable)
+  ch.locs.shp = ch.locs.shp %>%
+    arrange(idx, desc(layer)) %>%
+    distinct(idx, .keep_all = TRUE)
+  
+  # calculate redd capacity for suitable polygon
+  tb.meas = tb.meas %>% 
+    bind_rows(., calc.capacity(ch.locs.shp) %>% mutate(category = "suitable", layer = "fuzzy", var = "pred.fish", species = "chinook", lifestage = "juvenile"))
+  
+  # calculate redd capacity for entire reach
+  tb.meas = tb.meas %>% 
+    bind_rows(., calc.capacity(ch.locs.shp) %>% mutate(category = "reach", layer = "fuzzy", var = "pred.fish", species = "chinook", lifestage = "juvenile"))
+  
   
   # clean-up and save output ---------------------------
   
@@ -267,53 +310,29 @@ calc.length = function(in.shp){
 #' Calculate polygon area
 #'
 #' @param in.shp Input shapefile (sf object)
-#' @param group.layer If TRUE area is calculated for each 'layer' field otherwise area is calculated for entire polygon.  Default is set to FALSE.
-#'
+#' 
 #' @return Returns tibble of areas
 #' @export
 #'
 #' @examples
-calc.area = function(in.shp, group.layer = FALSE){
+calc.area = function(in.shp){
   
   # if input shape isn't a sf object, then set output to NA
   if(!"sf" %in% class(in.shp)){
-    if(group.layer == TRUE){
-      tb = tibble(value = NA, category = "suitable")
-    }else{
-      tb = tibble(value = NA)
-    }
+    tb = tibble(value = NA)
   # if shp has 0 rows set the output value to 0
   }else if(nrow(in.shp) == 0){
-    if(group.layer == TRUE){
-      tb = tibble(value = 0, category = "suitable")
-    }else{
-      tb = tibble(value = 0)
-    }
+    tb = tibble(value = 0)
   # otherwise calculate shp area
   }else{
     # calculate area and convert to tibble
     shp.tb = in.shp %>%
       mutate(area = st_area(.) %>% as.numeric() %>% round(3)) %>%
       st_drop_geometry()
-    # if group.layer is set to TRUE then sum areas by suitability category
-    if(group.layer == TRUE){
-      shp.tb = shp.tb %>%
-        group_by(layer) %>%
-        summarise(value = sum(area)) %>%
-        mutate(value = ifelse(layer == 1, sum(value), value),
-               category = ifelse(layer == 1, "suitable", ifelse(layer == 2, "best", NA))) %>%
-        dplyr::select(-layer)
-      tb = tibble(category = c('suitable', 'best')) %>% left_join(shp.tb, by = "category") %>%
-        mutate(value = replace_na(value, 0))
-    # if group.layer is set to FALSE then sum all areas
-    }else{
-      tb = shp.tb %>%
-        summarise(value = sum(area))
-    }
+    tb = shp.tb %>%
+      summarise(value = sum(area))
   }
-  
   return(tb)
-  
 }
 
 
@@ -321,46 +340,25 @@ calc.area = function(in.shp, group.layer = FALSE){
 #' Calculate capacity (raw counts)
 #'
 #' @param in.shp Input shapefile (sf object)
-#' @param group.layer If TRUE capacity is calculated for each 'layer' field (joined from suitable polygon) otherwise capacity using all points.  Default is set to FALSE.
-#'
+#' 
 #' @return Returns tibble of capacity (counts)
 #' @export
 #'
 #' @examples
-calc.capacity = function(in.shp, group.layer = FALSE){
+calc.capacity = function(in.shp){
   
   # if input shape isn't a sf object, then set output to NA
   if(!"sf" %in% class(in.shp)){
-    if(group.layer == TRUE){
-      tb = tibble(value = NA, category = "suitable")
-    }else{
       tb = tibble(value = NA)
-    }
   # if shp has 0 rows set the output value to 0
   }else if(nrow(in.shp) == 0){
-    if(group.layer == TRUE){
-      tb = tibble(value = 0, category = "suitable")
-    }else{
       tb = tibble(value = 0)
-    }
   # otherwise calculate capacity as count
   }else{
     # convert shp to tibble
     shp.tb = in.shp %>% st_drop_geometry()
-    # if group.layer is set to TRUE then count rows (i.e., input points) by suitability category
-    if(group.layer == TRUE){
-      shp.tb = shp.tb %>%
-        group_by(layer) %>%
-        summarize(value = n()) %>%
-        mutate(value = ifelse(layer == 1, sum(value), value),
-               category = ifelse(layer == 1, "suitable", ifelse(layer == 2, "best", NA))) %>%
-        dplyr::select(-layer)
-      tb = tibble(category = c('suitable', 'best')) %>% left_join(shp.tb, by = "category") %>%
-        mutate(value = replace_na(value, 0))
-    # if group.layer is set to FALSE then count all rows
-    }else{
-      tb = shp.tb %>% summarize(value = n())
-    }
+    # count all rows
+    tb = shp.tb %>% summarize(value = n())
   }
   return(tb)
 }
