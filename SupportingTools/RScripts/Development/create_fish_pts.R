@@ -55,8 +55,9 @@ create.pts = function(visit.dir, ref.shp, file.name, out.name){
 #' @return
 #' Returns following if shapefiles if they don't exist on file:
 #' NREI_FishLocs.shp: ESRI shapefile of predicted fish points from predFishLocations.csv
-#' Fuzzy_ReddLocs_Chinook.shp: ESRI Shapefile of predicted Chinook redd locations from chkPredReddLocs.csv
-#' Fuzzy_ReddLocs_Steelhead.shp: ESRI Shapefile of predicted steelhead redd locations from sthdPredReddLocs.csv
+#' Fuzzy_ReddLocs_Chinook.shp: ESRI Shapefile of predicted Chinook redd locations from ChinookSpawner_PredReddLocations.csv
+#' Fuzzy_ReddLocs_Steelhead.shp: ESRI Shapefile of predicted steelhead redd locations from SteelheadSpawner_PredReddLocations.csv
+#' Fuzzy_JuvenileLocs_Chinook.shp: ESRI Shapefile of predicted steelhead redd locations from ChinookJuvenile_PredFishLocations.csv
 #' NREI_All_Pts.shp: ESRI Shapefile of all NREI pts from allNreiPts.csv
 #' 
 #' Returns folloiwng if files don't exist and 'plot.nrei' argument set to TRUE
@@ -88,13 +89,18 @@ check.fish.pts = function(data, zrank = "max", plot.nrei = FALSE){
 
   # - for chinook predicted redd locations
   if(all(data$ch.redd.locs.shp == 'No' & data$ch.redd.locs.csv == 'Yes')){
-    create.pts(data$visit.dir, ref.shp, "^chkPredReddLocs.csv$", "Fuzzy_ReddLocs_Chinook.shp")
+    create.pts(data$visit.dir, ref.shp, "^ChinookSpawner_PredReddLocations.csv$", "Fuzzy_ReddLocs_Chinook.shp")
   }
   
   # - for steelhead predicted redd locations
   if(all(data$st.redd.locs.shp == 'No' & data$st.redd.locs.csv == 'Yes')){
-    create.pts(data$visit.dir, ref.shp, "^sthdPredReddLocs.csv$", "Fuzzy_ReddLocs_Steelhead.shp")
+    create.pts(data$visit.dir, ref.shp, "^SteelheadSpawner_PredReddLocations.csv$", "Fuzzy_ReddLocs_Steelhead.shp")
   }  
+  
+  # - for chinook juvenile predicted fish locations
+  if(all(data$ch.juv.locs.shp == 'No' & data$ch.juv.locs.csv == 'Yes')){
+    create.pts(data$visit.dir, ref.shp, "^ChinookJuvenile_PredFishLocations.csv$", "Fuzzy_JuvenileLocs_Chinook.shp")
+  } 
   
   # - for nrei all points
   if(all(plot.nrei == TRUE & data$all.nrei.pts.csv == 'No')){
@@ -145,9 +151,8 @@ check.fish.pts = function(data, zrank = "max", plot.nrei = FALSE){
       pts.zrank %>% dplyr::filter(max.nrei_Jph > 0 & rad.step.gte.user.pval > 0.4) %>% st_write(file.path(dirname(pts.csv), "NREI_Suitable_Pts.shp"), delete_layer = TRUE)
       
       # write out zrank raster
-      # pts.zrank.df = pts.zrank %>% dplyr::select(X, Y, max.nrei_Jph) %>% as.data.frame() %>% dplyr::select(-geometry)
-      # zrank.raster = rasterFromXYZ(pts.zrank.df, res = c(0.1, 0.1), crs = crs(pts.zrank))
-      zrank.raster = pts.zrank %>% dplyr::filter(max.nrei_Jph > 0 & rad.step.gte.user.pval > 0.4) %>% dplyr::select(X, Y, max.nrei_Jph) %>% as.data.frame() %>% dplyr::select(-geometry) %>% rasterFromXYZ(res = c(0.1, 0.1), crs = crs(pts.zrank))
+      # zrank.raster = pts.zrank %>% dplyr::filter(max.nrei_Jph > 0 & rad.step.gte.user.pval > 0.4) %>% dplyr::select(X, Y, max.nrei_Jph) %>% as.data.frame() %>% dplyr::select(-geometry) %>% rasterFromXYZ(res = c(0.1, 0.1), crs = crs(pts.zrank))
+      zrank.raster = pts.zrank %>% mutate(ras.val = ifelse(max.nrei_Jph > 0 & rad.step.gte.user.pval > 0.4, max.nrei_Jph, NA)) %>% dplyr::select(X, Y, ras.val) %>% as.data.frame() %>% dplyr::select(-geometry) %>% rasterFromXYZ(res = c(0.1, 0.1), crs = crs(pts.zrank))
       raster::writeRaster(zrank.raster, file.path(dirname(pts.csv), "NREI_Suitable_Ras"), format = "GTiff", overwrite = TRUE)
       
     }
