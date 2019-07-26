@@ -55,14 +55,20 @@ check.visit.data = function(visit.dir, gut.run){
   suit.nrei.poly = check.data(visit.dir, "^NREI_Suitable_Poly.shp$")
   suit.nrei.raster = check.data(visit.dir, "^NREI_Suitable_Ras.tif$")
   
-  # - chinook data
-  ch.redd.locs.csv = check.data(visit.dir, "^chkPredReddLocs.csv$")
+  # - chinook spawner data
+  ch.redd.locs.csv = check.data(visit.dir, "^ChinookSpawner_PredReddLocations.csv$")
   ch.redd.locs.shp = check.data(visit.dir, "^Fuzzy_ReddLocs_Chinook.shp$")
   ch.suit.poly = check.data(visit.dir, "^Fuzzy_Suitable_Poly_Chinook.shp$")
   ch.raster = check.data(visit.dir, "^FuzzyChinookSpawner_DVSC.tif$")
   
-  # - steelhead redd locations
-  st.redd.locs.csv = check.data(visit.dir, "^sthdPredReddLocs.csv$")
+  # - chinook juvenile data
+  ch.juv.locs.csv = check.data(visit.dir, "^ChinookJuvenile_PredFishLocations.csv$")
+  ch.juv.locs.shp = check.data(visit.dir, "^Fuzzy_JuvenileLocs_Chinook.shp$")
+  ch.juv.suit.poly = check.data(visit.dir, "^Fuzzy_Suitable_Poly_ChinookJuvenile.shp$")
+  ch.juv.raster = check.data(visit.dir, "^FuzzyChinookJuvenile_DVS.tif$")
+  
+  # - steelhead spawner locations
+  st.redd.locs.csv = check.data(visit.dir, "^SteelheadSpawner_PredReddLocations.csv$")
   st.redd.locs.shp = check.data(visit.dir, "^Fuzzy_ReddLocs_Steelhead.shp$")
   st.suit.poly = check.data(visit.dir, "^Fuzzy_Suitable_Poly_Steelhead.shp$")
   st.raster = check.data(visit.dir, "^FuzzySteelheadSpawner_DVSC.tif$")
@@ -77,9 +83,12 @@ check.visit.data = function(visit.dir, gut.run){
   gut.t3 = check.data(visit.dir, "^Tier3_InChannel_GU.shp$", gut.run = gut.run)
 
   data = tibble(visit.dir, visit.id, nrei.locs.csv, nrei.locs.shp, all.nrei.pts.csv, all.nrei.pts.shp, 
-                suit.nrei.pts.shp, suit.nrei.poly, suit.nrei.raster, ch.redd.locs.csv, ch.redd.locs.shp, ch.suit.poly,
-                ch.raster, st.redd.locs.csv, st.redd.locs.shp, st.suit.poly, st.raster, delft.raster, delft.poly, gut.run,
-                gut.t2, gut.t2.trans, gut.t3)
+                suit.nrei.pts.shp, suit.nrei.poly, suit.nrei.raster, 
+                ch.redd.locs.csv, ch.redd.locs.shp, ch.suit.poly, ch.raster,
+                ch.juv.locs.csv, ch.juv.locs.shp, ch.juv.suit.poly, ch.juv.raster,
+                st.redd.locs.csv, st.redd.locs.shp, st.suit.poly, st.raster, 
+                delft.raster, delft.poly, 
+                gut.run, gut.t2, gut.t2.trans, gut.t3)
   
   return(data)
   
