@@ -1,10 +1,10 @@
 
 
-visit.dir = "C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data/VISIT_1029"
-layer="Tier2_InChannel_Transition"
-group.field = "UnitForm"
-gut.run = "GUT_2.1/Run_01"
-check = make.unit.fish.metrics(visit.dir, layer = layer, group.field = group.field)
+# visit.dir = "C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data/VISIT_1027"
+# gut.layer="Tier2_InChannel_Transition"
+# group.field = "UnitForm"
+# gut.run = "GUT_2.1/Run_01"
+# check = make.unit.fish.metrics(visit.dir, gut.layer = gut.layer, group.field = group.field)
 
 
 #' Title
@@ -15,7 +15,7 @@ check = make.unit.fish.metrics(visit.dir, layer = layer, group.field = group.fie
 #' @export
 #'
 #' @examples
-make.unit.fish.metrics = function(visit.dir, layer = "Tier2_InChannel_Transition", group.field = NA){
+make.unit.fish.metrics = function(visit.dir, gut.layer, group.field){
   
   # print visit dir for script progress tracking
   print(visit.dir)
@@ -48,7 +48,7 @@ make.unit.fish.metrics = function(visit.dir, layer = "Tier2_InChannel_Transition
   # gut units ---------------------------
 
   # read in units shp
-  units.files = unlist(list.files(path = visit.dir, pattern = paste("^", layer, ".shp$", sep = ""), full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
+  units.files = unlist(list.files(path = visit.dir, pattern = paste("^", gut.layer, ".shp$", sep = ""), full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
   units.file = grep(gut.run, units.files, value = TRUE)
   units.shp = check.shp(units.file)
   
