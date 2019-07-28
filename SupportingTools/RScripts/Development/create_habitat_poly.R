@@ -26,14 +26,13 @@ create.habitat.poly = function(visit.dir, ref.shp, file.name, out.name, out.exte
   crs(ras) = crs(ref.shp)
   
   # set breaks for splitting raster
-  # - if nrei raster use median and max
-  # - otherwise set to (0.4, 0.8, 1) -- this assumes fuzzy hsi raster
+  # - if nrei raster use 0 and max
+  # - otherwise set to (0.4, 1) -- this assumes fuzzy hsi raster
   if(out.name == "NREI_Suitable_Poly.shp"){
-    ras.median = cellStats(ras, median)
     ras.max = cellStats(ras, max)
-    ras.breaks = c(0, ras.median, ras.max)
+    ras.breaks = c(0, ras.max)
   }else{
-    ras.breaks = c(0.4, 0.8, 1.0)
+    ras.breaks = c(0.4, 1.0)
   }
   
   # splits into 2 classes based on breaks
@@ -62,6 +61,7 @@ create.habitat.poly = function(visit.dir, ref.shp, file.name, out.name, out.exte
     # convert to polygon and transform to correct coordinate system for visit
     ras.rc.s = st_as_stars(ras.rc, crs = crs(ref.shp))
     poly.rc = st_as_sf(ras.rc.s, as_points = FALSE, merge = TRUE) %>%
+      rename(layer = 1) %>%
       group_by(layer) %>%
       summarize() %>%
       st_transform(crs = (st_crs(ref.shp)), partial = FALSE)
@@ -101,5 +101,10 @@ check.habitat.poly = function(data){
   # - for steelhead spawner fuzzy hsi
   if(data$st.suit.poly == 'No' & data$st.raster == 'Yes'){
     create.habitat.poly(data$visit.dir, ref.shp, "^FuzzySteelheadSpawner_DVSC.tif$", "Fuzzy_Suitable_Poly_Steelhead.shp", "Fuzzy_Steelhead_Extent.shp")
+  }
+  
+  # - for chinook juvenile fuzzy hsi
+  if(data$ch.juv.suit.poly == 'No' & data$ch.juv.raster == 'Yes'){
+    create.habitat.poly(data$visit.dir, ref.shp, "^FuzzyChinookJuvenile_DVS.tif$", "Fuzzy_Suitable_Poly_ChinookJuvenile.shp", "Fuzzy_Chinook_Juvenile_Extent.shp")
   }  
 }
