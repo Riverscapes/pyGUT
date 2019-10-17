@@ -60,39 +60,39 @@ make.gut.unit.metrics = function(visit.dir, run.dir, gut.layer){
     # get column names
     units.cols = colnames(units.gut)
     
-    # calculate "UnitShape" area and perimeter stats (if column exists in layer)
-    if("UnitShape" %in% units.cols){
-      
-      units.gut = units.gut %>% filter(!is.na(UnitShape))
-      
-      shape.count = units.gut %>% st_drop_geometry() %>%
-        group_by(UnitShape) %>%
-        summarise(n = n()) 
-      
-      shape.metrics = units.gut %>% st_drop_geometry() %>% 
-        dplyr::select(UnitShape, area, perim) %>%
-        gather(key = variable, value = value, area:perim) %>%
-        group_by(UnitShape, variable) %>%
-        summarize(med = median(value, na.rm = TRUE),
-                  mean = mean(value, na.rm = TRUE),
-                  sd = sd(value, na.rm = TRUE),
-                  sum = sum(value, na.rm = TRUE)) %>%
-        gather(key = stat, value = value, med:sum) %>%
-        mutate(value = round(value, 3)) %>%
-        unite("variable.stat", c("variable", "stat"), sep = ".", remove = TRUE) %>%
-        spread(variable.stat, value) %>%
-        mutate(area.ratio = round((area.sum / total.area) , 3),
-               perim.area.ratio = round((perim.mean / area.mean), 3),
-               gut.layer = "UnitShape") %>%
-        left_join(shape.count, by = "UnitShape") %>%
-        rename(unit.type = UnitShape) %>%
-        dplyr::select(gut.layer, unit.type, n, everything()) %>%
-        ungroup() %>%
-        mutate(unit.type = as.character(unit.type))
-      
-      tb.metrics = tb.metrics %>% bind_rows(shape.metrics)
-    }
-    
+    # # calculate "UnitShape" area and perimeter stats (if column exists in layer)
+    # if("UnitShape" %in% units.cols){
+    #   
+    #   units.gut = units.gut %>% filter(!is.na(UnitShape))
+    #   
+    #   shape.count = units.gut %>% st_drop_geometry() %>%
+    #     group_by(UnitShape) %>%
+    #     summarise(n = n()) 
+    #   
+    #   shape.metrics = units.gut %>% st_drop_geometry() %>% 
+    #     dplyr::select(UnitShape, area, perim) %>%
+    #     gather(key = variable, value = value, area:perim) %>%
+    #     group_by(UnitShape, variable) %>%
+    #     summarize(med = median(value, na.rm = TRUE),
+    #               mean = mean(value, na.rm = TRUE),
+    #               sd = sd(value, na.rm = TRUE),
+    #               sum = sum(value, na.rm = TRUE)) %>%
+    #     gather(key = stat, value = value, med:sum) %>%
+    #     mutate(value = round(value, 3)) %>%
+    #     unite("variable.stat", c("variable", "stat"), sep = ".", remove = TRUE) %>%
+    #     spread(variable.stat, value) %>%
+    #     mutate(area.ratio = round((area.sum / total.area) , 3),
+    #            perim.area.ratio = round((perim.mean / area.mean), 3),
+    #            gut.layer = "UnitShape") %>%
+    #     left_join(shape.count, by = "UnitShape") %>%
+    #     rename(unit.type = UnitShape) %>%
+    #     dplyr::select(gut.layer, unit.type, n, everything()) %>%
+    #     ungroup() %>%
+    #     mutate(unit.type = as.character(unit.type))
+    #   
+    #   tb.metrics = tb.metrics %>% bind_rows(shape.metrics)
+    # }
+    # 
     # calculate "UnitForm" area and perimeter stats (if column exists in layer)
     if("UnitForm" %in% units.cols){
       

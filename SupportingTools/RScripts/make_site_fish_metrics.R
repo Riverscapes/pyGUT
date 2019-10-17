@@ -1,4 +1,4 @@
-# visit.dir = "C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data/VISIT_1029"
+# visit.dir = "C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data/VISIT_1027"
 # check = calc.site.fish.metrics(visit.dir)
 
 #' Calculate site-level fish metrics
@@ -83,7 +83,7 @@ calc.site.fish.metrics = function(visit.dir){
   
   # calculate extent area
   tb.meas = tb.meas %>% 
-    bind_rows(., calc.area(nrei.ext.shp) %>% mutate(category = "reach", layer = "nrei", var = "area", species = "steelhead", lifestage = "juvenile"))
+    bind_rows(., calc.area(nrei.ext.shp, nrei.ext.shp) %>% mutate(category = "reach", layer = "nrei", var = "area", species = "steelhead", lifestage = "juvenile"))
   
   # read in suitable shp
   nrei.suit.file = unlist(list.files(path = visit.dir, pattern = "^NREI_Suitable_Poly.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
@@ -91,40 +91,29 @@ calc.site.fish.metrics = function(visit.dir){
   
   # calculate area for suitable polygon
   tb.meas = tb.meas %>% 
-    bind_rows(., calc.area(nrei.suit.shp) %>% mutate(category = "suitable", layer = "nrei", var = "area", species = "steelhead", lifestage = "juvenile"))
+    bind_rows(., calc.area(nrei.suit.shp, nrei.ext.shp) %>% mutate(category = "suitable", layer = "nrei", var = "area", species = "steelhead", lifestage = "juvenile"))
 
   # read in predicted fish locations shp
   nrei.locs.file = unlist(list.files(path = visit.dir, pattern = "^NREI_FishLocs.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
   nrei.locs.shp = check.shp(nrei.locs.file)
   
   # join with suitable polygon (as long as both shps aren't na)
-  nrei.locs.shp = join.shp(nrei.locs.shp, nrei.suit.shp)
-  
-  # remove duplicate points created in join
-  nrei.locs.shp = nrei.locs.shp %>%
-    arrange(idx, desc(layer)) %>%
-    distinct(idx, .keep_all = TRUE)
-  
-  # filter points by suitable
-  nrei.locs.suit = nrei.locs.shp %>% filter(layer > 0)
+  nrei.locs.suit = join.shp(nrei.locs.shp, nrei.suit.shp)
   
   # calculate fish capacity for suitable polygon
   tb.meas = tb.meas %>% 
-    bind_rows(., calc.capacity(nrei.locs.suit) %>% mutate(category = "suitable", layer = "nrei", var = "pred.fish", species = "steelhead", lifestage = "juvenile"))
+    bind_rows(., calc.capacity(nrei.locs.suit, nrei.ext.shp) %>% mutate(category = "suitable", layer = "nrei", var = "pred.fish", species = "steelhead", lifestage = "juvenile"))
   
   # calculate fish capacity for entire reach
   tb.meas = tb.meas %>% 
-    bind_rows(., calc.capacity(nrei.locs.shp) %>% mutate(category = "reach", layer = "nrei", var = "pred.fish", species = "steelhead", lifestage = "juvenile"))
+    bind_rows(., calc.capacity(nrei.locs.shp, nrei.ext.shp) %>% mutate(category = "reach", layer = "nrei", var = "pred.fish", species = "steelhead", lifestage = "juvenile"))
   
   # read in nrei all points shp
   nrei.all.file = unlist(list.files(path = visit.dir, pattern = "^NREI_All_Pts.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
   nrei.all.shp = check.shp(nrei.all.file)
   
   # join points shp with suitable shp (as long as shps are sf objects)
-  nrei.all.shp = join.shp(nrei.all.shp, nrei.suit.shp)
-  
-  # filter points by suitable
-  nrei.all.suit = nrei.all.shp %>% filter(layer > 0)
+  nrei.all.suit = join.shp(nrei.all.shp, nrei.suit.shp)
   
   # model stat values for entire reach
   tb.meas = tb.meas %>% 
@@ -142,7 +131,7 @@ calc.site.fish.metrics = function(visit.dir){
   
   # calculate extent area
   tb.meas = tb.meas %>% 
-    bind_rows(., calc.area(ch.ext.shp) %>% mutate(category = "reach", layer = "fuzzy", var = "area", species = "chinook", lifestage = "spawner"))
+    bind_rows(., calc.area(ch.ext.shp, ch.ext.shp) %>% mutate(category = "reach", layer = "fuzzy", var = "area", species = "chinook", lifestage = "spawner"))
   
   # read in suitable shp
   ch.suit.file = unlist(list.files(path = visit.dir, pattern = "^Fuzzy_Suitable_Poly_Chinook.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
@@ -150,34 +139,22 @@ calc.site.fish.metrics = function(visit.dir){
   
   # calculate area for suitable polygon
   tb.meas = tb.meas %>% 
-    bind_rows(., calc.area(ch.suit.shp) %>% mutate(category = "suitable", layer = "fuzzy", var = "area", species = "chinook", lifestage = "spawner"))
+    bind_rows(., calc.area(ch.suit.shp, ch.ext.shp) %>% mutate(category = "suitable", layer = "fuzzy", var = "area", species = "chinook", lifestage = "spawner"))
   
   # read in predicted redd locations shp
   ch.redds.file = unlist(list.files(path = visit.dir, pattern = "^Fuzzy_ReddLocs_Chinook.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
   ch.redds.shp = check.shp(ch.redds.file)
   
-  # if point id (idx) field doesn't exist, create it
-  if(!"idx" %in% names(ch.redds.shp)){ch.redds.shp = ch.redds.shp %>% mutate(idx = row_number())}
-  
   # join with suitable polygon (as long as both shps aren't na)
-  if(all("sf" %in% class(ch.suit.shp), "sf" %in% class(ch.redds.shp))){
-    ch.redds.shp = ch.redds.shp %>% 
-      st_join(ch.suit.shp)}
-  
-  # remove duplicate points created in join 
-  ch.redds.shp = ch.redds.shp %>%
-    arrange(idx, desc(layer)) %>%
-    distinct(idx, .keep_all = TRUE)
-  
-  ch.redds.suit = ch.redds.shp %>% filter(layer > 0)
+  ch.redds.suit = join.shp(ch.redds.shp, ch.suit.shp)
   
   # calculate redd capacity for suitable polygon
   tb.meas = tb.meas %>% 
-    bind_rows(., calc.capacity(ch.redds.suit) %>% mutate(category = "suitable", layer = "fuzzy", var = "pred.fish", species = "chinook", lifestage = "spawner"))
+    bind_rows(., calc.capacity(ch.redds.suit, ch.ext.shp) %>% mutate(category = "suitable", layer = "fuzzy", var = "pred.fish", species = "chinook", lifestage = "spawner"))
   
   # calculate redd capacity for entire reach
   tb.meas = tb.meas %>% 
-    bind_rows(., calc.capacity(ch.redds.shp) %>% mutate(category = "reach", layer = "fuzzy", var = "pred.fish", species = "chinook", lifestage = "spawner"))
+    bind_rows(., calc.capacity(ch.redds.shp, ch.ext.shp) %>% mutate(category = "reach", layer = "fuzzy", var = "pred.fish", species = "chinook", lifestage = "spawner"))
   
   # read in fuzzy raster, join with suitability shape and return data frames
   ch.raster.file = unlist(list.files(path = visit.dir, pattern = "^FuzzyChinookSpawner_DVSC.tif$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
@@ -187,6 +164,8 @@ calc.site.fish.metrics = function(visit.dir){
     if("sf" %in% class(ch.suit.shp)){
       ch.suit.df = raster::extract(x = ch.raster, y = ch.suit.shp, df = TRUE) %>%
         rename(ras.value = FuzzyChinookSpawner_DVSC) 
+    }else{
+      ch.suit.df = NA
     }
   }else{
     ch.raster = NA
@@ -211,7 +190,7 @@ calc.site.fish.metrics = function(visit.dir){
   
   # calculate extent area
   tb.meas = tb.meas %>% 
-    bind_rows(., calc.area(st.ext.shp) %>% mutate(category = "reach", layer = "fuzzy", var = "area", species = "steelhead", lifestage = "spawner"))
+    bind_rows(., calc.area(st.ext.shp, st.ext.shp) %>% mutate(category = "reach", layer = "fuzzy", var = "area", species = "steelhead", lifestage = "spawner"))
   
   # read in suitable shp
   st.suit.file = unlist(list.files(path = visit.dir, pattern = "^Fuzzy_Suitable_Poly_Steelhead.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
@@ -219,34 +198,23 @@ calc.site.fish.metrics = function(visit.dir){
   
   # calculate area for suitable polygon
   tb.meas = tb.meas %>% 
-    bind_rows(., calc.area(st.suit.shp) %>% mutate(category = "suitable", layer = "fuzzy", var = "area", species = "steelhead", lifestage = "spawner"))
+    bind_rows(., calc.area(st.suit.shp, st.ext.shp) %>% mutate(category = "suitable", layer = "fuzzy", var = "area", species = "steelhead", lifestage = "spawner"))
   
   # read in predicted redd locations shp
   st.redds.file = unlist(list.files(path = visit.dir, pattern = "^Fuzzy_ReddLocs_Steelhead.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
   st.redds.shp = check.shp(st.redds.file)
   
-  # if point id (idx) field doesn't exist, create it
-  if(!"idx" %in% names(st.redds.shp)){st.redds.shp = st.redds.shp %>% mutate(idx = row_number())}
   
   # join with suitable polygon (as long as both shps aren't na)
-  if(all("sf" %in% class(st.suit.shp), "sf" %in% class(st.redds.shp))){
-    st.redds.shp = st.redds.shp %>% 
-      st_join(st.suit.shp)}
-  
-  # remove duplicate points created in join
-  st.redds.shp = st.redds.shp %>%
-    arrange(idx, desc(layer)) %>%
-    distinct(idx, .keep_all = TRUE)
-  
-  st.redds.suit = st.redds.shp %>% filter(layer > 0)
+  st.redds.suit = join.shp(st.redds.shp, st.suit.shp)
   
   # calculate redd capacity for suitable polygon
   tb.meas = tb.meas %>% 
-    bind_rows(., calc.capacity(st.redds.suit) %>% mutate(category = "suitable", layer = "fuzzy", var = "pred.fish", species = "steelhead", lifestage = "spawner"))
+    bind_rows(., calc.capacity(st.redds.suit, st.ext.shp) %>% mutate(category = "suitable", layer = "fuzzy", var = "pred.fish", species = "steelhead", lifestage = "spawner"))
   
   # calculate redd capacity for entire reach
   tb.meas = tb.meas %>% 
-    bind_rows(., calc.capacity(st.redds.shp) %>% mutate(category = "reach", layer = "fuzzy", var = "pred.fish", species = "steelhead", lifestage = "spawner"))
+    bind_rows(., calc.capacity(st.redds.shp, st.ext.shp) %>% mutate(category = "reach", layer = "fuzzy", var = "pred.fish", species = "steelhead", lifestage = "spawner"))
   
   # read in fuzzy raster, join with suitability shape and return data frames
   st.raster.file = unlist(list.files(path = visit.dir, pattern = "^FuzzySteelheadSpawner_DVSC.tif$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
@@ -256,6 +224,8 @@ calc.site.fish.metrics = function(visit.dir){
     if("sf" %in% class(st.suit.shp)){
       st.suit.df = raster::extract(x = st.raster, y = st.suit.shp, df = TRUE) %>%
         rename(ras.value = FuzzySteelheadSpawner_DVSC) 
+    }else{
+      st.suit.df = NA
     }
   }else{
     st.raster = NA
@@ -279,7 +249,7 @@ calc.site.fish.metrics = function(visit.dir){
   
   # calculate extent area
   tb.meas = tb.meas %>% 
-    bind_rows(., calc.area(ch.juv.ext.shp) %>% mutate(category = "reach", layer = "fuzzy", var = "area", species = "chinook", lifestage = "juvenile"))
+    bind_rows(., calc.area(ch.juv.ext.shp, ch.juv.ext.shp) %>% mutate(category = "reach", layer = "fuzzy", var = "area", species = "chinook", lifestage = "juvenile"))
   
   # read in suitable shp
   ch.juv.suit.file = unlist(list.files(path = visit.dir, pattern = "^Fuzzy_Suitable_Poly_ChinookJuvenile.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
@@ -287,34 +257,22 @@ calc.site.fish.metrics = function(visit.dir){
   
   # calculate area for suitable polygon
   tb.meas = tb.meas %>% 
-    bind_rows(., calc.area(ch.juv.suit.shp) %>% mutate(category = "suitable", layer = "fuzzy", var = "area", species = "chinook", lifestage = "juvenile"))
+    bind_rows(., calc.area(ch.juv.suit.shp, ch.juv.ext.shp) %>% mutate(category = "suitable", layer = "fuzzy", var = "area", species = "chinook", lifestage = "juvenile"))
   
   # read in predicted fish locations shp
   ch.locs.file = unlist(list.files(path = visit.dir, pattern = "^Fuzzy_JuvenileLocs_Chinook.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
   ch.locs.shp = check.shp(ch.locs.file)
   
-  # if point id (idx) field doesn't exist, create it
-  if(!"idx" %in% names(ch.locs.shp)){ch.locs.shp = ch.locs.shp %>% mutate(idx = row_number())}
-  
   # join with suitable polygon (as long as both shps aren't na)
-  if(all("sf" %in% class(ch.juv.suit.shp), "sf" %in% class(ch.locs.shp))){
-    ch.locs.shp = ch.locs.shp %>% 
-      st_join(ch.juv.suit.shp)}
-  
-  # remove duplicate points created in join (sorting layer by descending so 2 = best is selected over 1 = suitable)
-  ch.locs.shp = ch.locs.shp %>%
-    arrange(idx, desc(layer)) %>%
-    distinct(idx, .keep_all = TRUE)
-  
-  ch.locs.suit = ch.locs.shp %>% filter(layer > 0)
+  ch.locs.suit = join.shp(ch.locs.shp, ch.juv.suit.shp)
   
   # calculate redd capacity for suitable polygon
   tb.meas = tb.meas %>% 
-    bind_rows(., calc.capacity(ch.locs.suit) %>% mutate(category = "suitable", layer = "fuzzy", var = "pred.fish", species = "chinook", lifestage = "juvenile"))
+    bind_rows(., calc.capacity(ch.locs.suit, ch.juv.ext.shp) %>% mutate(category = "suitable", layer = "fuzzy", var = "pred.fish", species = "chinook", lifestage = "juvenile"))
   
   # calculate redd capacity for entire reach
   tb.meas = tb.meas %>% 
-    bind_rows(., calc.capacity(ch.locs.shp) %>% mutate(category = "reach", layer = "fuzzy", var = "pred.fish", species = "chinook", lifestage = "juvenile"))
+    bind_rows(., calc.capacity(ch.locs.shp, ch.juv.ext.shp) %>% mutate(category = "reach", layer = "fuzzy", var = "pred.fish", species = "chinook", lifestage = "juvenile"))
   
   # read in fuzzy raster, join with suitability shape and return data frames
   ch.juv.raster.file = unlist(list.files(path = visit.dir, pattern = "^FuzzyChinookJuvenile_DVS.tif$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
@@ -324,6 +282,8 @@ calc.site.fish.metrics = function(visit.dir){
     if("sf" %in% class(ch.juv.suit.shp)){
       ch.juv.suit.df = raster::extract(x = ch.juv.raster, y = ch.juv.suit.shp, df = TRUE) %>%
         rename(ras.value = FuzzyChinookJuvenile_DVS) 
+    }else{
+      ch.juv.suit.df = NA
     }
   }else{
     ch.juv.raster = NA
@@ -362,7 +322,8 @@ calc.site.fish.metrics = function(visit.dir){
 #' check.shp("C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data/VISIT_1029/HSI/reddPlacement/Fuzzy_ReddLocs_Steelhead.shp")
 check.shp = function(in.shp){
   if(length(in.shp) > 0){
-    out.shp = st_read(in.shp, quiet = TRUE) %>% st_make_valid()
+    out.shp = st_read(in.shp, quiet = TRUE) 
+    # if(!st_is_valid(out.shp)){out.shp = out.shp %>% st_make_valid(.)}
   }else{
     out.shp = NA
   }
@@ -403,11 +364,13 @@ calc.length = function(in.shp){
 #' @export
 #'
 #' @examples
-calc.area = function(in.shp){
+calc.area = function(in.shp, extent.shp){
   
   # if input shape isn't a sf object, then set output to NA
-  if(!"sf" %in% class(in.shp)){
+  if(all(!"sf" %in% class(in.shp), !"sf" %in% class(extent.shp))){
     tb = tibble(value = NA)
+  }else if(!"sf" %in% class(in.shp)){
+    tb = tibble(value = 0) 
   # if shp has 0 rows set the output value to 0
   }else if(nrow(in.shp) == 0){
     tb = tibble(value = 0)
@@ -432,12 +395,14 @@ calc.area = function(in.shp){
 #' @export
 #'
 #' @examples
-calc.capacity = function(in.shp){
+calc.capacity = function(in.shp, extent.shp){
   
   # if input shape isn't a sf object, then set output to NA
-  if(!"sf" %in% class(in.shp)){
-      tb = tibble(value = NA)
-  # if shp has 0 rows set the output value to 0
+  if(all(!"sf" %in% class(in.shp), !"sf" %in% class(extent.shp))){
+    tb = tibble(value = NA)
+  }else if(!"sf" %in% class(in.shp)){
+    tb = tibble(value = 0) 
+    # if shp has 0 rows set the output value to 0
   }else if(nrow(in.shp) == 0){
       tb = tibble(value = 0)
   # otherwise calculate capacity as count
@@ -462,10 +427,14 @@ calc.capacity = function(in.shp){
 join.shp = function(in.shp, in.suit){
   
   if(all("sf" %in% class(in.shp), "sf" %in% class(in.suit))){
-    in.shp = in.shp %>%
-      st_join(in.suit)}
+    out.shp = in.shp %>%
+      st_join(in.suit) %>%
+      dplyr::filter(layer > 0)
+  }else{
+    out.shp = NA
+  }
   
-  return(in.shp)
+  return(out.shp)
 }
 
 

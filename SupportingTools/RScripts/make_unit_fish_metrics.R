@@ -1,10 +1,10 @@
-
-
+# 
+# 
 # visit.dir = "C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data/VISIT_1027"
 # gut.layer="Tier2_InChannel_Transition"
-# group.field = "UnitForm"
+# in.group.field = "UnitForm"
 # gut.run = "GUT_2.1/Run_01"
-# check = make.unit.fish.metrics(visit.dir, gut.layer = gut.layer, group.field = group.field)
+# check = make.unit.fish.metrics(visit.dir, gut.layer = gut.layer, in.group.field = in.group.field)
 
 
 #' Title
@@ -22,13 +22,7 @@ make.unit.fish.metrics = function(visit.dir, gut.layer, group.field){
   
   # get visit id from visit directory
   visit.id = as.numeric(unlist(str_split(visit.dir, "VISIT_"))[2])
-  
-  # # set group field as alias to work with dplyr functions
-  # group.alias = !!as.name(group.field)
-  # group.alias = get(group.field)
-  # var <- c('cyl')
-  # mtcars %>% filter(get(var) == 4)
-  
+
   # extent ---------------------------
   # used to clip gut units
   
@@ -38,9 +32,9 @@ make.unit.fish.metrics = function(visit.dir, gut.layer, group.field){
   fuzzy.extent.file = unlist(list.files(path = visit.dir, pattern = "^Fuzzy_Chinook_Extent.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
   
   if(length(delft.extent.file > 0)){
-    extent.shp = st_read(delft.extent.file, quiet = TRUE)
+    extent.shp = check.shp(delft.extent.file)
   }else if(length(fuzzy.extent.file > 0)){
-    extent.shp = st_read(fuzzy.extent.file, quiet = TRUE)
+    extent.shp = check.shp(fuzzy.extent.file)
   }else{
     extent.shp = NA
   }
@@ -61,7 +55,7 @@ make.unit.fish.metrics = function(visit.dir, gut.layer, group.field){
   # clip units to extent shp and calculate new area field (Area.Delft)
   if("sf" %in% class(extent.shp)){
     units.shp = units.shp %>% 
-      st_crop(extent.shp) %>%
+      st_intersection(extent.shp) %>%
       mutate(area.delft = st_area(.) %>% as.numeric() %>% round(3))
   }
   
@@ -69,37 +63,37 @@ make.unit.fish.metrics = function(visit.dir, gut.layer, group.field){
   if("sf" %in% class(extent.shp)){
     tb.metrics = units.shp %>%
       st_drop_geometry() %>%
-      dplyr::select(!!as.name(group.field), area.delft) %>%
-      group_by(!!as.name(group.field)) %>%
+      dplyr::select(!!sym(group.field), area.delft) %>%
+      group_by(!!sym(group.field)) %>%
       summarize(area.delft = sum(area.delft)) %>%
       ungroup()
   }else{
     tb.metrics = units.shp %>%
       st_drop_geometry() %>%
-      dplyr::select(!!as.name(group.field)) %>%
+      dplyr::select(!!sym(group.field)) %>%
       mutate(area.delft = NA) %>%
-      group_by(!!as.name(group.field)) %>%
+      group_by(!!sym(group.field)) %>%
       summarize(area.delft = sum(area.delft)) %>%
       ungroup()
   }
-
+  
   # create reference tibbles with just group field and suitable categories
-  tb.units = tb.metrics %>% dplyr::select(!!as.name(group.field))
+  tb.units = tb.metrics %>% dplyr::select(!!sym(group.field))
   tb.cats = tibble(category = c("suitable"))
   tb.units.cats = crossing(tb.units, tb.cats)
-
   
   # nrei ---------------------------
   
   # read in suitable shp
   nrei.suit.file = unlist(list.files(path = visit.dir, pattern = "^NREI_Suitable_Poly.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
-  nrei.suit.shp = check.shp(nrei.suit.file)
+  nrei.suit.shp = check.shp(nrei.suit.file) 
   
   # # convert from multipolygon to polygon
   # if(!anyNA(nrei.suit.shp)){nrei.suit.shp = nrei.suit.shp %>% st_cast("POLYGON")}
 
   # intersect suitable shp with clipped gut units (as long as both shps are sf objects) and calculate new area field (Area.Hab)
   if("sf" %in% class(nrei.suit.shp)){
+    nrei.suit.shp = nrei.suit.shp %>% st_buffer(., 0.0) 
     units.nrei.suit = units.shp %>%
       st_intersection(nrei.suit.shp) 
   }else{
@@ -134,43 +128,49 @@ make.unit.fish.metrics = function(visit.dir, gut.layer, group.field){
     nrei.metrics = tibble()
     
     # area for units and nrei suitable intersections
-    nrei.metrics = nrei.metrics %>% 
-      bind_rows(., calc.unit.area(units.nrei.suit, by.suit = TRUE) %>% mutate(var = "hab.area"))
+    nrei.metrics = nrei.metrics %>%
+      bind_rows(., calc.unit.area(units.nrei.suit, group.field, tb.units, tb.units.cats, by.suit = TRUE) %>% mutate(var = "hab.area"))
     
     # capacity by group field
     nrei.metrics = nrei.metrics %>% 
-      bind_rows(., calc.unit.capacity(nrei.locs.shp, by.suit = FALSE) %>% mutate(var = "pred.fish"))
+      bind_rows(., calc.unit.capacity(nrei.locs.shp, group.field, tb.units, tb.units.cats, by.suit = FALSE) %>% mutate(var = "pred.fish"))
     
     # capacity by group field and suitability category
     nrei.metrics = nrei.metrics %>% 
-      bind_rows(., calc.unit.capacity(nrei.locs.shp, by.suit = TRUE) %>% mutate(var = "pred.fish"))
+      bind_rows(., calc.unit.capacity(nrei.locs.shp, group.field, tb.units, tb.units.cats, by.suit = TRUE) %>% mutate(var = "pred.fish"))
     
     # model values by group field
     nrei.metrics = nrei.metrics %>% 
-      bind_rows(., calc.unit.stats(nrei.all.shp, in.field = "nre_Jph", by.suit = FALSE))
+      bind_rows(., calc.unit.stats(nrei.all.shp, group.field, tb.units, tb.units.cats, in.field = "nre_Jph", by.suit = FALSE))
     
     # model values by group field and suitability category
     nrei.metrics = nrei.metrics %>% 
-      bind_rows(., calc.unit.stats(nrei.all.shp, in.field = "nre_Jph", by.suit = TRUE))
+      bind_rows(., calc.unit.stats(nrei.all.shp, group.field, tb.units, tb.units.cats, in.field = "nre_Jph", by.suit = TRUE))
     
     # convert to wide form tibble
+    # clean up na values 
     nrei.metrics.wide = nrei.metrics %>%
       unite("variable", c("var", "category"), sep = ".", remove = TRUE) %>%
       mutate(variable = str_replace_all(variable, ".NA", "")) %>%
       spread(variable, value) %>% 
       mutate(model = "nrei", species = "steelhead", lifestage = "juvenile") %>%
-      left_join(tb.metrics, by = group.field)
+      left_join(tb.metrics, by = group.field) %>%
+      mutate(hab.area.suitable = ifelse(is.na(hab.area.suitable) & !is.na(mean), 0, hab.area.suitable),
+             pred.fish = ifelse(is.na(pred.fish) & !is.na(mean), 0, pred.fish),
+             pred.fish.suitable = ifelse(is.na(pred.fish.suitable) & !is.na(mean), 0, pred.fish.suitable))
+
   }
 
-  
+  print('finished nrei metrics')
   # fuzzy chinook spawner ---------------------------
   
   # read in suitable shp
   ch.suit.file = unlist(list.files(path = visit.dir, pattern = "^Fuzzy_Suitable_Poly_Chinook.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
-  ch.suit.shp = check.shp(ch.suit.file)
+  ch.suit.shp = check.shp(ch.suit.file) 
   
   # intersect suitable shp with clipped gut units (as long as both shps are sf objects) and calculate new area field (Area.Hab)
   if("sf" %in% class(ch.suit.shp)){
+    ch.suit.shp = ch.suit.shp %>% st_buffer(., 0.0)
     units.ch.suit = units.shp %>%
       st_intersection(ch.suit.shp) 
   }else{
@@ -212,23 +212,23 @@ make.unit.fish.metrics = function(visit.dir, gut.layer, group.field){
     
     # area for units and chinook suitable intersections
     ch.metrics = ch.metrics %>% 
-      bind_rows(., calc.unit.area(units.ch.suit, by.suit = TRUE) %>% mutate(var = "hab.area"))
+      bind_rows(., calc.unit.area(units.ch.suit, group.field, tb.units, tb.units.cats, by.suit = TRUE) %>% mutate(var = "hab.area"))
     
     # capacity by group field
     ch.metrics = ch.metrics %>% 
-      bind_rows(., calc.unit.capacity(ch.redds.shp, by.suit = FALSE) %>% mutate(var = "pred.fish"))
+      bind_rows(., calc.unit.capacity(ch.redds.shp, group.field, tb.units, tb.units.cats, by.suit = FALSE) %>% mutate(var = "pred.fish"))
     
     # capacity by group field and suitability category
     ch.metrics = ch.metrics %>% 
-      bind_rows(., calc.unit.capacity(ch.redds.shp, by.suit = TRUE) %>% mutate(var = "pred.fish"))
+      bind_rows(., calc.unit.capacity(ch.redds.shp, group.field, tb.units, tb.units.cats, by.suit = TRUE) %>% mutate(var = "pred.fish"))
     
     # model values by group field
     ch.metrics = ch.metrics %>% 
-      bind_rows(., calc.unit.stats(ch.all.shp, in.field = "ras.value", by.suit = FALSE))
+      bind_rows(., calc.unit.stats(ch.all.shp, group.field, tb.units, tb.units.cats, in.field = "ras.value", by.suit = FALSE))
     
     # model values by group field and suitability category
     ch.metrics = ch.metrics %>% 
-      bind_rows(., calc.unit.stats(ch.all.shp, in.field = "ras.value", by.suit = TRUE))
+      bind_rows(., calc.unit.stats(ch.all.shp, group.field, tb.units, tb.units.cats, in.field = "ras.value", by.suit = TRUE))
     
     # convert to wide form tibble
     ch.metrics.wide = ch.metrics %>%
@@ -236,17 +236,23 @@ make.unit.fish.metrics = function(visit.dir, gut.layer, group.field){
       mutate(variable = str_replace_all(variable, ".NA", "")) %>%
       spread(variable, value) %>% 
       mutate(model = "fuzzy", species = "chinook", lifestage = "spawner") %>%
-      left_join(tb.metrics, by = group.field)
+      left_join(tb.metrics, by = group.field) %>%
+      mutate(hab.area.suitable = ifelse(is.na(hab.area.suitable) & !is.na(mean), 0, hab.area.suitable),
+             pred.fish = ifelse(is.na(pred.fish) & !is.na(mean), 0, pred.fish),
+             pred.fish.suitable = ifelse(is.na(pred.fish.suitable) & !is.na(mean), 0, pred.fish.suitable))
   }
+
+  print('finished chinook spawner')
   
   # fuzzy steelhead spawner ---------------------------
   
   # read in suitable shp
   st.suit.file = unlist(list.files(path = visit.dir, pattern = "^Fuzzy_Suitable_Poly_Steelhead.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
-  st.suit.shp = check.shp(st.suit.file)
+  st.suit.shp = check.shp(st.suit.file) 
   
   # intersect suitable shp with clipped gut units (as long as both shps are sf objects) and calculate new area field (Area.Hab)
   if("sf" %in% class(st.suit.shp)){
+    st.suit.shp = st.suit.shp %>% st_buffer(., 0.0)
     units.st.suit = units.shp %>%
       st_intersection(st.suit.shp) 
   }else{
@@ -288,23 +294,23 @@ make.unit.fish.metrics = function(visit.dir, gut.layer, group.field){
     
     # area for units and steelhead suitable intersections
     st.metrics = st.metrics %>% 
-      bind_rows(., calc.unit.area(units.st.suit, by.suit = TRUE) %>% mutate(var = "hab.area"))
+      bind_rows(., calc.unit.area(units.st.suit, group.field, tb.units, tb.units.cats, by.suit = TRUE) %>% mutate(var = "hab.area"))
     
     # capacity by group field
     st.metrics = st.metrics %>% 
-      bind_rows(., calc.unit.capacity(st.redds.shp, by.suit = FALSE) %>% mutate(var = "pred.fish"))
+      bind_rows(., calc.unit.capacity(st.redds.shp, group.field, tb.units, tb.units.cats, by.suit = FALSE) %>% mutate(var = "pred.fish"))
     
     # capacity by group field and suitability category
     st.metrics = st.metrics %>% 
-      bind_rows(., calc.unit.capacity(st.redds.shp, by.suit = TRUE) %>% mutate(var = "pred.fish"))
+      bind_rows(., calc.unit.capacity(st.redds.shp, group.field, tb.units, tb.units.cats, by.suit = TRUE) %>% mutate(var = "pred.fish"))
     
     # model values by group field
     st.metrics = st.metrics %>% 
-      bind_rows(., calc.unit.stats(st.all.shp, in.field = "ras.value", by.suit = FALSE))
+      bind_rows(., calc.unit.stats(st.all.shp, group.field, tb.units, tb.units.cats, in.field = "ras.value", by.suit = FALSE))
     
     # model values by group field and suitability category
     st.metrics = st.metrics %>% 
-      bind_rows(., calc.unit.stats(st.all.shp, in.field = "ras.value", by.suit = TRUE))
+      bind_rows(., calc.unit.stats(st.all.shp, group.field, tb.units, tb.units.cats, in.field = "ras.value", by.suit = TRUE))
     
     # convert to wide form tibble
     st.metrics.wide = st.metrics %>%
@@ -312,17 +318,22 @@ make.unit.fish.metrics = function(visit.dir, gut.layer, group.field){
       mutate(variable = str_replace_all(variable, ".NA", "")) %>%
       spread(variable, value) %>% 
       mutate(model = "fuzzy", species = "steelhead", lifestage = "spawner") %>%
-      left_join(tb.metrics, by = group.field)
+      left_join(tb.metrics, by = group.field) %>%
+      mutate(hab.area.suitable = ifelse(is.na(hab.area.suitable) & !is.na(mean), 0, hab.area.suitable),
+             pred.fish = ifelse(is.na(pred.fish) & !is.na(mean), 0, pred.fish),
+             pred.fish.suitable = ifelse(is.na(pred.fish.suitable) & !is.na(mean), 0, pred.fish.suitable))
   }
   
+  print('finished steelhead spawner')
   # fuzzy chinook juvenile ---------------------------
   
   # read in suitable shp
   ch.juv.suit.file = unlist(list.files(path = visit.dir, pattern = "^Fuzzy_Suitable_Poly_ChinookJuvenile.shp$", full.names = TRUE, recursive = TRUE, include.dirs = FALSE))
-  ch.juv.suit.shp = check.shp(ch.juv.suit.file)
+  ch.juv.suit.shp = check.shp(ch.juv.suit.file) 
   
   # intersect suitable shp with clipped gut units (as long as both shps are sf objects) and calculate new area field (Area.Hab)
   if("sf" %in% class(ch.juv.suit.shp)){
+    ch.juv.suit.shp = ch.juv.suit.shp %>% st_buffer(., 0.0)
     units.ch.juv.suit = units.shp %>%
       st_intersection(ch.juv.suit.shp) 
   }else{
@@ -364,23 +375,23 @@ make.unit.fish.metrics = function(visit.dir, gut.layer, group.field){
     
     # area for units and chinook suitable intersections
     ch.juv.metrics = ch.juv.metrics %>% 
-      bind_rows(., calc.unit.area(units.ch.juv.suit, by.suit = TRUE) %>% mutate(var = "hab.area"))
+      bind_rows(., calc.unit.area(units.ch.juv.suit, group.field, tb.units, tb.units.cats, by.suit = TRUE) %>% mutate(var = "hab.area"))
     
     # capacity by group field
     ch.juv.metrics = ch.juv.metrics %>% 
-      bind_rows(., calc.unit.capacity(ch.locs.shp, by.suit = FALSE) %>% mutate(var = "pred.fish"))
+      bind_rows(., calc.unit.capacity(ch.locs.shp, group.field, tb.units, tb.units.cats, by.suit = FALSE) %>% mutate(var = "pred.fish"))
     
     # capacity by group field and suitability category
     ch.juv.metrics = ch.juv.metrics %>% 
-      bind_rows(., calc.unit.capacity(ch.locs.shp, by.suit = TRUE) %>% mutate(var = "pred.fish"))
+      bind_rows(., calc.unit.capacity(ch.locs.shp, group.field, tb.units, tb.units.cats, by.suit = TRUE) %>% mutate(var = "pred.fish"))
     
     # model values by group field
     ch.juv.metrics = ch.juv.metrics %>% 
-      bind_rows(., calc.unit.stats(ch.juv.all.shp, in.field = "ras.value", by.suit = FALSE))
+      bind_rows(., calc.unit.stats(ch.juv.all.shp, group.field, tb.units, tb.units.cats, in.field = "ras.value", by.suit = FALSE))
     
     # model values by group field and suitability category
     ch.juv.metrics = ch.juv.metrics %>% 
-      bind_rows(., calc.unit.stats(ch.juv.all.shp, in.field = "ras.value", by.suit = TRUE))
+      bind_rows(., calc.unit.stats(ch.juv.all.shp, group.field, tb.units, tb.units.cats, in.field = "ras.value", by.suit = TRUE))
     
     # convert to wide form tibble
     ch.juv.metrics.wide = ch.juv.metrics %>%
@@ -388,16 +399,19 @@ make.unit.fish.metrics = function(visit.dir, gut.layer, group.field){
       mutate(variable = str_replace_all(variable, ".NA", "")) %>%
       spread(variable, value) %>% 
       mutate(model = "fuzzy", species = "chinook", lifestage = "juvenile") %>%
-      left_join(tb.metrics, by = group.field)
+      left_join(tb.metrics, by = group.field) %>%
+      mutate(hab.area.suitable = ifelse(is.na(hab.area.suitable) & !is.na(mean), 0, hab.area.suitable),
+             pred.fish = ifelse(is.na(pred.fish) & !is.na(mean), 0, pred.fish),
+             pred.fish.suitable = ifelse(is.na(pred.fish.suitable) & !is.na(mean), 0, pred.fish.suitable))
   }
+  
+  print('finished chinook juvenile')
   
   # join and re-order columns ---------------------------
   
   out.metrics = bind_rows(nrei.metrics.wide, ch.metrics.wide, st.metrics.wide, ch.juv.metrics.wide) %>%
-    mutate(visit.id = visit.id,
-           pred.fish = replace_na(pred.fish, 0),
-           pred.fish.suitable = replace_na(pred.fish.suitable, 0)) %>%
-    dplyr::select(visit.id, !!as.name(group.field), model, species, lifestage, area.delft, hab.area.suitable, pred.fish, pred.fish.suitable, med, mean, sd, med.suitable, mean.suitable, sd.suitable)
+    mutate(visit.id = visit.id) %>%
+    dplyr::select(visit.id, !!sym(group.field), model, species, lifestage, area.delft, hab.area.suitable, pred.fish, med, mean, sd, med.suitable, mean.suitable, sd.suitable)
   
   return(out.metrics)
   
@@ -415,7 +429,8 @@ make.unit.fish.metrics = function(visit.dir, gut.layer, group.field){
 #' check.shp("C:/etal/Shared/Projects/USA/GUTUpscale/wrk_Data/VISIT_1029/HSI/reddPlacement/Fuzzy_ReddLocs_Steelhead.shp")
 check.shp = function(in.shp){
   if(length(in.shp) > 0){
-    out.shp = st_read(in.shp, quiet = TRUE) %>% st_make_valid()
+    out.shp = st_read(in.shp, quiet = TRUE) 
+    if(any(!st_is_valid(out.shp))){out.shp = out.shp %>% st_buffer(., 0.0)}
   }else{
     out.shp = NA
   }
@@ -458,7 +473,9 @@ join.shp = function(in.shp, in.suit, in.units = units.shp){
 #' @export
 #'
 #' @examples
-calc.unit.area = function(in.shp, by.suit = FALSE){
+calc.unit.area = function(in.shp, in.group.field, tb.units, tb.units.cats, by.suit = FALSE){
+  
+  group.field = in.group.field
   
   # if shp isn't an sf object or has 0 rows set the output to 0
   if(any(!"sf" %in% class(in.shp), nrow(in.shp) == 0)){
@@ -476,17 +493,19 @@ calc.unit.area = function(in.shp, by.suit = FALSE){
     # if by.suit is set to TRUE then sum areas by group field and suitability category
     if(by.suit == TRUE){
       shp.tb = shp.tb %>%
-        group_by(!!as.name(group.field), layer) %>%
+        group_by(!!sym(group.field), layer) %>%
         summarise(value = sum(area)) %>%
         mutate(category = ifelse(layer == 1, "suitable", NA)) %>%
-        dplyr::select(-layer)
+        dplyr::select(-layer) %>%
+        ungroup()
       tb = tibble(category = c('suitable')) %>% left_join(shp.tb, by = "category") %>%
         mutate(value = replace_na(value, 0))
       # if group.layer is set to FALSE then sum all areas
     }else{
       tb = shp.tb %>%
-        group_by(!!as.name(group.field)) %>%
-        summarise(value = sum(area))
+        group_by(!!sym(group.field)) %>%
+        summarise(value = sum(area)) %>%
+        ungroup()
     }
   }
   
@@ -505,8 +524,10 @@ calc.unit.area = function(in.shp, by.suit = FALSE){
 #' @export
 #'
 #' @examples
-calc.unit.capacity = function(in.shp, by.suit = FALSE){
+calc.unit.capacity = function(in.shp, in.group.field, tb.units, tb.units.cats, by.suit = FALSE){
 
+  group.field = in.group.field
+  
   # if shp isn't an sf object or has 0 rows set the output to 0
   if(any(!"sf" %in% class(in.shp), nrow(in.shp) == 0)){
     if(by.suit == TRUE){
@@ -524,7 +545,7 @@ calc.unit.capacity = function(in.shp, by.suit = FALSE){
     # if group.layer is set to TRUE then count rows (i.e., input points) by group field and suitability category
     if(by.suit == TRUE){
       shp.tb = shp.tb %>%
-        group_by(!!as.name(group.field), layer) %>%
+        group_by(!!sym(group.field), layer) %>%
         summarize(value = n()) %>%
         mutate(category = ifelse(layer == 1, "suitable", NA)) %>%
         dplyr::select(-layer)
@@ -533,8 +554,10 @@ calc.unit.capacity = function(in.shp, by.suit = FALSE){
       # if group.layer is set to FALSE then count all rows by group field
     }else{
       tb = shp.tb %>% 
-        group_by(!!as.name(group.field)) %>%
-        summarize(value = n())
+        # group_by(!! group.field) %>%
+        group_by(!!sym(group.field)) %>%
+        summarize(value = n()) %>%
+        ungroup()
     }
   }
   return(tb)
@@ -551,7 +574,9 @@ calc.unit.capacity = function(in.shp, by.suit = FALSE){
 #' @export
 #'
 #' @examples
-calc.unit.stats = function(in.shp, in.field, by.suit = FALSE){
+calc.unit.stats = function(in.shp, in.group.field, tb.units, tb.units.cats, in.field, by.suit = FALSE){
+  
+  group.field = in.group.field
   
   tb.stat = tibble(var = c("med", "mean", "sd"))
   
@@ -573,7 +598,7 @@ calc.unit.stats = function(in.shp, in.field, by.suit = FALSE){
     if(by.suit == TRUE){
       shp.tb = shp.tb %>%
         filter(!is.na(layer)) %>%
-        group_by(!!as.name(group.field), layer) %>%
+        group_by(!!sym(group.field), layer) %>%
         summarize(med = median(!!as.name(in.field), na.rm = TRUE) %>% round(3),
                   mean = mean(!!as.name(in.field), na.rm = TRUE) %>% round(3),
                   sd = sd(!!as.name(in.field), na.rm = TRUE) %>% round(3)) %>%
@@ -585,7 +610,7 @@ calc.unit.stats = function(in.shp, in.field, by.suit = FALSE){
       # if group.layer is set to FALSE then count all rows by UnitID
     }else{
       tb = shp.tb %>% 
-        group_by(!!as.name(group.field)) %>%
+        group_by(!!sym(group.field)) %>%
         summarize(med = median(!!as.name(in.field), na.rm = TRUE) %>% round(3),
                   mean = mean(!!as.name(in.field), na.rm = TRUE) %>% round(3),
                   sd = sd(!!as.name(in.field), na.rm = TRUE) %>% round(3)) %>%
