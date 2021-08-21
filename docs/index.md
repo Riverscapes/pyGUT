@@ -32,7 +32,7 @@ If you are wishing to run the [latest release of pyGUT](https://github.com/River
 ## Source Code
 
 For those wishing to tweak the source code and/or documentaton, the open source version of pyGUT is available in the [pyGUT repo](https://github.com/Riverscapes/pyGUT) on GitHub.  <div align="center">
-  <a class="button" https://github.com/Riverscapes/pyGUT"><i class="fa fa-github"/> Visit pyGUT Repo</a>  
+  <a class="button" href="https://github.com/Riverscapes/pyGUT"><i class="fa fa-github"/> Visit pyGUT Repo</a>  
 </div>
 
 
