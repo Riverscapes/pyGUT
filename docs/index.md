@@ -25,9 +25,16 @@ We provide documentation on:
 
 ## Releases
 If you are wishing to run the [latest release of pyGUT](https://github.com/Riverscapes/pyGUT/releases/latest), you can download the python scripts and associated Arc files [here](https://github.com/Riverscapes/pyGUT/releases/latest) from GitHub.  
+<div align="center">
+  <a class="button" href="https://github.com/Riverscapes/pyGUT/releases/latest"><i class="fa fa-github"/> Download Latest Release of pyGUT</a> 
+</div>
+                                                                                           
 ## Source Code
 
-For those wishing to tweak the source code and/or documentaton, the open source version of pyGUT is available in the [pyGUT repo](https://github.com/Riverscapes/pyGUT) on GitHub.  
+For those wishing to tweak the source code and/or documentaton, the open source version of pyGUT is available in the [pyGUT repo](https://github.com/Riverscapes/pyGUT) on GitHub.  <div align="center">
+  <a class="button" https://github.com/Riverscapes/pyGUT"><i class="fa fa-github"/> Visit pyGUT Repo</a>  
+</div>
+
 
 ## Prerequisites
 
