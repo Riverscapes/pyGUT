@@ -8,6 +8,8 @@ title: Geomorphic Unit Tool
 
 Welcome to PyGUT website. This site provides documentation for the Geomorphic Unit Tool (GUT).  The tool delineates instream geomorphic units (GUs) from topography using a 3-tiered hierarchical classification adapted from [(Wheaton et al., 2015)](https://doi.org/10.1016/j.geomorph.2015.07.010).
 
+**NOTE*** GUT is no longer on supported platforms (i.e. ArcPy from ArcMap) and is in need of a refactor. The algorithms are solid, but they need refactoring into non-ESRI depdendent flavors of Python. For those looking to simply to manually apply Geomorphic Unit mapping using the Fluvial Taxonomy (Wheaton et al. 2015) that GUT uses, we recommend using one of the [protocols](https://qris.riverscapes.net/protocols/protocol-library/dce-protocols) in [Riverscape Studio (QRiS)](https://qris.riverscapes.net).
+
 We provide documentation on:
 
 1. Theoretical [background]({{ site.baseurl }}/background) underpinning the tool
@@ -16,7 +18,7 @@ We provide documentation on:
 4. Descriptions of [GUT output]({{ site.baseurl }}/2.GUTOutput/index)
 5. The  [nuts and bolts]({{ site.baseurl }}/3.GUTAlgorithms/index) behind the algorithms
 
-*The website is still under construction but will be fully populated shortly.  In the meantime, if you have questions or want to run the code, please contact Sara Bangen (sara.bangen@gmail.com) or Natalie Kramer (n.kramer.anderson@gmail.com).*
+
 
 ## Developers
 
@@ -41,11 +43,13 @@ For those wishing to tweak the source code and/or documentaton, the open source 
 
 ## Prerequisites
 
-GUT is designed to run in Python and currently has ESRI dependencies.  Users need to have ArcMap 10.1 or greater along with Spatial Analyst and 3D Analyst extensions.  In the future, we plan to code GUT in an open source language.
+This version of GUT is designed to run in Python and currently has ESRI dependencies.  Users need to have ArcMap 10.1 or greater along with Spatial Analyst and 3D Analyst extensions.  In the future, we plan to code GUT in an open source language.
 
 ## Presentations & Publications
 
 - Kramer N, Bangen SG, Wheaton JM, Bouwes N, Wall E, Saunders C, and Bennett S.. 2017. Geomorphic Unit Tool (GUT): Applications in Fluvial Mapping. EP11A-1546. AGU. New Orleans, LA, 11-15 Dec. DOI: [10.13140/RG.2.2.30142.18241](https://doi.org/10.13140/RG.2.2.30142.18241)
 - Bangen SG, Kramer N, Wheaton, JM, and Bouwes N. 2017. The GUTs of the Geomorphic Unit Tool: What is under the hood. EP31D-1901. AGU. New Orleans, LA, 11-15 Dec. DOI: [10.13140/RG.2.2.31118.66884](https://doi.org/10.13140/RG.2.2.31118.66884)
-- Bangen SG, Kramer N, Wheaton JM, and Bouwes N. In Preparation. Mapping instream geomorphic units from high resolution topography. 
+- Bangen SG, Kramer N, Wheaton JM, and Bouwes N. In Preparation. Mapping instream geomorphic units from high resolution topography.
+- Williams, R.D., Bangen, S., Gillies, E., Kramer, N., Moir, H., Wheaton, J., 2020. Let the river erode! Enabling lateral migration increases geomorphic unit diversity. Science of The Total Environment 136817. DOI: [10.1016/j.scitotenv.2020.136817](https://doi.org/10.1016/j.scitotenv.2020.136817)
+
 
